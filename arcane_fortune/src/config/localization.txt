@@ -1,0 +1,815 @@
+The "#" symbol is just a placeholder/marker for un-translated entries and should be removed once the translated entry is added.
+For some entries, I used `Google translate` to put in French translations. I put an "@" at the end of those lines, because
+I don't know French and cannot tell how good the translation is -- maybe someone who knows the language can double-check them.
+
+If you make any improvements to this file, or add a new language, please let me know! With your permission, I'd happily 
+include it in future releases for other people to use.
+{
+	languages: "EN", "FR" // @
+}
+
+---------------------------------------------------------------------------
+Generic text
+	***Do not translate tags such as [country], they're replaced in the game by the country names and colorized***
+	
+	For the menu entries (at the bottom of this block):
+		The "|" is to denote the letter, if any, to be used for a keyboard shortcut.
+		The "|" won't be displayed in the game.
+{
+	Empty_txt: "", "" // should be first entry
+	Action: "Action", "#Action" // @
+	Edition: "Cults of Rebellion", "Cultes de la rébellion" // @
+	Language: "Language", "Langue" // @
+	Load_game: "Load game", "Chargement du jeu" // title screen @
+	New_game: "New game", "Nouveau jeu" // title screen @
+	New_game_options: "New game options", "#New game options"
+	World_size: "World size", "La taille du monde" // @
+	arrow_keys: "<arrow keys>", "#<arrow keys>"
+	or: "or", "#or"
+	Use_number_or_arrow_keys_to_select: "(Use number or arrow keys to select)", "#(Use number or arrow keys to select)"
+	Use_arrow_keys_to_select: "(Use arrow keys to select)", "#(Use arrow keys to select)"
+	approximately: "approximately", "approximativement" // @
+	Recommended: "(Recommended)", "#(Recommended)"
+	Experimental: "(Experimental)", "(Expérimentale)" // @
+	Enter_key: "<Enter>", "<Entrée>"
+	Tab_key: "<Tab>", "<Tab>"
+	Road: "Road", "#Road"
+	Wall: "Wall", "#Wall"
+	Gate: "Gate", "#Gate"
+	damaged: " damaged", " #damaged" // context example: 3% damaged
+	Resume_construction: "Resume construction:", "Resume construction:"
+	Select_difficulty: "Select difficulty:", "#Select difficulty:"
+	Dedicate_to: "Dedicate to:", "#Dedicate to:" // window where the player selects a doctrine list item
+	Choose_a_name_for_the_brigade: "Choose a name for the brigade:", "#Choose a name for the brigade"
+	Choose_a_name_for_the_sector: "Choose a name for the sector:", "#Choose a name for the sector:"
+	Confirm: "Confirm", "#Confirm"
+	Leave_brigade: ": leave brigade", "#: leave brigade"
+	Join_brigade: ": Join brigade", "#: Join brigade"
+	Select_resource: "Select resource:", "#Select resource:"
+	Select_production: "Select production:", "#Select production:"
+	Select_technology: "Select technology:", "#Select technology:"
+	Move_cursor: "<Move cursor>", "#<Move cursor>"
+	to_select_a_building: "to select a building", "#to select a building" // <move cursor> to select a building
+	to_change_build_location: "to change build location", "#to change build location"
+	to_cancel_building: "to cancel building", "#to cancel building"
+	Select_edge_to_continue_construction: "Select the edge of an unfinished building to continue construction", "#Select the edge of an unfinished building to continue construction"
+	Russia: "Russia", "Russie" // @
+	Earth: "Earth", "Terre" // @
+	Number_of_players: "Number of players:", "#Number of players:"
+	At_which_level_are_your_leadership_skills: "At which level are your leadership skills?", "À quel niveau sont vos compétences en leadership?" // @
+	Nomad: "Nomad", "Nomade" // @
+	Bourgeoisie: "Bourgeoisie", "Bourgeoisie"
+	Mayor: "Mayor", "Maire" // @
+	Governor: "Governor", "Gouverneure" // @
+	Noble: "Noble", "Noble" // @
+	Monarch: "Monarch", "Monarque" // @
+	Khan_of_Heaven: "Khan of Heaven", "Khan du ciel" // @
+	to_start_game: "to start game", "pour commencer le jeu" //@ <enter> to start game
+	to_begin: ": to begin!", "#: to begin!" // <esc>: to begin!
+	Exit: "Exit", "Sortie" // @
+	Loading_game: "Loading game...", "#Loading game..."
+	Battalion: "Battalion", "Bataillon" // @
+	Country: "Country", "Pays" // @
+	Bnkrpt: "Bnkrpt", "Fllt" // @ (Bnkrpt = Bankrupt; Fllt = attempt at abbreviating "faillite")
+	Gold: "Gold", "Or" // @
+	Net: "Net", "#Net" // i.e. net income
+	Bldgs: "Bldgs", "#Bldgs"
+	Units: "Units", "#Units"
+	Carrying: "Carrying: ", "#Carrying: " // in the context of unit (ex. ship) carrying other units (ex. soldiers)
+	Taxes: "Taxes", "Impôts" // @
+	Budget: "Budget", "Budget" // @
+	Fin_all: ": Fin all", "#: Fin all"
+	Fin_all_tool_tip: "Progress game time until there is at least one idle unit.", "Progress game time until there is at least one idle unit."
+	Next_month: ": Next month", ": #Next month"
+	Next_day: ": Next day", ": #Next day"
+	Nxt_day: ": Nxt day", ": #Nxt day"
+	Stop: ": Stop", ": #Stop"
+	day: "day", "#day"
+	days: "days", "#days"
+	mons: "mons", "#mons" // aka months
+	Demographics: "Demographics", "Démographie"
+	Rsdnts: "Rsdnts:", "#Rsdnts:"
+	Unemp: "Unemp:", "#Unemp:"
+	Tech: "Tech", "#Tech"
+	Economic_bonus: "Economic bonus:", "#Economic bonus:"
+	Doctrine_tree: "Doctrine tree", "#Doctrine tree"
+	Rsrch_turn: "Rsrch/turn", "#Rsrch/turn" // research per turn
+	Rsrching: "Rsrching: ", "#Rsrching: " // researching
+	Fin: "Fin", "#Fin"
+	Group_move: "Move formation", "#Move formation"
+	Group_move_tool_tip: "Moves a group of units, maintaining their relative positioning.", "#Moves a group of units, maintaining their relative positioning."
+	Move_to: "Move to...", "#Move to..."
+	Never: "Never", "#Never"
+	Cultural_Advisor: "Cultural Advisor", "#Cultural Advisor"
+	Cultural_Advisor_vlow: " The state of your people is barbaric! They need, no require, you dedicate more buildings with a higher doctrine in mind.", "#vlow"
+	Cultural_Advisor_low: " Your empire is culturally stagnating. Consider dedicating more buildings with a higher doctrine in mind.", "#low"
+	Cultural_Advisor_neutral: " I suppose your people are sufficiently cultured and principled. Adding a bit more doctrine in people's lives never hurt, though.", "#neutral"
+	Cultural_Advisor_high: " Culture and princple are fundamental in your people's lives and, of the happiness they do have, much of it is in thanks to the doctrines through which they live.", "#high"
+	Cultural_Advisor_vhigh: " Your empire is thriving with principle and righteousness. Your people are rejoicing the virtues of living such dedicated lives to a greater cause!", "#vhigh"
+	Chief_of_Police: "Chief of Police", "#Chief of Police"
+	Chief_of_Police_vlow: " People cannot walk outside without fear. Get the crime levels of your empire under control immediately or unrest may boil up and become organized against you!", "#vlow"
+	Chief_of_Police_low: " Sleeping with one eye open, is that how you want your residents to live? Prioritize crime before it becomes a defining part of your empire.", "#low"
+	Chief_of_Police_neutral: " Lock your doors. That's what everyone keeps saying...", "#neutral"
+	Chief_of_Police_high: " People feel generally safe at home, but we could still do more to improve petty crimes that occur not too infrequently in the empire.", "#high"
+	Chief_of_Police_vhigh: " I could drop a gold bar from my pocket on the street and have it be promptly returned to me. What a great time for safety and peace-of-mind!", "#vhigh"
+	Public_Counsel_of_Foreign_Affairs: "Public Counsel of Foreign Affairs", "#Public Counsel of Foreign Affairs"
+	Public_Counsel_of_FA_vlow: " We believe the empire is wasting too many resources on frivilous activities and would like to see more infrastructure built around [].", "#vlow"
+	Public_Counsel_of_FA_low: " Take [] more seriously. Your handling of events both at home and abroad is starting to leave a bit to be desired...", "#low"
+	Public_Counsel_of_FA_neutral: " We can accept your pragmatic perspective on foreign affairs.", "#neutral"
+	Public_Counsel_of_FA_high: " While more can always be done with this imperfect world, we have respect for your handling of it.", "#high"
+	Public_Counsel_of_FA_vhigh: " Peace of mind at home and abroad -- we respect and regard your handling of foreign affairs.", "#vhigh"
+	Health_Advisor: "Health Advisor", "#Health Advisor"
+	Health_Advisor_vlow: " It almost seems like you are trying to promote sickness and suffering in your empire! You should priortize creating a better health infrastructure immediately.", "#vlow"
+	Health_Advisor_low: " While people are not dying on the streets, that's about the most that can be said for the empire's health. Do something about it.", "#low"
+	Health_Advisor_neutral: " Living in your empire or living among the barbarians. What's the difference? Maybe we can strive for a little better...", "#neutral"
+	Health_Advisor_high: " People do better in your empire than they would do alone, among the unorganized barbarians. But is that all you're aming for?", "#high"
+	Health_Advisor_vhigh: " What a time to be alive! People feel healthy and better than ever, and some of this seems to affect their attitude towards the empire at large.", "#vhigh"
+	Economic_Advisor: "Economic Advisor", "#Economic Advisor"
+	Economic_Advisor_vlow: " There are too many people with too little work, and too much time on your hands. Get to work on giving them work, or they will get to work on sabotaging your rule.", "#vlow"
+	Economic_Advisor_low: " Maybe not having enough money to live and eat is affecting your empire's happiness. Maybe, just maybe...", "#low"
+	Economic_Advisor_neutral: " While people generally have enough to resources live, their prosperity ends there. Improve employment and you should see the benefits of a happier population.", "#neutral"
+	Economic_Advisor_high: " The economy, from the perspective of your residents, appears stable and sufficient.", "#high"
+	Economic_Advisor_vhigh: " Bread and circuses -- this is the life of the average resident. Much can be done with your rule if you maintain this relative level of economic prosperity.", "#vhigh"
+	to_zoom_in: "to zoom in", "#to zoom in" // ex. press key 'i' to zoom in
+	Select_exploration_type: "Select exploration type:", "#Select exploration_type:"
+	Random: "Random", "#Random"
+	Spiral_out: "Spiral out", "#Spiral out"
+	Move_w_cursor: "Move with cursor", "#Move with cursor"
+	Move_w_cursor_tool_tip: "The unit will immediately follow the text cursor. With this mode, using the keyboard can be easier than the mouse.", "#The unit will immediately follow the text cursor. With this mode, moving the text cursor with the keyboard can be easier than the mouse."
+	Zone_demands: "Zone demands", "#Zone demands"
+	Zone: "Zone", "#Zone"
+	Local_demand: "Local demand", "#Local demand" // in regards to zoning
+	Arrow_keys_mv: "Arrow keys mv:", "#Arrow keys mv:"
+	Arrow_keys: "Arrow keys", "#Arrow keys"
+	Screen: "Screen", "Écran" // @
+	Cursor: "Cursor", "Curseur" // @
+	to_cancel: "to cancel", "#to cancel" // <esc> to cancel
+	to_go_back: "to go back", "#to go back"
+	Left_arrow: "<Left arrow>", "#<Left arrow>"
+	What_would_you_like_to_learn_about: "What would you like to learn about?", "#What would you like to learn about?"
+	Select_a_rectangular_group_of_units: "Select a rectangular group of units:", "#Select a rectangular group of units:"
+	Select_a_unit: "Select a unit", "#Select a unit"
+	Select_a_building: "Select a building", "#Select a building"
+	Select_a_technology: "Select a technology", "#Select a technology"
+	Select_a_resource: "Select a resource", "#Select a resource"
+	Symbol: "Symbol:", "Symbole:" // @
+	Press: "Press", "#Press" // Press X to assign action to all battalions Or select one individually
+	to_add_an_action: "to add an action", "#to add an action"
+	Assign_an_action_to: "Press key (or click) to assign an action to:", "Press key (or click) to assign an action to:"
+	all_battalions_in_brigade: "All battalions in the brigade ([])", "#All battalions in the brigade ([])"
+	all_battalions_in_brigade_tool_tip: "All the battalions in the brigade will immediately begin executing the action. For example, all moving to a location.", "#All the battalions in the brigade will immediately begin executing the action. For example, all moving to a location."
+	brigade_build_list: "The build list ([])", "#The build list ([])"
+	brigade_build_list_tool_tip: "Idle workers in the brigade will sequentually perform the actions in the build list. For example, zoning land or constructing a building.", "#Idle workers in the brigade will sequentually perform the actions in the build list. For example, to zoning land or constructing a building."
+	Build_list: "Build list:", "#Build list:"
+	brigade_repair_tool_tip: "Workers in the brigade will immediately begin repairing any damaged walls in the specified map sector.", "#Workers in the brigade will immediately begin repairing any damaged walls in the specified map sector."
+	view_build_list: ": view)", "#: view)"
+	actions: "actions", "actions"
+	action: "action", "action"
+	an_individual_battalion: "An individual battalion (select below):", "An individual battalion (select below):"
+	Brigade: "Brigade", "Brigade"
+	Save_auto_freq: "Save auto-frequency", "#Save auto-frequency"
+	years_0_disables: "years. (0 disables auto-saving)", "#years. (0 disables auto-saving)"
+	Advisor_caution: "Your advisors caution, however, that while this issue is upsetting to many, there may be more than one reason for this sentiment.", "Your advisors caution, however, that while this issue is upsetting to many, there may be more than one reason for this sentiment."
+	Choose_an_action_for_all_brigade_units: "Choose an action for all units in the [] Brigade:", "#Choose an action for all units in the [] Brigade:"
+	Choose_an_action_to_add_to_the_brigade_build_list: "Choose an action to add to the [] Brigade build list:", "Choose an action to add to the [] Brigade build list:"
+	start_drawing_sector: "start drawing sector at cursor location", "#start drawing"
+	sector_drawing: "sector drawing", "#sector drawing"
+	start_selecting_brigade: "start selecting brigade at cursor location", "#start selecting brigade"
+	brigade_selection: "brigade selection", "#brigade selection"
+	finish_drawing_sector: "finish drawing sector", "#finish drawing sector"
+	rectangle_corner: "rectangle corner", "#rectangle corner"
+	finish_drawing_group: "finish drawing group", "#finish drawing group"
+	finish_selecting_brigade: "finish selecting brigade", "#finish selecting brigade"
+	group_movement: "group movement", "#group movement"
+	Or_select_an_action_and_press: "Or select an action and press", "#Or select an action and press"
+	to_remove: "to remove:", "#to remove:"
+	The_X_Battalion_reports_activity: "The [battalion_nm] Battalion reports activity in Sector [sector_nm].", "The [battalion_nm] Battalion reports activity in Sector [sector_nm]."
+	Reqs_X_rsrch: "Reqs [] rsrch", "#Reqs [] rsrch"
+	create: "create", "#create" // then follows a list of units the player can create/train
+	build: "build", "#build" // then follows a list of buildings a player can construct
+	locate_and_use: "locate and use", "#locate and use" // then follows a list of resources
+	Required_technology: "Required technology:", "#Required technology:"
+	Req_prevailing_doctrine: "Req prevailing doct:", "#Req prevailing doct:"
+	Pre_req: "Pre-req:", "#Pre-req:"
+	Bldg_pts: "Bldg pts:", "#Bldg pts:"
+	Bldg_pts_req: "Bldg pts req:", "#Bldg pts req:"
+	Research_required: "Research required:", "#Research required:"
+	Research_output_per_day: "Research output / day:", "#Research output / day:"
+	Required_resources: "Required resources:", "#Required resources:"
+	Time_to_discover: "Time to discover:", "#Time to discover:"
+	Req_for_creating: "Req for creating:", "#Req for creating:"
+	Req_for_building: "Req for building:", "#Req for building:" // aka required for constructing
+	Req_for_discovering: "Req for discovering:", "#Req for discovering:"
+	Produced_by: "Produced by", "#Produced by"
+	Movement_speed: "Movement speed:", "#Movement speed:"
+	Carrying_capacity: "Carrying capacity:", "#Carrying capacity:" // for ships and planes
+	Health: "Health", "Santé" // @
+	Terrain: "Terrain", "#Terrain" // @
+	All_water: "All water", "#All water"
+	Shallow_water_only: "Shallow water only", "#Shallow water only"
+	Land_and_owned_walls: "Land and through owned walls", "#Land and through owned walls"
+	Land_only: "Land only", "#Land only"
+	Air: "Air", "Air" // @
+	Time_required_to_produce: "Time required to produce", "#Time required to produce"
+	Time_required_to_construct: "Time req to construct", "#Time req to construct"
+	km_day: "km/day", "#km/day"
+	Cost_per_day_to_support: "Cost per day to support", "#Cost per day to support"
+	Cost_per_day: "Cost per day:", "#Cost per day:"
+	gold: "gold", "#gold"
+	note_tile_conversion: "(Note: 1 tile = 5 m)", "#(Note: 1 tile = 5 m)"
+	None: "None", "Aucune" // @
+	Government_funded: "Government funded", "Financé par le gouvernement" // @
+	Civilian_taxable: "Civilian (taxable)", "#Civilian (taxable)"
+	Agricultural_bonus: "Agricultural bonus", "#Agricultural bonus"
+	Residential_bonus: "Residential bonus", "#Residential bonus"
+	Industrial_bonus: "Industrial bonus", "#Industrial bonus"
+	Business_bonus: "Business bonus", "#Business bonus"
+	Can_create: "Can create", "#Can create"
+	yrs: "yrs", "#yrs" // aka years
+	years: "years", "#years"
+	months: "months", "#months"
+	Research_req: "Research req", "#Research req"
+	to_exit_menu: "to exit menu", "#to exit menu" // (<Esc> to exit menu)
+	By: "By", "#By" // as in made by
+	Visit: "Visit", "#Visit" // Visit http://arcanefortune.com
+	Target: "Target", "#Target" // compilation target
+	to_close: "to close", "#to close" // <esc> to close
+	expand: "([]: expand)", "#([]: expand)"
+	hide: "([]: hide)", "#([]: hide)"
+	version: "version", "#version"
+	Founded: "Founded", "#Founded"
+	Open_game: "Open game", "#Open game"
+	Cancel: "Cancel", "Annuler" // @
+	Tab: "Tab", "Tab"
+	Cancel_colon: "Cancel:", "Annuler:" // @
+	and_x_more: "[] more", "#[] more" // context: used for building production: "(/: view 3 more)"
+	Select_an_item_to_remove: "Select an item to remove:", "#Select an item to remove:"
+	view_production: "view", "#view"
+	Open: "Open", "#Open"
+	Save_as: "Save as...", "#Save as..."
+	Save: "Save", "#Save"
+	Close: ": Close", "#: Close" // context: <esc>: Close
+	Sector: "Sector", "#Sector"
+	Damage: "Damage: ", "#Damage: "
+	Sentry: "Sentry", "#Sentry"
+	Patrol: "Patrol", "#Patrol"
+	Build_gate_instructions: "Build gate instructions", "#Build gate instructions"
+	Change_dest: "Change destination:", "#Change destination:"
+	drag_the_X: "drag the 'X'", "#drag the 'X'"
+	Move_unit: "Move unit:", "#Move unit:"
+	stop_dragging: "stop dragging", "#stop dragging"
+	Move_unit_instructions: "Move unit instructions", "#Move unit instructions"
+	Select_battalion: "Select battalion:", "#Select batallion:"
+	Select_brigade: "Select brigade:", "#Select brigade:"
+	Select_map_sector: "Select map sector:", "#Select map sector:"
+	Select_unit_enter_action: "What type of response would you like when a foreign unit enters the sector?", "#What type of response?"
+	No_map_sectors_found: "No map sectors found. Create one and try again.", "#No map sectors found. Create one and try again."
+	Select_city: "Select city:", "#Select city:"
+	Select_civilization: "Select civilization:", "#Select civilization"
+	N_units: "# units", "## units"
+	National_motto: "National motto:", "#National motto:"
+	Prevailing_doctrine: "Prevailing doctrine:", "#Prevailing doctrine:"
+	Resources_available: "Resources available", "#Resources available"
+	Go_to_resource: "Go to resource:", "#Go to resource:"
+	Attack_strength: "Attack strength:", "#Attack strength:"
+	Siege_bonus: "Siege bonus:", "#Siege bonus:"
+	Attack_range: "Attack range:", "#Attack range:"
+	na: "n/a", "#n/a" // aka "not applicable"
+	City_nm: "City nm", "#City nm" // aka city name
+	Zoning_req_to_use: "Zoning req to use:", "#Zoning req to use:"
+	Req_to_create: "Req to create:", "#Req to create:" // required to create
+	Found_in_most_to_least: "Found in (most to least probable):", "#Found in (most to least probable):"
+	Found_in: "Found in:", "#Found in:"
+	Agricultural: "Agricultural", "#Agricultural"
+	Residential: "Residential", "#Residential"
+	Business: "Business", "#Business"
+	Industrial: "Industrial", "#Industrial"
+	Production: "Production: ", "#Production: "
+	Producing: "Producing", "Producing"
+	City_Hall_dist: "City Hall dist: ", "#City Hall dist: "
+	Enforced_tax: "Enforced tax:", "#Enforced tax:"
+	Residents: "Residents: ", "#Residents: "
+	Employees: "Employees: ", "#Employees: "
+	Employed: "Employed:", "#Employed:"
+	Products_sold: "Products sold:", "#Products sold:"
+	Consumption: "Consumption:", "#Consumption:"
+	Tax_payments: "Tax payments:", "#Tax payments:"
+	No_route: "No route ", "#No route "
+	build_roads: "(build roads!)", "#(build roads!)"
+	Not_yet_determined: "Not yet determined...", "#Not yet determined..."
+	No_other_civs_discovered: "No other civilizations have been discovered yet.", "#No other civilizations have been discovered yet."
+	The_country_Embassy: "The [country] Embassy", "#The [country] Embassy"
+	perform_action: "perform action", "#perform action" // <Enter> perform action
+	select: "select", "#select" // <arrows> select
+	How_do_you_respond: "How do you respond?", "#How do you respond?" // to embassy greating
+	Threaten: "Threaten", "Menacer" // @
+	Declare_war: "Declare war", "#Declare war"
+	You_have_threatened_country: "You have threatened [country]!", "#You have threatened [country]!"
+	Name_affinity_responds: "[name], [affinity] responds:", "#[name], [affinity] responds:" // ex: "John Smith, angrily responds:"
+	Our_Intel_on_country: "Our Intel on [country]", "#Our Intel on [country]"
+	Ruler: "Ruler:", "#Ruler:"
+	Our_intelligence_tells_us: "Our intelligence tells us this is a [affinity] and [disposition] culture.", "#Our intelligence tells us this is a [affinity] and [disposition] culture."
+	Auto_save_the_game_every: "Auto-save the game every:", "#Auto-save the game every:" // then the numeric value is shown, then the next configuration entry below:
+	Auto_save_part2: "years. (0 disables auto-saving)", "years. (0 disables auto-saving)"
+	Propose_treaty: "Propose treaty", "#Propose treaty"
+	Go_to_coordinate: "Go to coordinate:", "#Go to coordinate:"
+	Go: "Go", "#Go"
+	No_info_to_plot: "We don't have any information to plot right now.", "#We don't have any information to plot right now."
+	Legend: "Legend", "#Legend" // as in on a plot
+	Next_prev_plot: "Next/prev plot", "#Next/prev plot" // <Arrow keys> Next/prev plot
+	Time: "Time", "Temps" // plot axis label
+	Map_buffer_used: "Map buffer used:", "Map buffer used:" // then the percentage is shown
+	Defensive_power: "Defensive Power", "#Defensive Power"
+	Offensive_power: "Offensive Power", "#Offensive Power"
+	Population: "Rsdnts", "#Rsdnts"
+	Historic: "(Historic)", "#(Historic)" // used for civs that collapsed/were conquered
+	Unemployed: "Unemployed", "#Unemployed"
+	Net_Income: "Net Income", "#Net Income"
+	Research_Output: "Research Output", "#Research Output"
+	Technological_Development: "Technological Development", "#Technological Development"
+	Happiness: "Happiness", "#Happiness"
+	Moving: "Moving", "#Moving"
+	Moving_civilian: "Moving civilian", "#Moving civilian"
+	Crime: "Crime", "#Crime"
+	Pacifism_Militarism: "Pacifism - Militarism", "#Pacifism - Militarism"
+	Militarism: "Militarism:", "#Militarism:"
+	Pacifism: "Pacifism:", "#Pacifism:"
+	Safety: "Safety:", "#Safety:"
+	Doctrinality: "Doctrinality:", "#Doctrinality:"
+	Methodicalism: "Methodicalism:", "#Methodicalism:"
+	Zone_Demands: "Zone Demands", "#Zone Demands"
+	Milliseconds_runtime_per_game_day: "Milliseconds runtime per game day (performance measure)", "#Milliseconds runtime per game day (performance measure)"
+	Discovers: "Discovers:", "#Discovers:" // Discovers: unit]
+	vs_time: "vs. time", "#vs. time" // suffix of something like: Crime vs. time
+	Keys: "Keys", "#Keys" // as in on your keyboard
+	Scroll_view: "Scroll view", "#Scroll view" // [keys]: Scroll view
+	Change_selection: "Change selection", "#Change selection" // [keys]: Change selection
+	Start_researching: "Start researching", "#Start researching" // [keys]: Start researching
+	Color_indicators: "Color indicators", "#Color indicators" // legend title
+	selected_tech: "selected tech", "#selected tech" // legend entry
+	selected: "selected", "#selected" // legend entry
+	Doctrinality_Methodicalism: "Doctrinality - Methodocialism", "#Doctrinality - Methodocialism" // plot title
+	Your_empires_prevailing_doctrines: "Your empire's prevailing doctrines", "#Your empire's prevailing doctrines" // plot title
+	World_prevailing_doctrines: "World prevailing doctrines", "#World prevailing doctrines" // plot title
+	prevailing_doctrinality: "your empire's prevailing doctrine", "#your empire's prevailing doctrine" // legend text
+	doctrine_w_presence: "doctrine with some presence in your empire", "#doctrine with some presence in your empire" // legend txt
+	undiscovered_tech: "undiscovered tech", "#undiscovered tech" // legend entry
+	discovered_tech: "discovered tech", "#discovered tech" // legend entry
+	researching: "researching", "#researching" // legend entry
+	Req_for: "Req for:", "#Req for:" // Req for: units]
+	Reqs: "Reqs [value] rsrch", "#Reqs [value] rsrch" // Tech requirement
+	Also_req: "Also req:", "Also req:"
+	World_History: "World History", "L'histoire du monde" // window title @
+	Battle_History: "Battle History", "#Battle History" // window title
+	Ecnomic_History: "Economic History", "#Economic History" // window title
+	No_logs: "The world is still pre-historical and no logs exists yet. Check back later.", "#The world is still pre-historical and no logs exist yet. Check back later."
+	Dispositions: "Dispositions:", "#Dispositions:" // aka attitudes / beliefs / inclinations
+	Moods: "Moods:", "#Moods:"
+	Cost: "Cost", "Coût"
+	Dist: "Dist", "Dist" // aka Distance @
+	Idle: "Idle", "#Idle"
+	Zoning: "Zoning", "#Zoning"
+	Automated: "Automated", "#Automated"
+	Fortified: "Fortified", "Fortifiée" // @
+	Fortify: "Fortify", "#Fortify"
+	Fortify_tool_tip: "The unit will fortify in place and receive an extra defensive bonus.", "The unit will fortify in place and receive an extra defensive bonus."
+	Pass_turn: "Pass turn", "#Pass turn"
+	Dedication: "Dedication ", "#Dedication " // name of doctrine a building or monument has been dedicated to
+	Auto_exploring: "Auto-exploring", "#Auto-exploring"
+	Auto_explore: "Auto-explore", "#Auto-explore"
+	Building_road: "Building road", "#Building road"
+	Building_gate: "Building gate", "#Building gate"
+	Building_wall: "Building wall", "#Building wall"
+	Repairing_wall: "Repairing wall", "#Repairing wall"
+	Building: "Building", "#Building"
+	Attacking: "Attacking", "#Attacking"
+	Disband: "Disband", "#Disband"
+	Disband_tool_tip: "The unit is dismissed and will cease to exist.", "The unit is dismissed and will cease to exist."
+	Zone_agricultural: ": Zone agricultural", "#: Zone agricultural" // unit action
+	Zone_business: ": Zone business", "#: Zone business" // unit action
+	Zone_residential: ": Zone residential", "#: Zone residential" // unit action
+	Zone_industrial: ": Zone industrial", "#: Zone industrial" // unit action
+	Automate_worker: ": Automate zone/wall construct.", "#: Automate zone/wall construct."
+	Automate_worker_tool_tip: "Start constructing a wall and zones around the city hall this worker is closest to. The worker will zone over any zones you've added and ignore any previously-created walls.", "#Start constructing a wall and zones around the city hall this worker is closest to. The worker will ignore any zones you've added and ignore any previously-created walls."
+	Cont_bldg_construction: ": Cont bldg construction/repair", "#: Cont bldg construction/repair" // continue building construction
+	Cont_bldg_construction_tool_tip: "Continues building construction or repair.", "#Continues building construction or repair"
+	no_actions_remain: "(no actions remain)", "#(no actions remain)"
+	Member_of_the_Brigade: "The [] Brigade ", "The [] Brigade "
+	view_brigade: "[]: view", "#[]: view"
+	Press_to_add_action_to_brigade_build_list: "Press [] to add an action to the brigade build list", "#Press [] to add an action to the brigade build list"
+	The_Battalion: "The [nm] Battalion ([type])", "#The [nm] Battalion ([type])"
+	Create_bldg: ": Create bldg", "#: Create blg"
+	Build_road_to: ": Build road to...", "#: Build road to..."
+	Build_road: "Build road:", "#Build road:"
+	Build_gate: ": Build gate", "#: Build gate"
+	Build_gate_tool_tip: "Gates can be inserted into walls and will allow only your units to pass through. They are, however, weaker than walls.", "Gates can be inserted into walls and will allow only your units to pass through. They are, however, weaker than walls."
+	Build_gate_no_pre_colon: "Build gate:", "#Build gate:"
+	Days_required: "Days required:", "#Days required:"
+	est: "(est.)", "#(est.)"
+	Build_wall_to: ": Build wall to...", "#: Build wall to..."
+	Build_wall: "Build wall:", "#Build wall:"
+	Attacking_instructions: "Attacking instructions", "#Attacking instructions"
+	Burn_building: "Burning building", "#Burning building"
+	Repair_wall_at: ": Repair wall at...", "#: Repair wall at..."
+	Repair_wall_instructions: "Repair wall instructions", "#Repair wall instructions"
+	Repair_wall: "Repair wall:", "#Repair wall:"
+	Start_selecting: "Start selecting:", "#Start selecting:"
+	Confirm_selection: "Confirm selection:", "#Confirm selection:"
+	Select_an_area: "Select an area to remove its zones & buildings", "#Select an area to remove its zones & buildings"
+	Removing_zones_and_bldgs: "Removing zones & bldgs", "#Removeing zones & bldgs"
+	rm_bldgs_and_zones: "Remove bldgs & zones", "#Remove bldgs & zones"
+	Create_brigade_by_drawing_a_rectangle: "Create brigade by drawing a rectangle around some units:", "#Select brigade by drawing a rectangle:"
+	Create_sector_by_drawing_a_rectangle: "Create sector by drawing a rectangle:", "#Create sector by drawing a rectangle:"
+	Zoning_instructions: "Zoning instructions", "#Zoning instructions"
+	Change_location: "Change location:", "#Change location:"
+	move_mouse: "move mouse", "#move mouse"
+	Finish_zoning: "Finish zoning:", "#Finish zoning:"
+	Start_zoning: "Start zoning:", "#Start zoninig:"
+	click_and_drag: "click & drag", "#click & drag"
+	to_move_unit: "to move unit", "#to move unit"
+	Building_instructions: "Building instructions", "#Building instructions"
+	Build: "Build:", "#Build:"
+	to_stop_moving_unit: "to stop moving unit", "#to stop moving unit"
+	Attack: "Attack", "#Attack"
+	Select_group: "Select group", "#Select group"
+	Move_corner: "Move corner:", "#Move corner:"
+	Finish: "Finish:", "#Finish:"
+	to_continue: "to continue", "#to continue" // context: <enter>: to continue
+	Unload_units: ": Unload units", "#: Unload units" // ex. from a boat
+	abandoned: " (abandoned)", " #(abandoned)" // in regards to a building
+	Construction_progress: "Construction progress:", "#Construction progress:"
+	S: "S", "#S" // south
+	N: "N", "#N" // north
+	E: "E", "#E" // east
+	W: "W", "#W" // west
+	SW: "SW", "#SW" // south west
+	SE: "SE", "#SE" // south east
+	NW: "NW", "#NW" // north west
+	NE: "NE", "#NE" // north east
+	Jan: "Jan", "#Jan" // January
+	Feb: "Feb", "#Feb"
+	Mar: "Mar", "#Mar"
+	Apr: "Apr", "#Apr"
+	May: "May", "#May"
+	Jun: "Jun", "#Jun"
+	Jul: "Jul", "#Jul"
+	Aug: "Aug", "#Aug"
+	Sep: "Sep", "#Sep"
+	Oct: "Oct", "#Oct"
+	Nov: "Nov", "#Nov"
+	Dec: "Dec", "#Dec"
+	Max_residents: "Max residents:", "#Max residents:"
+	Max_consumption: "Max consumption:", "#Max consumption:"
+	Max_production: "Max production:", "#Max production:"
+	Ocean: "Ocean", "Océan" // @
+	Shallow_water: "Shallow water", "#Shallow water"
+	Mountain: "Mountain (impassible)", "#Mountain (impassible)"
+	Undiscovered: "Undiscovered", "#Undiscovered"
+	Tundra: "Tundra", "#Tundra"
+	Desert: "Desert", "#Desert"
+	Pine_forest: "Pine forest", "#Pine forest"
+	Savanna: "Savanna", "#Savanna"
+	Steppe: "Steppe", "#Steppe"
+	Prarie: "Prarie", "#Prarie"
+	Heath: "Heath", "#Heath"
+	Mixed_forest: "Mixed forest", "#Mixed forest"
+	Broadleaf_forest: "Broadleaf forest", "#Broadleaf forest"
+	Tropical_broadleaf: "Tropical broadleaf", "#Tropical broadleaf"
+	Wetland: "Wetland", "#Wetland"
+	Meadow: "Meadow", "#Meadow"
+	doctrine_changed_line1: "They will now reap its benefits and view the world through its lens.", "#They will now reap its benefits and view the world through its lens."
+	doctrine_changed_line2: "Perhaps this lens will give them a new perspective on your rule...", "#Perhaps this lens will give them a new perspective on your rule..."
+	Generating_elevation_map: "Generating elevation map", "#Generating elevation map"
+	Smoothing_elevation_map: "Smoothing elevation map", "#Smoothing elevation map"
+	Generating_arability_map: "Generating arability map", "#Generating arability map"
+	Smoothing_arability_map: "Smoothing arability map", "#Smoothing arability map"
+	Placing_humankind: "Placing humankind", "#Placing humankind"
+	Done: "Done.", "#Done."
+	Saving_game: "Saving game...", "#Saving game..."
+	attempt: "attempt", "#attempt" // (attempt 10/1000)
+	Unmvd_units: "(Unmvd units)", "#(Unmvd units)" // aka unmoved units
+	MPD: "MPD", "#MPD" // aka milliseconds per day
+	DPS: "DPS", "#DPS" // aka days per second
+	DPF: "DPF", "#DPF" // aka days per frame
+	Current_location_blocked: "Current location is blocked by other units or structures", "#Current location is blocked by other units or structures"
+	Militarist: "Militarist", "#Militarist" // substantial disposition towards war
+	Interventionist: "Interventionist", "#Interventionist" // slight disposition towards war
+	Pragmatist: "Pragmatist", "#Pragmatist" // neutral towards war
+	Peace_minded: "Peace-minded", "#Peace-minded" // slightly favoring peace
+	Pacifist: "Pacifist", "#Pacifist" // substantial favoring of peace
+	Devout: "Devout", "#Devout" // in the regards to doctrines
+	Reverant: "Reverant", "#Reverant" // in regards to doctrines
+	Adherant: "Adherant", "#Adherant" // in regards to doctrines
+	Influenced: "Influenced", "#Influenced" // that is, not very influenced by doctrine
+	Illiterate: "Illiterate", "#Illiterate"
+	Literate: "Literate", "#Literate"
+	Artisan: "Artisan", "#Artisan" // aka skilled / trained
+	Scholar: "Scholar", "#Scholar"
+	Treasonous: "Treasonous", "#Treasonous"
+	Rebellious: "Rebellious", "#Rebellious"
+	Doubtful: "Doubtful", "#Doubtful"
+	Hopeful: "Hopeful", "#Hopeful"
+	Content: "Conent", "#Content"
+	Joyful: "Joyful", "#Joyful"
+	Euphoric: "Euphoric", "#Euphoric"
+	Automate: "Automate", "#Automate"
+	Soldier_automate_tool_tip: "Automated attacking, defense, or reporting of foreign units.", "#Automated attacking, defense, or reporting of foreign units."
+	change_brigade_repair: "([]hange)", "#([]hange)"
+	clear_brigade_repair: "([]lear)", "#([]lear)"
+	The_NM_Brigade: "The [] Brigade", "#The [] Brigade"
+	Repair_damaged_walls: "Walls in Sector []", "#Walls in Sector []"
+	Assault_desc: "Assaul|t|: immediately declare war and attack", "#Assault"
+	Assault: "Assault", "#Assault"
+	Defense_desc: "D|efense: attack only if already at war with the nation", "#Defense"
+	Defense: "Defense", "#Defense"
+	Report_desc: "R|eport: alert you only", "#Report"
+	Report: "Report", "#Report"
+	Zoom_in: "Zoom in", "#Zoom in"
+	mouse_wheel: "mouse wheel", "#mouse wheel"
+	mouse: "mouse", "#mouse"
+	right_click: "right click", "#right click"
+	keyboard: "keyboard", "#keyboard"
+	Rioting_has_broken_out: "Rioting has broken out in [city_nm]!", "#Rioting has broken out in [city_nm]!"
+	No_actions_remain: "No actions remain for [battalion_nm] ([unit_type]).", "No actions remain for [battalion_nm] ([unit_type])."
+	Adopted_doctrine: "Your empire's residents have adopted the doctrine of []", "#Your empire's residents have adopted the doctrine of []"
+	Assign_actions_to_them: "Assign actions to them to use the 'Finish all' feature.", "#Assign actions to them to use the 'Finish all' feature."
+	You_have_unmoved_units: "You have unmoved, idle units", "#You have unmoved, idle units"
+	Fortify_them_if: "(Fortify them if you have no immediate plans for them)", "(Fortify them if you have no immediate plans for them)"
+	Current_wars: "Current wars", "#Current wars"
+	Civic_Advisors: "Civic Advisors", "#Civic Advisors"
+	Public_Polling: "Public Polling", "#Public Polling"
+	positive: "positive", "#positive"
+	negative: "negative", "#negative"
+	on_average_responses: "On average, [pos_neg1] responses were scored as [frac]x higher than [pos_neg2] responses.", "#On average, [pos_neg1] responses were scored as [frac]x higher than [pos_neg2] responses."
+	When_not_engaged_what_action: "When not engaged in combat, what action should be performed?", "#What action should be performed?"
+	What_are_you_most_satisfied_with: "What are you most satisfied with?", "#What are you most satisfied with?"
+	What_are_you_least_satisfied_with: "What are you least satisfied with?", "#What are you least satisfied with?"
+	doctrines_surrounding: ": The doctrines that surround us", "#: The doctrines that surround us"
+	militarism_surrounding: ": The country's militarism", "#: The country's militarism"
+	pacifism_surrounding: ": The country's pacifism", "#: The country's pacifism"
+	sickness_surrounding: ": Sickness", "#: Sickness"
+	unemployment_surrounding: ": Unemployment", "#: Unemployment"
+	crime_surrounding: ": Crime", "#: Crime"
+	No_city_halls_found: "No city halls were found. Either move the unit closer to one, build one or progress game-time a day or two for construction on one to start if you've already instructed a worker to construct one.", "#No city halls were found. Either move the unit closer to one, build one or progress game-time a day or two for construction on one to start if you've already instructed a worker to construct one."
+	Automatic_repair_behavior: "Sector repair behavior:", "#Sector repair behavior:"
+	Sentry_desc: "Sentr|y|: stand ground (do not move)", "#Sentry"
+	Patrol_desc: "|P|atrol: walk the sector perimeter", "#Patrol"
+	At_what_distance: "At what distance beyond the sector should threats be responded to?", "#At what distance?"
+	Health_bonus: "Health bonus:", "#Health bonus:"
+	Crime_bonus: "Crime bonus:", "#Crime bonus:"
+	Pacifism_bonus: "Pacifism bonus:", "#Pacifism bonus:"
+	Militarism_bonus: "Militarism bonus:", "#Militarism bonus:"
+	Happiness_bonus: "Happiness bonus:", "#Happiness bonus:"
+	Tax_aversion: "Tax aversion:", "#Tax aversion:"
+	In_which_sector_do_you_want_to_automate: "In which sector do you want to automate the unit?", "#In which sector?"
+	Politics: "Politics:", "#Politics:" // as in political beliefs/affiliation
+	File: "F|ile", "F|ile#" ////////---------------------------------- start of top level menus
+	Accounting: "A|c|counting", "A|c|counting#"
+	Intel: "Inte|l|", "Inte|l|#"
+	View: "V|iew", "V|iew#"
+	Go_menu: "G|o", "G|o#"
+	Preferences: "P|references", "P|references#"
+	Help: "H|elp", "H|elp#"
+	File_Open: "O|pen", "O|pen#" //------------------------------ start of sub-level menus for each top-level menu
+	File_New: "N|ew", "N|ew#"
+	File_Save: "S|ave", "S|ave#"
+	File_Save_As: "Save |A|s", "Save |A|s#"
+	File_Exit: "E|x|it", "E|x|it#"
+	Accounting_Units: "U|nits", "U|nits#"
+	Accounting_Cities: "C|ities", "C|ities#"
+	Accounting_Resources: "Resources", "Resources#"
+	Accounting_Available: "  |A|vailable", "  |A|vailable#" // for resources
+	Accounting_Discovered: "  |D|iscovered", "  |D|iscovered#" // for resources
+	Intel_Plots: "Plots", "Plots#"
+	Intel_Defensive_power: "D|efensive power", "D|efensive power#"
+	Intel_Offensive_power: "O|ffensive power", "O|ffensive power#"
+	Intel_Population: "P|opulation", "P|opulation#"
+	Intel_Unemployed: "U|nemployed", "U|nemployed#"
+	Intel_Gold: "G|old", "G|old#"
+	Intel_Net_income: "N|et income", "N|et income#"
+	Intel_Research_output: "R|esearch output", "R|esearch output#"
+	Intel_Tech_development: "T|ech development", "T|ech development#"
+	Intel_Zone_demand: "Z|one demand", "Z|one demand#"
+	Intel_Happiness: "Happin|e|ss", "Happin|e|ss#"
+	Intel_Crime: "Cri|m|e", "Cri|m|e#"
+	Intel_Doctrine: "D|octrine", "D|octrine#"
+	Intel_Citizen_pacifism: "Citizen p|a|cifism", "Citizen p|a|cifism#"
+	Intel_Health: "Hea|l|th",  "Hea|l|th#"
+	Intel_Contact_embassy: "C|ontact embassy", "C|ontact embassy#"
+	Intel_Civilization_intel: "Civilization |i|ntel", "Civilization |i|ntel#"
+	Intel_Active_wars: "Active |w|ars", "Active |w|ars#"
+	View_Underlays: "Underlays", "Underlays#"
+	View_Arability: "   |A|rability", "   |A|rability#"
+	View_Elevation: "   |E|levation", "   |E|levation#"
+	View_Water_and_mountains_only: "   Water & mountains |o|nly", "   Water & mountains |o|nly#"
+	View_Overlays: "Overlays", "Overlays#"
+	View_Structures: "   |S|tructures", "   |S|tructures#"
+	View_Units: "   |U|nits", "   |U|nits#"
+	View_Buildings: "   |B|uildings", "   |B|uildings#"
+	View_Zones: "   |Z|ones", "   |Z|ones#"
+	View_Resources: "   |R|esources", "   |R|esources#"
+	View_Zone_demands: "   Zone |d|emands", "   Zone |d|emands#"
+	View_Happiness: "   Happi|n|ess", "   Happi|n|ess#"
+	View_Crime: "   |C|rime", "   |C|rime#"
+	View_Show_unconnected_bldgs: "   Show un|c|onnected bldgs", "   Show un|c|onnected bldgs#"
+	View_Show_unoccupied_bldgs: "   Show unoccup|i|ed bldgs", "   Show unoccup|i|ed bldgs#"
+	View_Windows: "Windows", "Windows#"
+	View_Tech_tree: "  |T|ech tree", "  |T|ech tree#"
+	View_Doctrine_tree: "  Doctrine tree (|1|)", "  Doctrine tree (|1|)#"
+	View_World_history: "  |W|orld history", "  |W|orld history#"
+	View_Battle_history: "  Battle |h|istory", "  Battle |h|istory#"
+	View_Economic_history: "  Econo|m|ic history", "  Econo|m|ic history#"
+	Go_Ctr_on_cursor: "Ctr |o|n cursor (Space)", "Ctr |o|n cursor (Space)#"
+	Go_Next_unmoved_unit: "N|ext unmoved unit", "N|ext unmoved unit#"
+	Go_Next_City_Hall: "Next |C|ity Hall", "Next |C|ity Hall#"
+	Go_To_coordinate: "T|o coordinate", "T|o coordinate#"
+	Preferences_Save_auto_frequency: "S|ave auto-frequency", "S|ave auto-frequency#"
+	Preferences_Auto_turn: "Auto turn", "Auto turn#"
+	Preferences_Auto_turn_increment: "   |A|uto turn increment", "   |A|uto turn increment#"
+	Preferences_Interrupt_auto_turn: "   |I|nterrupt auto turn for important events", "   |I|nterrupt auto turn for important events#"
+	Preferences_Terminal: "Terminal",  "Terminal#"
+	Preferences_Avoid_special_chars: "   |A|void special chars", "   |A|void special chars#"
+	Preferences_Use_only_8_colors: "   |U|se only 8 colors", "   |U|se only 8 colors#"
+	Preferences_Omnipresence: "Omnipresence", "Omnipresence#"
+	Preferences_Show_full_map: "   Show full |m|ap", "   Show full |m|ap#"
+	Preferences_Show_all_unit_actions: "   Show all unit ac|t|ions", "   Show all unit ac|t|ions#"
+	Preferences_Discover_all_civs: "   |D|iscover all civs", "   |D|iscover all civs#"
+	Preferences_Place_unit_at_cursor: "   |P|lace unit at cursor", "   |P|lace unit at cursor#"
+	Preferences_Switch_to_player: "   S|w|itch to player", "   S|w|itch to player#"
+	Preferences_Discover_specific_technology: "   Disco|v|er specific technology", "   Disco|v|er specific technology#"
+	Preferences_Discover_all_technology: "   Discover al|l| technology", "   Discover al|l| technology#"
+	Preferences_Obtain_resource: "   Obtain |r|esource", "   Obtain |r|esource#"
+	Preferences_Free_money: "   Free mone|y|", "   Free mone|y|#"
+	Preferences_Change_game_difficulty: "   |C|hange game difficulty", "   |C|hange game difficulty#"
+	Preferences_Pause_AI: "   Pause current AI's actio|n|s", "   Pause current AI's actio|n|s#"
+	Help_Encyclopedia: "E|ncyclopedia", "E|ncyclopedia#"
+	Help_Performance: "Performance", "Performance#"
+	Help_MPD_vs_time: "   |M|PD vs time", "   |M|PD vs time#"
+	Help_About: "A|bout", "A|bout#"
+}
+
+*************************** 
+Notes for people adding or altering resources, units, etc from the game:
+	Let's say you alter config/units.txt to rename the "ICBM" to
+	"Bomb". Then you also need to replace the "ICBM" text in this file with "Bomb".
+	The game requires that the first text string in every entry has a direct match in both
+	config/units.txt, for example, and this file.
+	Also, if you add a new unit, building, etc you also need to add the entry to this file.
+	The ordering of the entries doesn't matter (ex. putting "Logs" before "Corn"). 
+	It only matters that you put items in the correct block. ex. don't put units in the resource
+	block.
+**************************
+
+Resources 
+{
+	_: "Logs", "#Logs"
+	_: "Corn", "#Corn"
+	_: "Tobacco", "#Tobacco"
+	_: "Coffee", "#Coffee"
+	_: "Stone", "#Stone"
+	_: "Rice", "#Rice"
+	_: "Potatoes", "#Potatoes"
+	_: "Jungle", "#Jungle"
+	_: "Gold", "Or" // @
+	_: "Silver", "#Silver"
+	_: "Copper", "#Copper"
+	_: "Tin", "#Tin"
+	_: "Iron", "#Iron"
+	_: "Horses", "#Horses"
+	_: "Elephants", "#Elephants"
+	_: "Camels", "#Camels"
+	_: "Oil", "#Oil"
+	_: "Uranium", "#Uranium"
+}
+
+Units
+{
+	_: "Worker", "#Worker"
+	_: "Rioter", "#Rioter"
+	_: "Wood Clubber", "#Wood Clubber"
+	_: "Bone Spearman", "#Bone Spearman"
+	_: "Battering Ram", "#Battering Ram"
+	_: "Catapult", "#Catapult"
+	_: "Canon", "#Canon"
+	_: "Bronze Spearman", "#Bronze Spearman"
+	_: "Iron Swordsman", "#Iron Swordsman"
+	_: "Axeman", "#Axeman"
+	_: "Archer", "#Archer"
+	_: "Horse Archer", "#Horse Archer"
+	_: "Camel Archer", "#Camel Archer"
+	_: "Elephant Archer", "#Elephant Archer"
+	_: "Knight", "#Knight"
+	_: "Rifleman", "#Rifleman"
+	_: "Explorer", "#Explorer"
+	_: "Canoe", "#Canoe"
+	_: "Galley", "#Galley"
+	_: "Frigate", "#Frigate"
+	_: "Caravel", "#Caravel"
+	_: "Tank", "#Tank"
+	_: "Air Recon", "#Air Recon"
+	_: "ICBM", "#ICBM"
+}
+
+Buildings
+	Note: Some buildings display text as part of their presentation on the map (the `print_str` entries in config/buildings.txt)
+		Presently, the game shows what is provided in that file regardless of the translation here (and the in-game language settings).
+		However, the `print_str` settings *can* be changed/translated, or the text removed, if desired.
+		The game only reads from config/buildings.txt when a new game is created -- the settings are re-saved in the game's save file,
+		so any changes in config/buildings.txt will only take effect for new games.
+	The settings below are primarily used in the bottom text display (below the map on the screen)
+{
+	_: "City Hall", "#City Hall"
+	_: "Boot Camp", "#Boot Camp"
+	_: "Factory", "#Factory"
+	_: "Dock", "#Dock"
+	_: "Granary", "#Granary"
+	_: "Monument", "#Monument"
+	_: "Pyramid", "#Pyramid"
+	_: "House of Worship", "#House of Worship"
+	_: "Theater", "#Theater"
+	_: "Park", "#Park"
+	_: "School", "#School"
+	_: "Academy", "#Academy"
+	_: "University", "#Academy"
+	_: "Bank", "#Bank"
+	_: "Camp", "#Camp"
+	_: "Family farm", "#Family farm"
+	_: "Commercial farm", "#Commercial farm"
+	_: "Plantation", "#Plantation"
+	_: "Small house", "#Small house"
+	_: "Medium house", "#Medium house"
+	_: "Estate", "#Estate"
+	_: "Small Shop", "#Small Shop"
+	_: "Bakery", "#Bakery"
+	_: "General Store", "#General Store"
+	_: "Refurbisher", "#Refurbisher"
+	_: "Wholesaler", "#Wholesaler"
+	_: "Blacksmith", "#Blacksmith"
+	_: "Forge", "#Forge"
+	_: "Armorer", "#Armorer"
+	_: "Warehouse", "#Warehouse"
+	_: "Hospital", "#Hospital"
+	_: "Jail", "#Jail"
+	_: "Clinic", "#Clinic"
+	_: "Temple", "#Temple"
+	_: "Shaman Hut", "#Shaman Hut"
+	_: "Police Station", "#Police Station"
+	_: "Shrine", "#Shrine"
+	_: "Library", "#Library"
+	_: "Great Ballcourt", "#Great Ballcourt"
+	_: "Colosseum", "#Colosseum"
+	_: "Wellness Center", "#Wellness Center"
+	_: "Auditorium", "#Auditorium"
+	_: "Court House", "#Court House"
+	_: "Market", "#Market"
+}
+
+Technologies
+{
+	_: "Pottery", "#Pottery"
+	_: "Archery", "#Archery"
+	_: "Horseback Riding", "#Horseback riding"
+	_: "Woodworking", "#Woodworking"
+	_: "Rowing", "#Rowing"
+	_: "Compass", "#Compass"
+	_: "Sailing", "#Sailing"
+	_: "Ship Building", "#Ship Building"
+	_: "Stoneworking", "#Stoneworking"
+	_: "Metallurgy", "#Metallurgy"
+	_: "Bronze", "#Bronze"
+	_: "Ironworking", "#Ironworking"
+	_: "Steel", "#Steel"
+	_: "Currency", "#Currency"
+	_: "Banking", "#Banking"
+	_: "Combustion", "#Combustion"
+	_: "Knighthood", "#Knighthood"
+	_: "Gunpowder", "#Gunpowder"
+	_: "Artillery", "#Artillery"
+	_: "Modern Warfare", "#Modern Warfare"
+	_: "Newtonian Physics", "#Newtonian Physics"
+	_: "Electromagnetism", "#Electromagnetism"
+	_: "Quantum Mechanics", "#Quantum Mechanics"
+	_: "Fission", "#Fission"
+	_: "Theater", "#Theater"
+	_: "Philosophy", "#Philosophy"
+	_: "Humanities", "#Humanities"
+	_: "Allopathy", "#Allopathy"
+	_: "Flight", "#Flight"
+}
+
+Doctrine
+{
+	_: "Undefined Doctrine", "#Undefined Doctrine"
+	_: "Animism", "#Animism"
+	_: "Polytheism", "#Polytheism"
+	_: "Sacrificialism", "#Sacfircialism"
+	_: "Cultists of the Warrior", "#Cultists of the Warrior"
+	_: "Followers of the Nine Gods", "#Followers of the Nine Gods"
+	_: "Shamanism", "#Shamanism"
+	_: "Zhoism", "#Zhoism"
+	_: "Utilitarianism", "#Utilitarinism"
+	_: "Children of the Light", "#Children of the Light"
+	_: "Healers of the Light", "#Healers of the Light"
+	_: "Reform Lightism", "#Reform Lightism"
+}
+

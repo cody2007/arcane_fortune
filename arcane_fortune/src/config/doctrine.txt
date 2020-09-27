@@ -1,0 +1,100 @@
+The first entry in this file is assumed to be the undefined doctrine which
+should not have any bonuses. By default, many buildings are actually `dedicated` to it.
+{
+	nm: Undefined Doctrine
+}
+
+---------------------------------------
+Animism branch
+
+{
+	nm: Animism
+	pre_req_nm: Undefined Doctrine
+	bldg_req: 0.5
+	health_bonus: 100
+	crime_bonus: -300
+}
+
+{
+	nm: Polytheism
+	pre_req_nm: Animism
+	bldg_req: 1.5
+	health_bonus: 200
+	crime_bonus: -500
+}
+
+{
+	nm: Sacrificialism
+	pre_req_nm: Polytheism
+	bldg_req: 3.0
+	pacifism_bonus: -2.5
+}
+
+{
+	nm: Cultists of the Warrior
+	pre_req_nm: Sacrificialism
+	bldg_req: 5.0
+	pacifism_bonus: -5.0
+}
+
+{
+	nm: Followers of the Nine Gods
+	pre_req_nm: Polytheism
+	health_bonus: 500
+	crime_bonus: -1000
+	tax_aversion: -30
+	happiness_bonus: 10
+	bldg_req: 3.0
+}
+
+-----------------------------------------
+Shamanism branch
+
+{
+	nm: Shamanism
+	pre_req_nm: Undefined Doctrine
+	bldg_req: 0.5
+	health_bonus: 300
+}
+
+{
+	nm: Zhoism
+	pre_req_nm: Shamanism
+	bldg_req: 1.5
+	pacifism_bonus: 2.5
+	crime_bonus: -1000
+}
+
+{
+	nm: Utilitarianism
+	pre_req_nm: Zhoism
+	bldg_req: 3.0
+	tax_aversion: -30
+	happiness_bonus: 20
+}
+
+{
+	nm: Children of the Light
+	pre_req_nm: Shamanism
+	bldg_req: 3.0
+	health_bonus: 600
+	happiness_bonus: 10
+}
+
+{
+	nm: Healers of the Light
+	pre_req_nm: Children of the Light
+	bldg_req: 5.0
+	health_bonus: 1200
+	pacifism_bonus: 2.5
+}
+
+{
+	nm: Reform Lightism
+	pre_req_nm: Children of the Light
+	bldg_req: 5.0
+	health_bonus: 500
+	crime_bonus: -3000
+	pacifism_bonus: 2.5
+}
+

@@ -1,0 +1,14 @@
+[package]
+name = "ironnetpro"
+version = "0.0.1"
+authors = ["Your Name <you@example.com>"]
+edition = "2018"
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+profile = []
+cpu_only = []
+
+[dependencies]

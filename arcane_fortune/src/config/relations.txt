@@ -1,0 +1,6 @@
+{
+	peace_treaty_min_years: 5
+	declare_war_mood_drop: 1.0
+	threaten_mood_drop: 0.25
+}
+

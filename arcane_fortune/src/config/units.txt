@@ -1,0 +1,341 @@
+Each game tile is approximately 5 meters^2 and each turn approximately 1 day.
+Traversing a game tile takes one 'action'.
+
+Land based units:
+
+The Oregon Trail was approximately 2000 miles (3219 km) and
+took approximately 6 months 
+[https://www.history.com/topics/westward-expansion/oregon-trail; Accessed: December 18, 2019]
+
+Traveling at the average rate on the Oregon Trail means:
+(3219 km / 6 months) * (month / 30 days) * (1000 m / km) * (tiles / 5 meters) * (days / turn) * (actions / tile)
+ = 3577 actions / turn
+ 
+ 
+Speed of a galley:
+
+[https://www.quora.com/How-many-days-did-a-galley-take-for-a-1-000-nautical-mile-journey-during-the-1500s; Accessed: December 18, 2019]
+2.7 knots * (1.852 km / h) * (24 h / day) * (1000 m / km) * (tiles / 5 meters) * (days / turn) * (actions / tile)
+ = 24002 actions / turn
+
+---------------------------------------------------------------------------
+
+{
+	nm: Worker
+	actions_per_turn: 3000
+	max_health: 5
+	movement_type: Land
+	production_req: 1080
+	repair_wall_per_turn: 2
+	char_disp: W
+	upkeep: 0.125
+}
+
+{
+	nm: Rioter
+	actions_per_turn: 3000
+	max_health: 5
+	movement_type: Land
+	production_req: 0
+	char_disp: R
+	upkeep: 0
+}
+
+{
+	nm: Wood Clubber
+	actions_per_turn: 1000
+	attack_per_turn: 5
+	attack_range: 1
+	max_health: 10
+	movement_type: Land
+	production_req: 1080
+	char_disp: C
+	upkeep: 0.125
+}
+
+{
+	nm: Bone Spearman
+	actions_per_turn: 1000
+	attack_per_turn: 2
+	attack_range: 1
+	max_health: 20
+	movement_type: Land
+	production_req: 1080
+	char_disp: S
+	upkeep: 0.2
+}
+
+{
+	nm: Battering Ram
+	actions_per_turn: 900
+	attack_per_turn: 1
+	siege_bonus_per_turn: 1
+	attack_range: 1
+	max_health: 1
+	movement_type: Land
+	production_req: 1080
+	char_disp: B
+	upkeep: 0.05
+}
+
+{
+	nm: Catapult
+	actions_per_turn: 900
+	attack_per_turn: 1
+	siege_bonus_per_turn: 2
+	attack_range: 1
+	max_health: 1
+	movement_type: Land
+	production_req: 2080
+	char_disp: C
+	upkeep: 0.075
+	tech_req: Woodworking
+}
+
+{
+	nm: Canon
+	actions_per_turn: 900
+	attack_per_turn: 1
+	siege_bonus_per_turn: 5
+	attack_range: 1
+	max_health: 1
+	movement_type: Land
+	production_req: 2080
+	char_disp: N
+	upkeep: 0.085
+	resource_req: Iron
+	tech_req: Gunpowder
+}
+
+{
+	nm: Bronze Spearman
+	actions_per_turn: 1000
+	attack_per_turn: 4
+	attack_range: 1
+	max_health: 30
+	movement_type: Land
+	production_req: 1080
+	char_disp: B
+	upkeep: .25
+	tech_req: Bronze
+	resource_req: Copper, Tin
+}
+
+{
+	nm: Iron Swordsman
+	actions_per_turn: 1000
+	attack_per_turn: 8
+	attack_range: 1
+	max_health: 30
+	movement_type: Land
+	production_req: 1080
+	char_disp: I
+	upkeep: .3
+	tech_req: Ironworking
+	resource_req: Iron
+}
+
+{
+	nm: Axeman
+	actions_per_turn: 1000
+	attack_per_turn: 10
+	attack_range: 1
+	max_health: 10
+	movement_type: Land
+	production_req: 1080
+	char_disp: X
+	upkeep: .2
+	tech_req: Metallurgy
+	resource_req: Copper
+}
+
+{
+	nm: Archer
+	actions_per_turn: 2000
+	attack_per_turn: 10
+	attack_range: 2
+	max_health: 25
+	movement_type: LandAndOwnedWalls
+	production_req: 2160
+	char_disp: A
+	upkeep: .4
+	tech_req: Archery
+}
+
+{
+	nm: Horse Archer
+	actions_per_turn: 4000
+	attack_per_turn: 15
+	attack_range: 2
+	max_health: 8
+	movement_type: Land
+	production_req: 4000
+	char_disp: H
+	upkeep: .6
+	tech_req: Archery, Horseback Riding
+	resource_req: Horses
+}
+
+{
+	nm: Camel Archer
+	actions_per_turn: 1000
+	attack_per_turn: 15
+	attack_range: 2
+	max_health: 8
+	movement_type: Land
+	production_req: 4000
+	char_disp: M
+	upkeep: .6
+	tech_req: Archery, Horseback Riding
+	resource_req: Camels
+}
+
+{
+	nm: Elephant Archer
+	actions_per_turn: 1000
+	attack_per_turn: 17
+	attack_range: 2
+	max_health: 10
+	movement_type: Land
+	production_req: 4000
+	char_disp: L
+	upkeep: .6
+	tech_req: Archery, Horseback Riding
+	resource_req: Elephants
+}
+
+{
+	nm: Knight
+	actions_per_turn: 4000
+	attack_per_turn: 30
+	attack_range: 2
+	max_health: 16
+	movement_type: Land
+	production_req: 4000
+	char_disp: K
+	upkeep: .75
+	tech_req: Archery, Horseback Riding, Knighthood
+	resource_req: Horses, Iron
+}
+
+{
+	nm: Rifleman
+	actions_per_turn: 2000
+	attack_per_turn: 40
+	attack_range: 2
+	max_health: 8
+	movement_type: Land
+	production_req: 4060
+	char_disp: R
+	upkeep: .5
+	tech_req: Gunpowder
+}
+
+{
+	nm: Explorer
+	actions_per_turn: 5500
+	max_health: 5
+	movement_type: Land
+	production_req: 2160
+	char_disp: E
+	upkeep: .2
+}
+
+{
+	nm: Canoe
+	actions_per_turn: 4000
+	max_health: 1
+	movement_type: ShallowWater
+	carry_capac: 1
+	production_req: 2160
+	char_disp: C
+	upkeep: .1
+	tech_req: Rowing
+}
+
+{
+	nm: Galley
+	actions_per_turn: 24000
+	attack_per_turn: 1
+	attack_range: 1
+	max_health: 3
+	movement_type: ShallowWater
+	carry_capac: 2
+	production_req: 6480
+	char_disp: G
+	upkeep: .3
+	tech_req: Rowing, Woodworking
+	resource_req: Logs
+}
+
+{
+	nm: Frigate
+	actions_per_turn: 35000
+	attack_per_turn: 1
+	attack_range: 2
+	max_health: 6
+	movement_type: AllWater
+	carry_capac: 2
+	production_req: 12000
+	char_disp: F
+	upkeep: .5
+	tech_req: Rowing, Woodworking, Compass, Sailing
+	resource_req: Iron, Logs
+}
+
+{
+	nm: Caravel
+	actions_per_turn: 35000
+	attack_per_turn: 2
+	attack_range: 2
+	max_health: 15
+	movement_type: AllWater
+	carry_capac: 8
+	production_req: 20000
+	char_disp: C
+	upkeep: .85
+	tech_req: Rowing, Woodworking, Compass, Sailing, Ship Building
+	resource_req: Iron, Logs
+}
+
+
+{
+	nm: Tank
+	actions_per_turn: 5000
+	attack_per_turn: 30
+	attack_range: 1
+	upkeep: 5
+	max_health: 100
+	tech_req: Modern Warfare
+	movement_type: Land
+	production_req: 50000
+	char_disp: T
+	resource_req: Iron, Oil
+}
+
+{
+	nm: Air Recon
+	actions_per_turn: 50000
+	upkeep: 2
+	max_health: 1
+	tech_req: Flight
+	movement_type: Air
+	production_req: 20000
+	char_disp: P
+	resource_req: Iron, Oil
+}
+
+{
+	nm: ICBM
+	actions_per_turn: 5000000
+	attack_per_turn: 99999
+	attack_range: 1
+	upkeep: 4
+	max_health: 1
+	tech_req: Fission
+	movement_type: Air
+	production_req: 4000
+	char_disp: !
+	resource_req: Uranium
+}
+

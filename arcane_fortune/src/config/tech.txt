@@ -1,0 +1,194 @@
+30*12 = 360 days (i.e., 1 game year)
+
+{
+	nm: Pottery
+	research_req: 1240
+}
+
+{
+	nm: Archery
+	research_req: 1240
+}
+
+{
+	nm: Horseback Riding
+	tech_req: Archery
+	research_req: 1300
+}
+
+{
+	nm: Woodworking
+	research_req: 1240
+}
+
+---------------------------------------------
+Water
+--------------------------------------------
+
+{
+	nm: Rowing
+	tech_req: Woodworking
+	research_req: 1330
+}
+
+{
+	nm: Compass
+	tech_req: Rowing
+	research_req: 1330
+}
+
+{
+	nm: Sailing
+	tech_req: Compass
+	research_req: 1860
+}
+
+{
+	nm: Ship Building
+	tech_req: Sailing
+	research_req: 3000
+}
+
+---------------------------------------------
+Metals / Materials
+----------------------------------------------
+{
+	nm: Stoneworking
+	research_req: 800
+}
+
+{
+	nm: Metallurgy
+	tech_req: Stoneworking
+	research_req: 3100
+}
+
+{
+	nm: Bronze
+	tech_req: Metallurgy
+	research_req: 4000
+}
+
+{
+	nm: Ironworking
+	tech_req: Bronze
+	research_req: 5000
+}
+
+{
+	nm: Steel
+	tech_req: Ironworking
+	research_req: 6000
+}
+
+--------------------------------------------
+Economy
+--------------------------------------------
+{
+	nm: Currency
+	tech_req: Bronze
+	research_req: 5000
+}
+
+{
+	nm: Banking
+	tech_req: Currency
+	research_req: 10000
+}
+
+
+--------------------------------------------
+Advanced military
+--------------------------------------------
+
+{
+	nm: Combustion
+	tech_req: Woodworking, Ironworking
+	research_req: 6200
+}
+
+{
+	nm: Knighthood
+	tech_req: Horseback Riding, Ironworking
+	research_req: 10200
+}
+
+{
+	nm: Gunpowder
+	tech_req: Combustion
+	research_req: 12400
+}
+
+{
+	nm: Artillery
+	tech_req: Gunpowder, Steel
+	research_req: 15000
+}
+
+{
+	nm: Modern Warfare
+	tech_req: Artillery
+	research_req: 35000
+}
+
+{
+	nm: Flight
+	tech_req: Combustion
+	research_req: 20000
+}
+
+-------------------------------------
+Basic Science & Applied Science
+-----------------------------------
+
+{
+	nm: Newtonian Physics
+	tech_req: Ironworking
+	research_req: 6000
+}
+
+{
+	nm: Electromagnetism
+	tech_req: Newtonian Physics
+	research_req: 9000
+}
+
+{
+	nm: Quantum Mechanics
+	tech_req: Electromagnetism
+	research_req: 10000
+}
+
+{
+	nm: Fission
+	tech_req: Quantum Mechanics
+	research_req: 35000
+}
+
+-------------------------------------------------
+Culture
+------------------------------------------------
+{
+	nm: Theater
+	tech_req: Woodworking
+	research_req: 1240
+}
+
+{
+	nm: Philosophy
+	tech_req: Theater
+	research_req: 2000
+}
+
+{
+	nm: Humanities
+	tech_req: Philosophy
+	research_req: 3000
+}
+
+{
+	nm: Allopathy
+	tech_req: Philosophy
+	research_req: 3000
+}
+

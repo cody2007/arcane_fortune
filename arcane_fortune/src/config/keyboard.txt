@@ -1,0 +1,95 @@
+Note: 
+	The game does *not* check for collisions and may execute only one action
+	if more than one action is assigned to the same key.
+
+----------------------------
+	Cursor movement
+---------------------------
+`up` and `down` settings can be used in some selection windows (ex. to select
+a building for a worker to create). With those windows, if the `up` or `down`
+settings clash with one of the selection's keyboard shortcut, then the selection's
+keyboard shortcut will be used and the `up` and `down` settings will be ignored in that window.
+{
+	left: a
+	down: s
+	right: d
+	up: w
+	fast_left: A
+	fast_down: S
+	fast_right: D
+	fast_up: W
+	diag_up_left: q
+	diag_up_right: e
+	diag_down_left: z
+	diag_down_right: c
+	fast_diag_up_left: Q
+	fast_diag_up_right: E
+	fast_diag_down_left: Z
+	fast_diag_down_right: C
+}
+
+----------------
+Misc (Note: setting `enter` to a different value is not fully supported yet
+		the game may ignore the settings in many conditions)
+{
+	esc: <esc>
+	enter: <enter>
+	tab: <tab>
+	zoom_in: i
+	zoom_out: o
+	show_expanded_submap: #
+	open_top_menu: m
+	toggle_cursor_mode: `
+	center_on_cursor: <space>
+	progress_day: n
+	progress_day_ign_unmoved_units: N
+	progress_month: !
+	finish_all_unit_actions: @
+	change_brigade_repair: c
+	clear_brigade_repair: c
+}
+
+---------------
+Unit actions
+{
+	disband: x
+	move_unit: v
+	pass_move: p
+	change_bldg_production: p
+	auto_explore: l
+	fortify: f
+	build_bldg: h
+	build_road: k
+	attack: k
+	build_wall: y
+	automate_zone_creation: 8
+	repair_wall: 9
+	continue_bldg_construction: 7
+	group_move: g
+	unload_boat: u
+	join_or_leave_brigade: 6
+	move_with_cursor: 4
+	soldier_automate: 3
+	view_brigade: /
+	view_build_list: /
+	view_production: /
+	assign_action_to_all_in_brigade: 1
+	add_action_to_brigade_build_list: 2
+	build_gate: =
+	rm_bldgs_and_zones: 0
+}
+
+-------------------
+		Zones
+(for both creating and setting their taxes)
+	
+{
+	agricultural: u
+	residential: r
+	business: b
+	industrial: t
+	increase_tax: +
+	increase_tax_alt: =
+	decrease_tax: -
+}
+

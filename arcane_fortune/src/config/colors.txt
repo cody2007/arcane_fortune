@@ -1,0 +1,151 @@
+Colors for 256 color display: See:
+	https://web.archive.org/web/20200422043911/https://jonasjacek.github.io/colors/ (Accessed August 7, 2020)
+
+The color values shown in the link above are fairly widely used across terminals
+on Linux and OS X. ConEmu on Windows also does a good job of replicating these,
+however, I noticed some of them are not exactly what they look like on some Linux systems where I've tested the game the most.
+
+In theory, if your terminal supports it, you should be able to change these settings
+in your terminal preferences and achieve a similar result. However, you may not want
+to change your terminal-wide settings, so it may still be preferred to edit this file instead.
+
+Note: the game uses the following colors for these land arability values:
+		(at the moment, you can only redefine the colors,
+		  but not redefine the bindings
+		  (ex you can change the `green5` setting, but not change that the meadow uses the setting for `green5`)
+	meadow: green5
+	wetland: green4
+	tropical broadleaf: green3
+	broadleaf forest: green2
+	mixed forest: green1
+	
+	heath: sand1
+	prarie: sand2
+	savanna: sand3
+	desert: sand4
+	
+	steppe: snow2
+	pine forest: snow3
+	tundra: snow4
+	
+	red_* settings are used on the submap (for example for the meadow: red_green5)
+
+Note: the game uses the following colors for these zone types:
+	agricultural: sand4
+	residential: green
+	business: cyan
+	industrial: sand1
+
+the blueredX entries are used for some zone overlay maps and vary from only blue to only red:
+21 (0,0,255)  56 (95,0,215)  91 (135,0,175)  126 (175,0,135)  161 (215,0,95)  196 (255,0,0)
+-------------------------------------------------------------------------
+Now for the actual 256 color mode configuration:
+{
+	white: 250
+	red: RED
+	green: GREEN
+	yellow: YELLOW
+	blue: BLUE
+	magenta: MAGENTA
+	cyan: CYAN
+	black: BLACK
+	green_white: GREEN
+	blue_white: BLUE
+	gray: 8
+	green5: 22
+	green4: 23
+	green3: 29
+	green2: 28
+	green1: 64
+	sand1: 100
+	sand2: 58
+	sand3: 94
+	sand4: 130
+	snow2: 58
+	snow3: 243
+	snow4: 249
+	red_green: 112
+	red_blue: 56
+	red_green5: 58
+	red_gray: 138
+	red_green4: 64
+	red_green3: 70
+	red_green2: 112
+	red_green1: 118
+	red_sand1: 148
+	red_sand2: 136
+	red_sand3: 172
+	red_sand4: 130
+	red_snow2: 179
+	red_snow3: 217
+	red_snow4: 224
+	logo: 214
+	shallow_water: 19
+	deep_water: 17
+	red_shallow_water: 55
+	red_deep_water: 53
+	dark_red: 52
+	dark_gray: 238
+	bluered0: 21
+	bluered1: 56
+	bluered2: 91
+	bluered3: 126
+	bluered4: 161
+	bluered5: 196
+}
+
+The following are used when the game is configured to run in 8 color mode:
+{
+	8_color_white: WHITE
+	8_color_red: RED
+	8_color_green: GREEN
+	8_color_yellow: YELLOW
+	8_color_blue: BLUE
+	8_color_magenta: MAGENTA
+	8_color_cyan: CYAN
+	8_color_black: BLACK
+	8_color_green_white: GREEN
+	8_color_blue_white: BLUE
+	8_color_gray: WHITE
+	8_color_green5: GREEN
+	8_color_green4: GREEN
+	8_color_green3: GREEN
+	8_color_green2: GREEN
+	8_color_green1: GREEN
+	8_color_sand1: YELLOW
+	8_color_sand2: YELLOW
+	8_color_sand3: YELLOW
+	8_color_sand4: YELLOW
+	8_color_snow2: WHITE
+	8_color_snow3: WHITE
+	8_color_snow4: WHITE
+	8_color_red_green: GREEN
+	8_color_red_blue: BLUE
+	8_color_red_green5: GREEN
+	8_color_red_gray: RED
+	8_color_red_green4: GREEN
+	8_color_red_green3: GREEN
+	8_color_red_green2: GREEN
+	8_color_red_green1: GREEN
+	8_color_red_sand1: YELLOW
+	8_color_red_sand2: YELLOW
+	8_color_red_sand3: YELLOW
+	8_color_red_sand4: YELLOW
+	8_color_red_snow2: WHITE
+	8_color_red_snow3: WHITE
+	8_color_red_snow4: WHITE
+	8_color_logo: RED
+	8_color_shallow_water: BLUE
+	8_color_deep_water: BLUE
+	8_color_red_shallow_water: BLUE
+	8_color_red_deep_water: BLUE
+	8_color_dark_red: RED
+	8_color_dark_gray: WHITE
+	8_color_bluered0: BLUE
+	8_color_bluered1: BLUE
+	8_color_bluered2: BLUE
+	8_color_bluered3: RED
+	8_color_bluered4: RED
+	8_color_bluered5: RED
+}
+

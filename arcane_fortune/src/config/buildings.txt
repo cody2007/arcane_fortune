@@ -1,0 +1,856 @@
+Used primarily with rioters, and separately for markets.
+	max_bldg_damage should be greater than fire_damage_rate
+{
+	fire_damage_rate: 3
+	fire_repair_rate: 1
+	max_bldg_damage: 500
+	job_search_bonus_dist: 120
+}
+
+----------------------------------------------
+       Non-income-generating buildings
+----------------------------------------------
+
+Format is: Box(width, height)
+
+Note: workers by default do 3000 actions_per_turn
+
+------------------------------------------------
+
+{
+	nm: City Hall
+	menu_txt: C|ity Hall
+	print_str: [
+		┌──────────┐
+		│   ~|     │
+		│ /──────\ │
+		│  │ [] │  │
+		└──────────┘
+	]
+	plot_zoomed: C
+	units_producable: Worker, Explorer
+	units_producable_txt: Wor|k|er, E|xplorer
+	unit_production_rate: 10
+	construction_req: 1080000
+	residential_bonus: 150
+	business_bonus: 150
+	residential_bonus: 150
+	agricultural_bonus: 150
+	happiness_bonus: 20
+	upkeep: 3
+}
+	^ 3000*30*12 = 1080000 (i.e., 1 year)
+
+{
+	nm: Boot Camp
+	menu_txt: B|oot Camp
+	print_str: [
+		┌─────┐
+		│\─\  │
+		│ \─\ │
+		│  \─\│
+		└─────┘
+	]
+	plot_zoomed: B
+	units_producable: Wood Clubber, Archer, Battering Ram, Bone Spearman, Bronze Spearman, Iron Swordsman, Axeman, Horse Archer, Camel Archer, Elephant Archer, Catapult, Canon, Rifleman
+	units_producable_txt: Wood |C|lubber, A|rcher, Battering Ram, Bone |S|pearman, Bron|z|e Spearman, I|ron Swordsman, A|x|eman, H|orse Archer, Ca|m|el Archer, E|lephant Archer, Cata|p|ult, Ca|n|on, R|ifleman
+	unit_production_rate: 10
+	construction_req: 1080000
+	pacifism_bonus: -2
+	upkeep: 0.5
+}
+
+{
+	nm: Market
+	menu_txt: Mar|k|et
+	print_str: [
+		┌─────────┐
+		│  _ _ _  │
+		│ (_(_)_) │
+		│  │   │  │
+		│ ┌─────┐ │
+		│ └─────┘ │
+		└─────────┘
+	]
+	plot_zoomed: M
+	construction_req: 2400000
+	upkeep: 5
+	job_search_bonus: 0.1
+	pacifism_bonus: 3
+	tech_req: Metallurgy
+}
+		^ 5*3000*30*12 = 5400000 (i.e., 5 years)
+		job_search_bonus is added to the probability that a job is found or product is sold
+			(or at least the probability that an attempt is made to do so)
+		┌───────────┐
+		│  _______  │
+		│ (_(_|_)_) │
+		│  │     │  │
+		│ ┌───────┐ │
+		│ └───────┘ │
+		└───────────┘
+
+{
+	nm: Factory
+	menu_txt: F|actory
+	print_str: [
+		┌────────┐
+		│~~  ~~  │
+		│ ││  ││ │
+		│┌┘└──┘└┐│
+		└────────┘
+	]
+	plot_zoomed: F
+	units_producable: Tank, Air Recon, ICBM
+	units_producable_txt: T|ank, A|ir Recon, I|CBM
+	unit_production_rate: 50
+	construction_req: 3400000
+	upkeep: 8
+	industrial_bonus: 300
+	pacifism_bonus: -3
+	tech_req: Ironworking
+}
+		^ 5*3000*30*12 = 5400000 (i.e., 5 years)
+
+{
+	nm: Dock
+	menu_txt: D|ock
+	print_str: [
+		┌──────┐
+		│ ~|__ │
+		│ \__/ │
+		└──────┘
+	]
+	plot_zoomed: D
+	units_producable: Canoe, Galley, Frigate, Caravel
+	units_producable_txt: Ca|n|oe, G|alley, F|rigate, C|aravel
+	unit_production_rate: 10
+	construction_req: 2160000
+	upkeep: 10
+	tech_req: Rowing
+}
+
+{
+	nm: Granary
+	menu_txt: G|ranary
+	print_str: [
+		┌───────────┐
+		│  / \      │
+		│_/   \_    │
+		│| [\] | ooo│
+		└───────────┘
+	]
+	plot_zoomed: G
+	construction_req: 1160000
+	upkeep: 10
+	tech_req: Pottery
+	agricultural_bonus: 200
+}
+
+( )   / \
+| |  /   \
+| | | [\] | ooo
+
+         
+  / \   ( )
+ /   \  │ │
+| [\] | │ │
+
+
+    ______
+  / \   ( )
+ /   \  │ │
+| [\] | │ │
+
+    ______
+  / \   │ │
+ /   \  │ │
+| [\] | │ │
+
+    
+  / \   ()
+ /   \  ││
+│ [\] │ ││
+
+
+
+
+{
+	nm: Monument
+	menu_txt: M|onument
+	doctrinality_bonus: 5
+	print_str: [
+┌─────┐
+│  O  │
+│--|--│
+│ / \ │
+│ --- │
+│/   \│
+└─────┘
+	]
+	plot_zoomed: M
+	construction_req: 1160000
+	upkeep: 0.5
+	residential_bonus: 75
+	business_bonus: 75
+}
+
+{
+	nm: Pyramid
+	menu_txt: P|yramid
+	doctrinality_bonus: 7
+	print_str: [
+┌────────┐
+│   /\   │
+│  /  \  │
+│ /    \ │
+│/      \│
+└────────┘
+	]
+	plot_zoomed: P
+	doctrine_req: Polytheism
+	construction_req: 2160000
+	upkeep: 0.65
+	residential_bonus: 100
+	business_bonus: 100
+}
+
+{
+	nm: House of Worship
+	menu_txt: H|ouse of worship
+	print_str: [
+		┌───────────────┐
+		│      /'\      │
+		│   __/   \__   │
+		│___│[]   []│___│
+		││``│  | |  │``││
+		└───────────────┘
+	]
+	plot_zoomed: W
+	construction_req: 2160000
+	upkeep: 3
+	residential_bonus: 350
+	doctrinality_bonus: 10
+	happiness_bonus: 4
+	doctrine_req: Children of the Light
+}
+
+{
+	nm: Theater
+	menu_txt: T|heater
+	print_str: [
+		┌───────┐
+		│ __#__ │
+		│/     \│
+		└───────┘
+	]
+	plot_zoomed: T
+	construction_req: 2160000
+	upkeep: 10
+	tech_req: Theater
+	residential_bonus: 200
+	happiness_bonus: 15
+}
+
+{
+	nm: Park
+	menu_txt: P|ark
+	happiness_bonus: 1
+	upkeep: 1
+	plot_zoomed: P
+	construction_req: 560000
+	tech_req: Philosophy
+	print_str: [
+		┌───────────┐
+		│ / \       │
+		│/   \   ^  │
+		│  |   /| |\│
+		└───────────┘
+	]
+}
+
+{
+	nm: School
+	menu_txt: Schoo|l
+	print_str: [
+		┌─────────────┐
+		│     ~|      │
+		│_____/ \_____│
+		│| () [_] () |│
+		└─────────────┘
+	]
+	plot_zoomed: S
+	construction_req: 2160000
+	upkeep: 3
+	residential_bonus: 100
+	doctrinality_bonus: -1
+}
+
+{
+	nm: Academy
+	menu_txt: A|cademy
+	print_str: [
+		┌ ___   ___ ┐
+		│@| |@ @| |@│
+		│ | |   | | │
+		└───────────┘
+	]
+	plot_zoomed: A
+	construction_req: 3240000
+	research_prod: 1
+	doctrinality_bonus: -2
+	upkeep: 2
+}
+		^ 3*3000*30*12 = 3240000 (i.e., 3 years)
+
+{
+	nm: University
+	menu_txt: U|niversity
+	print_str: [
+		┌ ___    ___    ____┐
+		│@| |@  @| |@  @| |@│
+		│ | |    | |    | | │
+		│ | |    | |    | | │
+		└───────────────────┘
+	]
+	plot_zoomed: u
+	construction_req: 6240000
+	research_prod: 10
+	tech_req: Humanities
+	residential_bonus: 100
+	upkeep: 10
+	doctrinality_bonus: -5
+	pacifism_bonus: 5
+}
+		^ 3*3000*30*12 = 3240000 (i.e., 3 years)
+
+{
+	nm: Bank
+	menu_txt: Ban|k|
+	print_str: [
+		┌───────┐
+		│   $   │
+		│__/ \__│
+		│|||||||│
+		└───────┘
+	]
+	plot_zoomed: $
+	construction_req: 3240000
+	business_bonus: 200
+	industrial_bonus: 200
+	tech_req: Banking
+	upkeep: 8
+}
+		^ 3*3000*30*12 = 3240000 (i.e., 3 years)
+
+{
+	nm: Camp
+	print_str: [
+		┌ ~~~ ┐
+		│ X   │
+		└─────┘
+	]
+	plot_zoomed: C
+	construction_req: 0
+	upkeep: 0
+	units_producable: Wood Clubber, Archer
+	units_producable_txt: Wood |C|lubber, A|rcher
+	unit_production_rate: 1
+	barbarian_only: true
+}
+
+{
+	nm: Hospital
+	menu_txt: H|ospital
+	happiness_bonus: 1
+	upkeep: 5
+	plot_zoomed: P
+	health_bonus: 300
+	tech_req: Allopathy
+	construction_req: 560000
+	print_str: [
+	      ┌───────────┐
+		│    ───    │
+		│  /  |  \  │
+		│ (  ─+─  ) │
+		│  \  |  /  │
+		│    ───    │
+		└───────────┘
+	]
+}
+
+{
+	nm: Clinic
+	menu_txt: C|linic
+	upkeep: 2
+	plot_zoomed: C
+	health_bonus: 100
+	construction_req: 260000
+	tech_req: Philosophy
+	print_str: [
+	      ┌───────┐
+		│ ~~|~~ │
+		│  (│)  │
+		│  (|)  │
+		└───────┘
+	]
+}
+
+{
+	nm: Jail
+	menu_txt: J|ail
+	upkeep: 3
+	plot_zoomed: J
+	crime_bonus: -100
+	residential_bonus: -100
+	tech_req: Metallurgy
+	construction_req: 260000
+	print_str: [
+	      ┌───────┐
+		│ │ │ │ │
+		│ │ │ │ │
+		└───────┘
+	]
+}
+
+{
+	nm: Police Station
+	menu_txt: P|olice Station
+	upkeep: 1
+	plot_zoomed: P
+	crime_bonus: -20
+	tech_req: Stoneworking
+	construction_req: 160000
+	print_str: [
+	      ┌──────┐
+	      │ ~~~~ │
+		│ │  │ │
+		│ \__/ │
+		└──────┘
+	]
+}
+
+{
+	nm: Court House
+	menu_txt: C|ourt House
+	upkeep: 4
+	plot_zoomed: C
+	crime_bonus: -100
+	happiness_bonus: 3
+	tech_req: Humanities
+	construction_req: 260000
+	print_str: [
+	      ┌───────┐
+	      │       │
+	      │ ===() │
+		│   /--\│
+		└───────┘
+	]
+}
+
+{
+	nm: Temple
+	menu_txt: T|emple
+	upkeep: 2
+	plot_zoomed: T
+	doctrinality_bonus: 10
+	construction_req: 1160000
+	doctrine_req: Followers of the Nine Gods
+	residential_bonus: 300
+	agricultural_bonus: 300
+	print_str: [
+	      ┌─────┐
+	      │  |  │
+		│ / \ │
+		│ /_\ │
+		└─────┘
+	]
+}
+
+{
+	nm: Shaman Hut
+	menu_txt: Shaman |H|ut
+	upkeep: 2
+	plot_zoomed: U
+	doctrinality_bonus: 8
+	health_bonus: 200
+	residential_bonus: 200
+	doctrine_req: Shamanism
+	construction_req: 1160000
+	print_str: [
+	      ┌─────┐
+		│ /^\ │
+		│ | | │
+		└─────┘
+	]
+}
+
+{
+	nm: Shrine
+	menu_txt: S|hrine
+	upkeep: 2
+	plot_zoomed: S
+	doctrinality_bonus: 6
+	doctrine_req: Zhoism
+	construction_req: 1160000
+	print_str: [
+	      ┌─────────┐
+	      │ \─────/ │
+		│-│──|──│-│
+		│ │     │ │
+		└─────────┘
+	]
+}
+
+{
+	nm: Library
+	menu_txt: L|ibrary
+	upkeep: 4
+	plot_zoomed: L
+	doctrinality_bonus: -3
+	residential_bonus: 200
+	happiness_bonus: 1
+	tech_req: Philosophy
+	construction_req: 1460000
+	print_str: [
+		 ┌──\ /──┐
+		 │~~~|~~~│
+		 │~~~|~~~│
+		 │~~~|~~~│
+		 └──/ \──┘
+	]
+}
+
+{
+	nm: Great Ballcourt
+	menu_txt: G|reat Ballcourt
+	upkeep: 2
+	pacifism_bonus: -5
+	doctrinality_bonus: 10
+	plot_zoomed: G
+	construction_req: 2460000
+	doctrine_req: Sacrificialism
+	print_str: [
+		┌─────────┐
+		│         │
+		│ ___o___ │
+		│/```````\│
+		└─────────┘
+	]
+}
+
+{
+	nm: Colosseum
+	menu_txt: C|olosseum
+	upkeep: 5
+	pacifism_bonus: -10
+	doctrinality_bonus: 10
+	plot_zoomed: C
+	doctrine_req: Cultists of the Warrior
+	construction_req: 2460000
+	print_str: [
+		┌─────────────┐
+		│#┌─┐#┌─┐#┌─┐#│
+		│#│ │#│ │#│ │#│
+		│#│ │#│ │#│ │#│
+		└─┘ └─┘ └─┘ └─┘
+	]
+}
+
+{
+	nm: Wellness Center
+	menu_txt: W|ellness Center
+	upkeep: 2
+	health_bonus: 5
+	doctrinality_bonus: 20
+	plot_zoomed: W
+	construction_req: 2460000
+	doctrine_req: Utilitarianism
+	print_str: [
+		┌───────┐
+		│  \|/  │
+		│  \|/  │
+		│  \|/  │
+		└───────┘
+	]
+}
+
+{
+	nm: Auditorium
+	menu_txt: A|uditorium
+	upkeep: 5
+	doctrinality_bonus: -3
+	residential_bonus: 200
+	plot_zoomed: A
+	tech_req: Philosophy
+	construction_req: 2460000
+	print_str: [
+		┌───────┐
+		│┌┐ ))) │
+		│││ ))) │
+		│└┘ ))) │
+		└───────┘
+	]
+}
+
+----------------------------------------------
+         Income-generating buildings
+----------------------------------------------
+
+--------------
+Agricultural:
+
+{
+	nm: Family farm
+	print_str: Box(3,4)
+	plot_zoomed: F
+	taxable_zone: Agricultural
+	upkeep: -7
+	resident_max: 3
+	consumption_max: 0
+	production_max: 2
+	crime_bonus: 1
+}
+
+{
+	nm: Family farm
+	print_str: Box(4,3)
+	plot_zoomed: F
+	taxable_zone: Agricultural
+	upkeep: -7
+	resident_max: 4
+	consumption_max: 0
+	production_max: 2
+	crime_bonus: 1
+}
+
+{
+	nm: Family farm
+	print_str: Box(4,4)
+	plot_zoomed: F
+	taxable_zone: Agricultural
+	upkeep: -8
+	resident_max: 4
+	consumption_max: 0
+	production_max: 2
+	crime_bonus: 1
+}
+
+{
+	nm: Commercial farm
+	print_str: Box(4,5)
+	plot_zoomed: F
+	taxable_zone: Agricultural
+	upkeep: -10
+	resident_max: 4
+	consumption_max: 0
+	production_max: 2
+	crime_bonus: 3
+}
+
+{
+	nm: Plantation
+	print_str: Box(5,5)
+	plot_zoomed: F
+	taxable_zone: Agricultural
+	upkeep: -10
+	resident_max: 6
+	consumption_max: 0
+	production_max: 6
+	crime_bonus: 3
+}
+
+--------------
+Residential:
+
+{
+	nm: Small house
+	print_str: Box(2,2)
+	plot_zoomed: H
+	taxable_zone: Residential
+	upkeep: -1
+	resident_max: 2
+	consumption_max: 4
+	production_max: 0
+	crime_bonus: 2
+	health_bonus: -1
+	doctrinality_bonus: 0.05
+}
+
+{
+	nm: Medium house
+	print_str: Box(2,3)
+	plot_zoomed: H
+	taxable_zone: Residential
+	upkeep: -7
+	resident_max: 6
+	consumption_max: 12
+	production_max: 0
+	crime_bonus: 4
+	health_bonus: -2
+	doctrinality_bonus: 0.1
+}
+
+{
+	nm: Medium house
+	print_str: Box(3,2)
+	plot_zoomed: H
+	taxable_zone: Residential
+	upkeep: -7
+	resident_max: 6
+	consumption_max: 12
+	production_max: 0
+	crime_bonus: 4
+	health_bonus: -2
+	doctrinality_bonus: 0.1
+}
+
+{
+	nm: Medium house
+	print_str: Box(3,3)
+	plot_zoomed: H
+	taxable_zone: Residential
+	upkeep: -10
+	resident_max: 10
+	consumption_max: 20
+	production_max: 0
+	crime_bonus: 4
+	health_bonus: -2
+	doctrinality_bonus: 0.15
+}
+
+{
+	nm: Estate
+	print_str: Box(4,4)
+	plot_zoomed: H
+	taxable_zone: Residential
+	upkeep: -19
+	resident_max: 20
+	consumption_max: 50
+	production_max: 0
+	crime_bonus: 4
+	health_bonus: -3
+	doctrinality_bonus: 0.3
+}
+
+--------------
+Business:
+
+{
+	nm: Small Shop
+	print_str: Box(2,2)
+	plot_zoomed: B
+	taxable_zone: Business
+	upkeep: -1
+	resident_max: 6
+	consumption_max: 2
+	production_max: 6
+	crime_bonus: 1
+}
+
+{
+	nm: Bakery
+	print_str: Box(2,3)
+	plot_zoomed: B
+	taxable_zone: Business
+	upkeep: -7
+	resident_max: 6
+	consumption_max: 2
+	production_max: 8
+	crime_bonus: 1
+}
+
+{
+	nm: General Store
+	print_str: Box(3,2)
+	plot_zoomed: B
+	taxable_zone: Business
+	upkeep: -7
+	resident_max: 8
+	consumption_max: 2
+	production_max: 8
+	crime_bonus: 2
+}
+
+{
+	nm: Refurbisher
+	print_str: Box(3,3)
+	plot_zoomed: B
+	taxable_zone: Business
+	upkeep: -10
+	resident_max: 12
+	consumption_max: 5
+	production_max: 12
+	crime_bonus: 3
+}
+
+{
+	nm: Wholesaler
+	print_str: Box(4,4)
+	plot_zoomed: B
+	taxable_zone: Business
+	upkeep: -19
+	resident_max: 20
+	consumption_max: 10
+	production_max: 20
+	crime_bonus: 3
+}
+
+--------------
+Industrial:
+
+{
+	nm: Blacksmith
+	print_str: Box(2,2)
+	plot_zoomed: I
+	taxable_zone: Industrial
+	upkeep: -3
+	resident_max: 5
+	consumption_max: 0
+	production_max: 8
+	crime_bonus: 3
+	health_bonus: -2
+}
+
+{
+	nm: Forge
+	print_str: Box(2,3)
+	plot_zoomed: I
+	taxable_zone: Industrial
+	upkeep: -3
+	resident_max: 6
+	consumption_max: 0
+	production_max: 10
+	crime_bonus: 3
+	health_bonus: -2
+	happiness_bonus: -1
+}
+
+{
+	nm: Armorer
+	print_str: Box(3,2)
+	plot_zoomed: I
+	taxable_zone: Industrial
+	upkeep: -5
+	resident_max: 10
+	consumption_max: 0
+	production_max: 15
+	crime_bonus: 4
+	health_bonus: -2
+	happiness_bonus: -1
+}
+
+{
+	nm: Warehouse
+	print_str: Box(4,4)
+	plot_zoomed: I
+	taxable_zone: Industrial
+	upkeep: -10
+	resident_max: 22
+	consumption_max: 0
+	production_max: 20
+	crime_bonus: 6
+	health_bonus: -6
+	happiness_bonus: -2
+}
+

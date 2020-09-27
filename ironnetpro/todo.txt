@@ -1,0 +1,6 @@
+-bias custom
+-time profiling
+-f16
+
+-chk weight gradients -- fully connected
+

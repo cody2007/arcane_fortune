@@ -1,0 +1,88 @@
+Bonuses used to guide new city locations
+{
+	Coffee_bonus: 250
+	Tobacco_bonus: 250
+	Corn_bonus: 250
+	Potatoes_bonus: 250
+	Rice_bonus: 250
+	Stone_bonus: 500
+	Gold_bonus: 500
+	Silver_bonus: 500
+	Tin_bonus: 500
+	Iron_bonus: 500
+	Horses_bonus: 500
+	Elephants_bonus: 500
+	Camels_bonus: 500
+	Oil_bonus: 1000
+	Uranium_bonus: 1000
+}
+
+If the AI does not have one of these resources, it will attempt
+to build a city near them regardless of how far the city is to the AI's
+other cities. These are ordered by importance (most to least).
+{
+	strategic_resources: Uranium, Oil, Horses, Iron, Tin, Copper
+}
+
+
+-----------------------------------------------------------------------------------
+				Difficulty levels
+
+Bonuses are for the AI and increase with the (human player's) difficulty level
+
+`combat_bonus_factor` is a multiplier of the default attack strength and defense for the AI:
+	A value of 1 indicates equality with human players. Higher values indicate bonus above humans.
+
+`production_factor` is a multiplier for unit production rates:
+	A value of 1 indicates equality with human players. Higher values indicate bonus above humans.
+
+{
+	difficulty_name: Nomad
+	combat_bonus_factor: 1
+	production_factor: 1
+	gold_bonus_per_day: 0
+}
+
+{
+	difficulty_name: Bourgeoisie
+	combat_bonus_factor: 1.25
+	production_factor: 2
+	gold_bonus_per_day: 3
+}
+
+{
+	difficulty_name: Mayor
+	combat_bonus_factor: 1.5
+	production_factor: 3
+	gold_bonus_per_day: 5
+	default_option: true
+}
+
+{
+	difficulty_name: Governor
+	combat_bonus_factor: 2
+	production_factor: 3
+	gold_bonus_per_day: 10
+}
+
+{
+	difficulty_name: Noble
+	combat_bonus_factor: 2.25
+	production_factor: 4
+	gold_bonus_per_day: 15
+}
+
+{
+	difficulty_name: Monarch
+	combat_bonus_factor: 2.5
+	production_factor: 6
+	gold_bonus_per_day: 25
+}
+
+{
+	difficulty_name: Khan of Heaven
+	combat_bonus_factor: 4
+	production_factor: 8
+	gold_bonus_per_day: 40
+}
+

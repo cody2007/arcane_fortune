@@ -1,0 +1,19 @@
+Controls spacing of fog of war.
+Lower values require more RAM, but allow greater granularity of exploration.
+{
+	spacing_map_sz_0: 100
+	spacing_map_sz_1: 200
+	spacing_map_sz_2: 400
+	spacing_map_sz_3: 800
+	spacing_map_sz_4: 1600
+	spacing_map_sz_5: 3000
+	spacing_map_sz_6: 6000
+}
+
+Controls buffer size of amount of map kept in memory.
+Lower values require less RAM, but can slow down game.
+In theory, exceedingly large values could also slow down the game, due to increased lookup times.
+{
+	max_zoom_in_buffer_sz: 8000000
+}
+

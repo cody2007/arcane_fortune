@@ -1,0 +1,322 @@
+X_bonus (where X = industrial, residential, business, or agricultural)
+	are local bonuses to surrounding zones
+
+print_str (two modes): 
+	() parenthesis: the parser keeps spaces and use them for alignment.
+	                any line containing ")" and no other characters (aside from
+	                spaces) terminates the block.
+	
+	[] square brackets: the parser ignores spaces and will not display them (this
+			        mode is typically used in the buildings configuration file).
+
+Valid probability keys are:
+	ocean_prob, shallow_water_prob, mountain_prob, tundra_prob, desert_prob,
+	pine_forest_prob, savanna_prob, steppe_prob, prarie_prob, heath_prob,
+	mixed_forest_prob, broadleaf_forest_prob, tropical_broadleaf_prob,
+	wetland_prob, meadow_prob
+
+1.0 corresponds to every tile being the resource, and 0.0 corresponds to no tile ever being the resource (the later is the default if not specified)
+-------------------------------------------------------------------------------------------
+
+{
+	nm: Coffee
+	zone: Agricultural
+	residential_bonus: 200
+	agricultural_bonus: 400
+	business_bonus: 200
+	tropical_broadleaf_prob: .00005
+	plot_zoomed: C
+	print_str: (
+  ~~~
+C│ │ 
+ └─┘ 
+	)
+}
+
+{
+	nm: Tobacco
+	zone: Agricultural
+	residential_bonus: 400
+	agricultural_bonus: 400
+	broadleaf_forest_prob: .00005
+	mixed_forest_prob: .00005
+	plot_zoomed: O
+	print_str: (
+~~~
+ | 
+	)
+}
+
+{
+	nm: Logs
+	zone: Industrial
+	residential_bonus: 25
+	industrial_bonus: 25
+	business_bonus: 25
+	pine_forest_prob: .002
+	broadleaf_forest_prob: .001
+	mixed_forest_prob: .001
+	plot_zoomed: T
+	print_str: (
+  /\  
+ /~~\ 
+|~~~~|
+  ||  
+	)
+}
+
+{
+	nm: Jungle
+	zone: Industrial
+	agricultural_bonus: -40
+	tropical_broadleaf_prob: .000125
+	wetland_prob: .0015
+	plot_zoomed: ~
+	print_str: (
+/~~~~~~\
+}{ || }{
+{  ||  }
+   ||   
+	)
+}
+
+-------------------------------------
+Food
+-------------------------------------
+
+{
+	nm: Corn
+	zone: Agricultural
+	agricultural_bonus: 400
+	plot_zoomed: c
+	meadow_prob: .00002
+	wetland_prob: .00002
+	prarie_prob: .00002
+	print_str: (
+:::
+:::
+ | 
+	)
+}
+
+{
+	nm: Potatoes
+	zone: Agricultural
+	agricultural_bonus: 400
+	plot_zoomed: o
+	meadow_prob: .00002
+	meadow_prob: .00002
+	wetland_prob: .00002
+	prarie_prob: .00002
+	steppe_prob: .00001
+	print_str: (
+ooo
+	)
+}
+
+{
+	nm: Rice
+	zone: Agricultural
+	agricultural_bonus: 400
+	plot_zoomed: r
+	wetland_prob: .00002
+	print_str: (
+:::
+	)
+}
+
+----------------------------------------
+Metals / Materials
+---------------------------------------
+
+{
+	nm: Stone
+	zone: Industrial
+	tech_req: Stoneworking
+	industrial_bonus: 50
+	business_bonus: 300
+	pine_forest_prob: .00002
+	steppe_prob: .00002
+	meadow_prob: .00002
+	mixed_forest_prob: .00002
+	heath_prob: .0000075
+	tundra_prob: .0000075
+	plot_zoomed: S
+	print_str: (
+_____
+|| ||
+	)
+}
+
+{
+	nm: Gold
+	zone: Industrial
+	tech_req: Metallurgy
+	residential_bonus: 100
+	industrial_bonus: 1000
+	business_bonus: 100
+	tundra_prob: .0000075
+	steppe_prob: .0000015
+	tropical_broadleaf_prob: .0000075
+	plot_zoomed: $
+	print_str: (
+$$$
+	)
+}
+
+{
+	nm: Silver
+	zone: Industrial
+	tech_req: Metallurgy
+	residential_bonus: 40
+	industrial_bonus: 500
+	business_bonus: 250
+	tundra_prob: .0000125
+	steppe_prob: .0000015
+	pine_forest_prob: .0000015
+	plot_zoomed: /
+	print_str: (
+\\\
+	)
+}
+
+{
+	nm: Copper
+	zone: Industrial
+	tech_req: Metallurgy
+	residential_bonus: 40
+	industrial_bonus: 250
+	business_bonus: 300
+	tundra_prob: .0000125
+	steppe_prob: .0000035
+	pine_forest_prob: .0000035
+	plot_zoomed: /
+	print_str: [
+\\\
+	]
+}
+
+{
+	nm: Tin
+	zone: Industrial
+	tech_req: Bronze
+	residential_bonus: 40
+	industrial_bonus: 250
+	business_bonus: 300
+	tundra_prob: .0000125
+	steppe_prob: .0000035
+	pine_forest_prob: .0000035
+	plot_zoomed: /
+	print_str: [
+\\\
+	]
+}
+
+{
+	nm: Iron
+	zone: Industrial
+	tech_req: Ironworking
+	residential_bonus: 40
+	industrial_bonus: 250
+	business_bonus: 300
+	tundra_prob: .0000125
+	steppe_prob: .0000035
+	pine_forest_prob: .0000035
+	heath_prob: .0000035
+	mixed_forest_prob: .0000035
+	broadleaf_forest_prob: .0000035
+	tropical_broadleaf_prob: .0000035
+	plot_zoomed: /
+	print_str: [
+\\\
+	]
+}
+
+----------------------------------------
+Military
+---------------------------------------
+
+{
+	nm: Horses
+	zone: Agricultural
+	tech_req: Horseback Riding
+	industrial_bonus: 200
+	business_bonus: 200
+	prarie_prob: .000075
+	steppe_prob: .000075
+	meadow_prob: .000025
+	heaht_prob:  .000025
+	plot_zoomed: h
+	print_str: (
+      ._
+ ────/  
+/\ /\   
+	)
+}
+
+{
+	nm: Elephants
+	zone: Agricultural
+	tech_req: Horseback Riding
+	business_bonus: 200
+	tropical_broadleaf_prob: .000075
+	savana_prob: .000025
+	plot_zoomed: e
+	print_str: (
+      ._ 
+ ────/  \
+/\ /\    
+	)
+}
+
+{
+	nm: Camels
+	zone: Agricultural
+	tech_req: Horseback Riding
+	business_bonus: 200
+	savanna_prob: .000035
+	desert_prob: .000075
+	plot_zoomed: c
+	print_str: (
+      ._
+ _n__/  
+/\ /\   
+	)
+}
+
+{
+	nm: Oil
+	zone: Industrial
+	tech_req: Combustion
+	industrial_bonus: 1500
+	business_bonus: 400
+	desert_prob: .0000075
+	savanna_prob: .0000045
+	tropical_broadleaf_prob: .0000025
+	prarie_prob: .0000025
+	steppe_prob: .0000035
+	plot_zoomed: |
+	print_str: (
+ ___  
+||  | 
+|| ~~~
+	)
+}
+
+{
+	nm: Uranium
+	zone: Industrial
+	tech_req: Ironworking
+	industrial_bonus: 1500
+	business_bonus: 400
+	desert_prob: .0000015
+	savanna_prob: .0000015
+	tropical_broadleaf_prob: .0000035
+	prarie_prob: .0000035
+	steppe_prob: .0000085
+	plot_zoomed: |
+	print_str: (
+URANIUM
+	)
+}
+

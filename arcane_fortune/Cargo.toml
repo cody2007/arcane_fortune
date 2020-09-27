@@ -1,0 +1,27 @@
+[package]
+name = "arcane_fortune"
+version = "0.2.0"
+#authors = [""]
+edition = "2018"
+build = "build.rs"
+
+[profile.release]
+debug = true
+
+[features]
+profile = [] # timing
+fixed_seed = [] # fixed random seeds
+opt_debug = [] # debug assertions (allows them to be run even with `--release`)
+sdl = []
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# [dependencies.'cfg(feature="sdl")'.sdl2_lib]
+[dependencies.sdl2_lib]
+path = "../sdl2_lib"
+#features = ["profile"]
+
+[dependencies.ironnetpro]
+path = "../../ironnetpro"
+features = ["cpu_only"]
+
