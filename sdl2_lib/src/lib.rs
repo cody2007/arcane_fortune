@@ -182,7 +182,8 @@ impl Window {
 
 impl Renderer {
 	pub fn new(window: &Window) -> Self {
-		let mut flags = SDL_RendererFlags::SDL_RENDERER_ACCELERATED as u32;// | SDL_RendererFlags::SDL_RENDERER_PRESENTVSYNC as u32;
+		let mut flags = SDL_RendererFlags::SDL_RENDERER_SOFTWARE as u32; //SDL_RendererFlags::SDL_RENDERER_ACCELERATED as u32;
+		// ^ note screen recording w/ OBS on linux flickers when the flags are set to SDL_RendererFlags::SDL_RENDERER_ACCELERATED
 		let mut renderer = unsafe {SDL_CreateRenderer(window.val, -1, flags)};
 		if renderer.is_null() {
 			println!("Failed creating hardware-accelerated renderer. Will use software renderer instead.");

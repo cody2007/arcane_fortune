@@ -168,6 +168,8 @@ impl ActionMeta<'_,'_,'_,'_> {
 				
 				//// print bldg
 				for row in bldg_coord.y..(bldg_coord.y + bt.sz.h as isize) {
+					if row < 0 || (bldg_coord.x as i32) < 0 {break;}
+					
 					d.mv(row as i32, bldg_coord.x as i32);
 					for col in bldg_coord.x..stop_col {
 						print_bldg_char(Coord {y: row, x: col}, bldg_coord, bt, &None, &disp_chars, map_sz, d);

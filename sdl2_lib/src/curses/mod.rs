@@ -379,6 +379,7 @@ impl DispState {
 	}
 	
 	pub fn mv(&mut self, y: c_int, x: c_int) {
+		if y < 0 || x < 0 {return;}
 		self.txt_state.y = y;
 		self.txt_state.x = x;
 	}

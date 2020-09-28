@@ -147,6 +147,9 @@ extern "C" {
 	pub fn attron(attr: chtype) -> CInt;
 	pub fn attroff(attr: chtype) -> CInt;
 	
+	pub fn mousemask(new_mask: mmask_t, old_mask: *mut mmask_t) -> mmask_t;
+	pub fn getmouse(event: *mut MEVENT) -> c_int;
+	
 	pub fn init_pair(_: CShort, _: CShort, _: CShort) -> CInt;
 	pub fn COLOR_PAIR(pair: CInt) -> CInt;
 	
