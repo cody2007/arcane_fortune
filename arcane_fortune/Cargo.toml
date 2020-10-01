@@ -22,6 +22,6 @@ path = "../sdl2_lib"
 #features = ["profile"]
 
 [dependencies.ironnetpro]
-path = "../../ironnetpro"
+path = "../ironnetpro"
 features = ["cpu_only"]
 
