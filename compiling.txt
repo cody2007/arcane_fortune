@@ -1,0 +1,93 @@
+=========================================================================================
+Setting up
+=========================================================================================
+All building and testing is done from the arcane_fortune/arcane_fortune/src directory.
+
+The game loads and saves everything via relative paths and the
+"config/" directory that it needs to run is located in "arcane_fortune/arcane_fortune/src".
+
+Further, the game, when launched, will attempt to load the neural network 
+weights. It will crash if it cannot.
+Weights are not in the game repository due to file size concerns and need to be
+downloaded from the binary release.
+
+Here's an example of how you could copy the weights into the correct directory:
+	
+	# (replace the version numbers and path locations of these files depending
+	#  on where you download the file and setup the repository)
+	unzip arcane_fortune_v0_2_0.zip
+	cp ~/Downloads/arcane_fortune_v0_2_0/game/nn ~/arcane_fortune/arcane_fortune/src/ -r
+
+-----------------------------------
+Cargo setup for Linux
+-----------------------------------
+If you want to cross-compile for Windows or statically compile the game for Linux, you may
+find these useful to setup your environment:
+
+First setup mingw using your distro's package manager. Then:
+
+rustup target add x86_64-unknown-linux-musl
+rustup install stable-x86_64-pc-windows-gnu
+rustup target add x86_64-pc-windows-gnu
+
+-----------------------------------
+Linking
+-----------------------------------
+Depending on what target you're building, you may need to move shared object (.so) files
+of either ncurses or the SDL2 libraries (SDL2, SDL2_image, and SDL2_ttf) into the link
+path used by cargo/rustc.
+
+I normally find this link path by simply attempting to build and looking at the errors
+I get. I specifically, look for the path after the link argument "-L" in the error message.
+
+For OS X:
+	Download the SDL2, SDL2_image, and SDL2_ttf ".dmg" files from the libraries' official websites.
+	Then unpack them and cd into the directory where the "SDL2" file is located and:
+		cp SDL2 [link_path]/libSDL2.dylib # where [link_path] is the directory cargo uses with the "-L" link argument.
+	Then do analgous copying for SDL2_image and SDL2_ttf (ex. replace 'SDL2' with 'SDL2_image' in the command above).
+
+======================================================================================
+Linux targets
+======================================================================================
+	cd ~/arcane_fortune/arcane_fortune/src
+
+	# build the ncurses version:
+	cargo build --release
+	
+	# build the version with full mouse support:
+	cargo build --release --features sdl
+	
+	# build the statically compiled ncurses fallback version:
+	# 	(you will need to download and compile ncurses statically first; I have
+	#	 notes about how I do it in: arcane_fortune/arcane_fortune/src/disp_lib/curses/direct_ncurses.rs)
+	#	Note setting the RUSTFLAGS variable only became necessary after Rust v1.46.0 -- also that release
+	#	broke the ability to compile the static version in debug mode.
+	RUSTFLAGS=-Crelocation-model=static cargo run --target=x86_64-unknown-linux-musl --release
+
+======================================================================================
+Windows targets
+======================================================================================
+	# note I only cross-compile Windows builds from Linux
+	#	I have not recently attempted to build the game
+	#	on Windows. Probably a year or so ago I attempted and failed to get the build to work on
+	#	Windows, but a lot has changed with the code since then, so I don't know what it's like today.
+	cd ~/arcane_fortune/arcane_fortune/src
+	
+	# the pdcurses version:
+	cargo build --release --target=x86_64-pc-windows-gnu
+	
+	# full mouse support:
+	cargo build --release --features sdl --target=x86_64-pc-windows-gnu
+
+======================================================================================
+OS X targets
+======================================================================================
+	cd ~/arcane_fortune/arcane_fortune/src
+	
+	# the ncurses version:
+	cargo run --release
+	
+	# full mouse support (two steps):
+	cargo run --release --features sdl
+	install_name_tool -add_rpath . ~/arcane_fortune/arcane_fortune/target/release/arcane_fortune
+
