@@ -1,15 +1,37 @@
 I gladly accept code contributions, however I ask that you provide
-them under the license terms below.
+them while either (1) assigning copyright to me or (2) licensing
+your contributions to me with the license terms below.
 
-This is mainly because the GPL is incompatible with Steam. I would
+=======================================================
+I ask this mainly because the GPL is incompatible with Steam. I would
 like the option to sell a, likely graphical, version of the game
 on Steam and possibly other platforms in the future.
 
 Note, you can replace "The Arcane Fortune Developers", in the
 license below, with your name, if you wish.
 
-License terms:
+Also a point of clarification: as of this revision, the game code
+(aside from the libraries it uses) does not contain any other
+contributors aside from myself. This is why you do not see
+the license MIT-like license below in the license.txt file. I have *not* released
+my own code under the MIT-like license below. I will, however,
+append the license below to license.txt if, or when, others contribute
+under those terms.
 
+A reason to choose option (1) and not (2):
+If everyone were to license their contributions in the MIT-like license
+below, there is a certain risk that eventually my contributions, as the
+only code in the project released under the AGPL would become relatively
+small. While I'm no lawyer, I believe this could create a situation where
+if someone were able to remove all of my code from the project and replace
+it, they could release the entire game under a closed-source license.
+Assigning copyright to me could prevent this "diluting" of the copy-leftness
+of the project. In accepting it to the repository I'll relicense it
+to the AGPL, but also, being the copyright holder, still have the option to
+put it on distribution platforms like Steam at some point.
+
+======================================================
+The aforementioned MIT-like license:
 ======================================================
 Copyright (c) 2020 The Arcane Fortune Developers
 
