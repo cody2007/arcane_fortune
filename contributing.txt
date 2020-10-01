@@ -13,7 +13,7 @@ license below, with your name, if you wish.
 Also a point of clarification: as of this revision, the game code
 (aside from the libraries it uses) does not contain any other
 contributors aside from myself. This is why you do not see
-the license MIT-like license below in the license.txt file. I have *not* released
+the MIT-like license below in the license.txt file. I have *not* released
 my own code under the MIT-like license below. I will, however,
 append the license below to license.txt if, or when, others contribute
 under those terms.
