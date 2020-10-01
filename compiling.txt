@@ -44,7 +44,7 @@ For OS X:
 	Download the SDL2, SDL2_image, and SDL2_ttf ".dmg" files from the libraries' official websites.
 	Then unpack them and cd into the directory where the "SDL2" file is located and:
 		cp SDL2 [link_path]/libSDL2.dylib # where [link_path] is the directory cargo uses with the "-L" link argument.
-	Then do analgous copying for SDL2_image and SDL2_ttf (ex. replace 'SDL2' with 'SDL2_image' in the command above).
+	Then do analogous copying for SDL2_image and SDL2_ttf (ex. replace 'SDL2' with 'SDL2_image' in the command above).
 
 ======================================================================================
 Linux targets
