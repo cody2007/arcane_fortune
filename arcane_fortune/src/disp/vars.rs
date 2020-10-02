@@ -182,6 +182,7 @@ pub enum UIMode<'bt,'ut,'rt,'dt> {
 	EndGameWindow,
 	AboutWindow,
 	UnmovedUnitsNotification,
+	NoblePedigree {mode: usize, house_nm: Option<String>},
 	ForeignUnitInSectorAlert {sector_nm: String, battalion_nm: String},
 }
 
@@ -246,7 +247,8 @@ impl fmt::Display for UIMode<'_,'_,'_,'_> {
 			UIMode::CivicAdvisorsWindow => "CivicAdvisorsWindow",
 			UIMode::UnmovedUnitsNotification => "UnmovedUnitsNotification",
 			UIMode::MvWithCursorNoActionsRemainAlert {..} => "MvWithCursorNoActionsRemainAlert",
-			UIMode::ForeignUnitInSectorAlert {..} => "ForeignUnitInSectorAlert"
+			UIMode::ForeignUnitInSectorAlert {..} => "ForeignUnitInSectorAlert",
+			UIMode::NoblePedigree {..} => "NoblePedigree"
 		})
 	}
 }
@@ -269,7 +271,7 @@ pub enum AddActionTo<'f,'bt,'ut,'rt,'dt> {
 		action: Option<ActionMeta<'bt,'ut,'rt,'dt>>
 			// ^ can be none if the player has not indicated which action to perform yet, but they entered
 			//	the mode to add the action to the brigade build list
-	},	
+	},
 	
 	////////////////////////////////////////////////////
 	// paths are computed when cursor moves:
@@ -766,6 +768,16 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		};
 		
 		self.set_auto_turn(AutoTurn::Off, d);
+		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+	}
+	
+	pub fn create_pedigree_window(&mut self, d: &mut DispState) {
+		self.reset_auto_turn(d);
+		self.ui_mode = UIMode::NoblePedigree {
+				mode: 0,
+				house_nm: None
+		};
+		
 		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 	}
 	

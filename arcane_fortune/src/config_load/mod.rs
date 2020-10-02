@@ -6,7 +6,7 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use crate::gcore::XorState;
-use crate::map::PersonName;
+use crate::map::{PersonName, Nms};
 use crate::disp_lib::endwin;
 use crate::disp::{ScreenSz, DispChars};
 use crate::units::*;
@@ -639,12 +639,11 @@ pub fn find_kbd_key(nm: &str, key_sets: &Vec<Vec<KeyPair>>) -> i32 {
 
 impl PersonName {
 	// first output is `gender_female`, second is the name
-	pub fn new(females: &Vec<String>, males: &Vec<String>,
-			rng: &mut XorState) -> (bool, Self) {
+	pub fn new(nms: &Nms, rng: &mut XorState) -> (bool, Self) {
 		///// select gender
 		let (gender_female, nms) = match rng.usize_range(0,2) {
-			0 => {(true, &females)}
-			1 => {(false, &males)}
+			0 => {(true, &nms.females)}
+			1 => {(false, &nms.males)}
 			_ => {panicq!("invalid random number");}
 		};
 		
@@ -658,6 +657,21 @@ impl PersonName {
 			first: nm_pair[0].to_string().clone(),
 		 	last: nm_pair[1].to_string().clone()
 		 })
+	}
+	
+	pub fn new_w_gender(gender_female: bool, nms: &Nms, rng: &mut XorState) -> Self {
+		let nms = if gender_female {&nms.females} else {&nms.males};
+		
+		// select name
+		let nm = &nms[rng.usize_range(0, nms.len())];
+		
+		// split into first & last name
+		let nm_pair: Vec<&str> = nm.split(" ").collect();
+		
+		Self {
+			first: nm_pair[0].to_string().clone(),
+		 	last: nm_pair[1].to_string().clone()
+		 }
 	}
 }
 

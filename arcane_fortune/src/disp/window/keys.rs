@@ -152,6 +152,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			UIMode::CurrentBldgProd {ref mut mode} |
 			UIMode::SelectBldgDoctrine {ref mut mode, ..} |
 			UIMode::SelectExploreType {ref mut mode} |
+			UIMode::NoblePedigree {ref mut mode, ..} |
 			UIMode::EncyclopediaWindow {state: 
 				EncyclopediaState::CategorySelection {ref mut mode}} |
 			UIMode::EncyclopediaWindow {state:
@@ -223,6 +224,42 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		
 		return UIRet::Active;
 	
+	}else if let UIMode::NoblePedigree {ref mut mode, ref mut house_nm, ..} = iface_settings.ui_mode {
+		let list = noble_houses_list(&pstats.houses);
+		
+		macro_rules! enter_action{($mode: expr) => {
+			if let Some(house) = pstats.houses.houses.get(*mode) {
+				*house_nm = Some(house.name.clone());
+			}else{
+				end_window(iface_settings, d);
+			}
+			return UIRet::Active;
+		};};
+		
+		match key_pressed {
+			// down
+			k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+				if (*mode + 1) <= (list.options.len()-1) {
+					*mode += 1;
+				}else{
+					*mode = 0;
+				}
+			
+			// up
+			} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+				if *mode > 0 {
+					*mode -= 1;
+				}else{
+					*mode = list.options.len() - 1;
+				}
+				
+			// enter
+			} k if k == '\n' as i32 => {
+				enter_action!(*mode);
+			} _ => {}
+		}
+		return UIRet::Active;
+		
 	}else if let UIMode::DoctrineWindow {ref mut sel_mv, ref mut tree_offsets, ..} = iface_settings.ui_mode {
 		*sel_mv = TreeSelMv::None;
 		
@@ -1514,7 +1551,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				return UIRet::Active;
 			};};
 			if let Some(ind) = buttons.list_item_clicked(mouse_event) {enter_action!(ind);}
-
+			
 			match key_pressed {
 				// down
 				k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {

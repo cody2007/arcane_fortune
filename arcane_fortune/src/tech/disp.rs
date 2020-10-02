@@ -48,7 +48,7 @@ pub fn print_tech_tree(unit_templates: &Vec<UnitTemplate>, bldg_templates: &Vec<
 			d.attroff(title_c);
 		};};
 		
-		center_txt!(if prompt_tech {"Select a new technology to research"} else {"Technology tree"}, w);
+		center_txt!(if prompt_tech {&l.Select_a_new_tech} else {&l.Technology_tree}, w);
 		
 		let gap_width = "     ".len() as i32;
 		let key_width = "<Arrow keys>: Change selection".len() as i32;
@@ -63,7 +63,7 @@ pub fn print_tech_tree(unit_templates: &Vec<UnitTemplate>, bldg_templates: &Vec<
 		
 		/////// instructions
 		nl!();
-		center_txt!("Keys", key_width);
+		center_txt!(&l.Keys, key_width);
 		nl!(); nl!();
 		
 		if disp_properties.down_scroll || disp_properties.right_scroll {

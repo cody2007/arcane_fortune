@@ -206,7 +206,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 		}
 		
 		// drag map (update location of map shown on the screen or start move mode)
-		if (iface_settings.zoom_ind != map_data.max_zoom_ind() || iface_settings.add_action_to.is_none()) && dragging(mouse_event) {
+		if (iface_settings.zoom_ind != map_data.max_zoom_ind() || iface_settings.add_action_to.actions().len() == 0) && dragging(mouse_event) {
 			// continue drag
 			if let Some(start_map_drag) = iface_settings.start_map_drag {
 				let cur = iface_settings.screen_coord_to_map_coord(Coord {y: m_event.y as isize, x: m_event.x as isize}, map_data);

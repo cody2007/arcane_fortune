@@ -3,6 +3,27 @@ use crate::resources::N_RESOURCES_DISCOV_LOG;
 use crate::gcore::{GameDifficulties, Log, LogType};
 use crate::doctrine::available_doctrines;
 use crate::localization::Localization;
+use crate::nobility::Houses;
+
+pub fn noble_houses_list<'bt,'ut,'rt,'dt>(houses: &Houses) -> OptionsUI<'bt,'ut,'rt,'dt> {
+	let mut nms_string = Vec::with_capacity(houses.houses.len());
+	
+	for house in houses.houses.iter() {
+		nms_string.push(house.name.clone());
+	}
+	
+	// register_shortcuts takes [&str]s, so take references of all the strings
+	let mut nms = Vec::with_capacity(nms_string.len());
+	
+	for nm_string in nms_string.iter() {
+		nms.push(nm_string.as_str());
+	}
+	
+	let mut opts = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
+	register_shortcuts(&nms, &mut opts);
+	
+	opts
+}
 
 pub fn encyclopedia_bldg_list<'bt,'ut,'rt,'dt>(bldg_templates: &'bt Vec<BldgTemplate>,
 		l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {

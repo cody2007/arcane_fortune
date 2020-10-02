@@ -67,7 +67,8 @@ const SUB_MENU_NMS_INIT: &[&[&str]] = &[&[
 		inact!("Civic Overlays"),
 					"   Zone |d|emands",
 					"   Happi|n|ess", "   Crime (|k|)",
-		inact!("Windows"), "  |T|ech tree", "  Doctrine tree (|1|)", "  |W|orld history", "  Battle |h|istory", "  Econo|m|ic history"],
+		inact!("Trees"), "  |T|ech tree", "  Doctrine tree (|1|)", "  Noble pedigree (|3|)",
+		inact!("History"), "  |W|orld", "  Battle (|h|)", "  Econo|m|ic"],
 	
 	// go	
 	&["Ctr |o|n cursor (Space)", "N|ext unmoved unit", "Next |C|ity Hall", "T|o coordinate",
@@ -279,6 +280,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			UIMode::GoToCoordinateWindow {..} |
 			UIMode::InitialGameWindow |
 			UIMode::EndGameWindow |
+			UIMode::NoblePedigree {..} |
 			UIMode::UnmovedUnitsNotification |
 			UIMode::PrevailingDoctrineChangedWindow |
 			UIMode::CivicAdvisorsWindow |
@@ -590,18 +592,20 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, m
 	}else if m("V|iew", "Doctrine tree (|1|)"){
 		iface_settings.create_spirituality_window(d);
 		return None;
-	
-	}else if m("V|iew", "W|orld history") {
+	}else if m("V|iew", "Noble pedigree") {
+		iface_settings.create_pedigree_window(d);
+		return None;
+	}else if m("V|iew", "W|orld") {
 		iface_settings.reset_auto_turn(d);
 		iface_settings.ui_mode = UIMode::WorldHistoryWindow {scroll_first_line: 0};
 		return None; // return because end_menu() will overwrite iface_settings.ui_mode
 	
-	}else if m("V|iew", "Battle |h|istory") {
+	}else if m("V|iew", "Battle (|h|)") {
 		iface_settings.reset_auto_turn(d);
 		iface_settings.ui_mode = UIMode::BattleHistoryWindow {scroll_first_line: 0};
 		return None; // return because end_menu() will overwrite iface_settings.ui_mode
 	
-	}else if m("V|iew", "Econo|m|ic history") {
+	}else if m("V|iew", "Econo|m|ic") {
 		iface_settings.reset_auto_turn(d);
 		iface_settings.ui_mode = UIMode::EconomicHistoryWindow {scroll_first_line: 0};
 		return None; // return because end_menu() will overwrite iface_settings.ui_mode

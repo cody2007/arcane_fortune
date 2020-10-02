@@ -312,6 +312,8 @@ pub fn save_nm(owner: &Owner) -> String {
 	format!("{}.af_game", save_nm_first_part(owner))
 }
 
+pub const GAME_START_TURN: usize = 100*12*30;
+
 pub const N_UNIT_PLACEMENT_ATTEMPTS: usize = 2000;
 use crate::nn;
 
@@ -354,9 +356,10 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 	nms.units = return_names_list(read_file("config/names/battalion_names.txt"));
 	nms.brigades = return_names_list(read_file("config/names/brigade_names.txt"));
 	nms.sectors = return_names_list(read_file("config/names/sector_names.txt"));
+	nms.noble_houses = return_names_list(read_file("config/names/noble_houses/english_names.txt"));
+	nms.females = return_names_list(read_file("config/names/females.txt")); // names of rulers/nobility
+	nms.males = return_names_list(read_file("config/names/males.txt")); // names of rulers/nobility
 	let country_names = return_names_list(read_file("config/names/countries.txt"));
-	let females = return_names_list(read_file("config/names/females.txt")); // names of rulers
-	let males = return_names_list(read_file("config/names/males.txt")); // names of rulesrs
 	
 	*ai_config = init_ai_config(resource_templates);
 	
@@ -388,11 +391,8 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 			
 			//////////// add human player and generic AI players			
 			for id in 0..game_opts.n_players {
-				let personality = AIPersonality {
-								friendliness: 2.*rng.gen_f32b() - 1., // between -1:1
-								spirituality: 2.*rng.gen_f32b() - 1.
-				};
-				
+				let personality = AIPersonality::new(rng);
+							
 				let motto = txt_gen.gen_str(nn::TxtCategory::from(&personality));
 				
 				//let player_type = PlayerType::AI(personality);
@@ -409,7 +409,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 				'nm_loop: loop {
 					nm = country_names[rng.usize_range(0, country_names.len())].clone();
 					
-					let ruler = PersonName::new(&females, &males, rng);
+					let ruler = PersonName::new(nms, rng);
 					gender_female = ruler.0;
 					ruler_nm = ruler.1;
 					
@@ -429,11 +429,11 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 						   nm, // of country
 						   gender_female,
 						   ruler_nm,
-						   doctrine_advisor_nm: PersonName::new(&females, &males, rng).1,
-						   crime_advisor_nm: PersonName::new(&females, &males, rng).1,
-						   pacifism_advisor_nm: PersonName::new(&females, &males, rng).1,
-						   health_advisor_nm: PersonName::new(&females, &males, rng).1,
-						   unemployment_advisor_nm: PersonName::new(&females, &males, rng).1,
+						   doctrine_advisor_nm: PersonName::new(nms, rng).1,
+						   crime_advisor_nm: PersonName::new(nms, rng).1,
+						   pacifism_advisor_nm: PersonName::new(nms, rng).1,
+						   health_advisor_nm: PersonName::new(nms, rng).1,
+						   unemployment_advisor_nm: PersonName::new(nms, rng).1,
 						   city_nm_theme: rng.usize_range(0, nms.cities.len()),
 						   motto,
 						   player_type});
@@ -454,7 +454,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 		units.clear();
 		logs.clear();
 		
-		*turn = 0;
+		*turn = GAME_START_TURN;
 		
 		/////////////////// put units on map
 		{

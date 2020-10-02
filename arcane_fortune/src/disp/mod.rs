@@ -856,6 +856,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			UIMode::PlotWindow {..} |
 			UIMode::UnitsWindow {..} |
 			UIMode::GenericAlert {..} |
+			UIMode::NoblePedigree {..} |
 			
 			UIMode::BrigadesWindow {..} |
 			UIMode::BrigadeBuildList {..} |

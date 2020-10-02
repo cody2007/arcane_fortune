@@ -9,12 +9,12 @@ use super::logo_vars::{LOGO_HEIGHT, LOGO_WIDTH};
 use crate::disp::{Buttons};
 use crate::localization::Localization;
 
-const COMMIT_ID: &str = include_str!("../../../.git/refs/heads/v0.2.0");//master");
+const COMMIT_ID: &str = include_str!("../../../.git/refs/heads/v0.3.0");//master");
 const IRONNETPRO_COMMIT_ID: &str = include_str!("../../../../ironnetpro/.git/refs/heads/master");
 
 const COMMIT_LEN: usize = 9;
 
-pub const VERSION_NM: &str = "Cults of Rebellion";
+pub const VERSION_NM: &str = "League of War";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 const TARGET: &str = env!("TARGET");
 const PROFILE: &str = env!("PROFILE");

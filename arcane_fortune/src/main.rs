@@ -25,6 +25,7 @@ mod ai;
 mod nn;
 mod keyboard;
 mod localization;
+mod nobility;
 
 use disp_lib::*;
 use map::*;
@@ -43,6 +44,7 @@ use resources::init_resource_templates;
 use doctrine::init_doctrine_templates;
 use keyboard::KeyboardMap;
 use localization::Localization;
+use nobility::*;
 
 fn main(){
 	disp::show_version_status_console();
@@ -152,6 +154,11 @@ fn main(){
 		match &iface_settings.ui_mode {
 			UIMode::InitialGameWindow => {}
 			_ => {d.curs_set(CURSOR_VISIBILITY::CURSOR_VISIBLE);}
+		}
+		
+		//// tmp
+		{
+			stats[0].houses.houses.push(House::new(&nms, &mut rng, turn));
 		}
 		
 		///////////////////

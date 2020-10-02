@@ -249,7 +249,38 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			let pstats = &stats[self.cur_player as usize];
 			print_tech_tree(unit_templates, bldg_templates, tech_templates, resource_templates,
 					disp_chars, pstats, sel, sel_mv, tree_offsets, self.screen_sz, *prompt_tech, kbd, l, buttons, d);
-		
+		///////////// noble pedigree
+		}else if let UIMode::NoblePedigree {mode, house_nm, ..} = &mut self.ui_mode {
+			let houses = &stats[self.cur_player as usize].houses;
+			
+			if house_nm.is_none() {
+				// no houses to show
+				if houses.houses.len() == 0 {
+					self.ui_mode = UIMode::GenericAlert {
+						txt: l.No_nobility_in_empire.clone()
+					};
+					return;
+					
+				// only one pedigree to show
+				}else if houses.houses.len() == 1 {
+					*house_nm = Some(houses.houses[0].name.clone());
+					
+				// ask which pedigree to show
+				}else{
+					print_list_window(*mode, &l.Select_a_noble_house, noble_houses_list(houses), self, disp_chars, None, None, 0, None, l, buttons, d);
+					return;
+				}
+			}
+			
+			// print the pedigree
+			if let Some(house_nm) = house_nm {
+				if let Some(house) = houses.houses.iter().find(|h| h.name == *house_nm) {
+					house.print_pedigree(buttons, self.screen_sz, disp_chars, l, d, turn);
+				}else{
+					end_window(self, d);
+				}
+			}
+			
 		//////////// doctrine tree window
 		}else if let UIMode::DoctrineWindow {sel, sel_mv, tree_offsets, ..} = &mut self.ui_mode {
 			let pstats = &stats[self.cur_player as usize];

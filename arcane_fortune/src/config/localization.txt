@@ -18,7 +18,7 @@ Generic text
 {
 	Empty_txt: "", "" // should be first entry
 	Action: "Action", "#Action" // @
-	Edition: "Cults of Rebellion", "Cultes de la rébellion" // @
+	Edition: "League of War", "#League of War" // @
 	Language: "Language", "Langue" // @
 	Load_game: "Load game", "Chargement du jeu" // title screen @
 	New_game: "New game", "Nouveau jeu" // title screen @
@@ -100,6 +100,9 @@ Generic text
 	Group_move_tool_tip: "Moves a group of units, maintaining their relative positioning.", "#Moves a group of units, maintaining their relative positioning."
 	Move_to: "Move to...", "#Move to..."
 	Never: "Never", "#Never"
+	Age: "Age", "#Age"
+	No_nobility_in_empire: "No noble houses are part of your empire. Maybe one day one will request to join...", "#No noble houses are part of your empire. Maybe one day one will request to join..."
+	House_of: "House of []", "#House of []"
 	Cultural_Advisor: "Cultural Advisor", "#Cultural Advisor"
 	Cultural_Advisor_vlow: " The state of your people is barbaric! They need, no require, you dedicate more buildings with a higher doctrine in mind.", "#vlow"
 	Cultural_Advisor_low: " Your empire is culturally stagnating. Consider dedicating more buildings with a higher doctrine in mind.", "#low"
@@ -192,6 +195,7 @@ Generic text
 	Req_prevailing_doctrine: "Req prevailing doct:", "#Req prevailing doct:"
 	Pre_req: "Pre-req:", "#Pre-req:"
 	Bldg_pts: "Bldg pts:", "#Bldg pts:"
+	Select_a_noble_house: "Select a noble house:", "#Select a noble house:"
 	Bldg_pts_req: "Bldg pts req:", "#Bldg pts req:"
 	Research_required: "Research required:", "#Research required:"
 	Research_output_per_day: "Research output / day:", "#Research output / day:"
@@ -563,6 +567,8 @@ Generic text
 	Tax_aversion: "Tax aversion:", "#Tax aversion:"
 	In_which_sector_do_you_want_to_automate: "In which sector do you want to automate the unit?", "#In which sector?"
 	Politics: "Politics:", "#Politics:" // as in political beliefs/affiliation
+	Select_a_new_tech: "Select a new technology to research", "#Select a new technology to research"
+	Technology_tree: "Technology tree", "#Technology tree"
 	File: "F|ile", "F|ile#" ////////---------------------------------- start of top level menus
 	Accounting: "A|c|counting", "A|c|counting#"
 	Intel: "Inte|l|", "Inte|l|#"

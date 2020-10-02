@@ -12,8 +12,9 @@ use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::tech::TechTemplate;
 use crate::disp::{CCYAN, CSAND4, CGREEN, CSAND1};
+use crate::nobility::Houses;
 use crate::disp_lib::*;
-use crate::gcore::{Bonuses, Brigade, Sector};
+use crate::gcore::{Bonuses, Brigade, Sector, XorState};
 use crate::localization::Localization;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
@@ -149,6 +150,15 @@ pub struct AIPersonality {
 
 impl_saving!{AIPersonality {friendliness, spirituality} }
 
+impl AIPersonality {
+	pub fn new(rng: &mut XorState) -> Self {
+		Self {
+			friendliness: 2.*rng.gen_f32b() - 1., // between -1:1
+			spirituality: 2.*rng.gen_f32b() - 1.
+		}
+	}
+}
+
 #[derive(Clone, PartialEq)]
 pub enum PlayerType {
 	Human,
@@ -217,10 +227,13 @@ pub struct Nms { // name list used to randomly name each city and unit (loaded f
 	pub cities: Vec<Vec<String>>, // cities[i][:] are all city names with theme i
 	pub units: Vec<String>, // aka battalions
 	pub brigades: Vec<String>,
-	pub sectors: Vec<String>
+	pub sectors: Vec<String>,
+	pub noble_houses: Vec<String>,
+	pub females: Vec<String>,
+	pub males: Vec<String>,
 }
 
-impl_saving!{Nms {cities, units, brigades, sectors}}
+impl_saving!{Nms {cities, units, brigades, sectors, noble_houses, females, males}}
 
 #[derive(Clone, PartialEq)]
 pub enum TechProg {Prog(SmSvType), Finished}
@@ -414,6 +427,8 @@ pub struct Stats<'bt,'ut,'rt,'dt> {
 	pub brigades: Vec<Brigade<'bt,'ut,'rt,'dt>>,
 	pub sectors: Vec<Sector>,
 	
+	pub houses: Houses,
+	
 	// note: `land_discov` internals may be on a sparse grid and not reprsent direct coordinates (like zone info)
 	pub land_discov: Vec<LandDiscov>, // use .discovered() and .discover() to access
 	pub fog: Vec<HashedFogVars<'bt,'ut,'rt,'dt>> // (indexed by [zoom level][direct (non-grid) coordinate])
@@ -447,6 +462,8 @@ impl_saving!{Stats<'bt,'ut,'rt,'dt> {alive, population, gold, employed,
 		    techs_progress, techs_scheduled, research_per_turn,
 		    
 		    brigades, sectors,
+		    
+		    houses,
 		    
 		    land_discov,
 		    fog
@@ -533,6 +550,8 @@ impl <'bt,'ut,'rt,'dt>Stats<'bt,'ut,'rt,'dt> {
 			
 			brigades: Vec::new(),
 			sectors: Vec::new(),
+			
+			houses: Default::default(),
 			
 			land_discov, fog
 		}

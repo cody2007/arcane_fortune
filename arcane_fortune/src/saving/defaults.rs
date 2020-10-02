@@ -9,6 +9,7 @@ use crate::zones::{ZoneDemandRaw, StructureData,
 use crate::disp::{Coord, ScreenSz, Fire, FireTile};
 use crate::doctrine::DoctrineTemplate;
 use crate::buildings::*;
+use crate::nobility::*;
 use crate::units::*;
 use crate::tech::*;
 use crate::ai::{AttackFront, AttackFronts, AttackFrontState, AIState,
@@ -298,6 +299,8 @@ impl <'bt,'ut,'rt,'st>Stats<'bt,'ut,'rt,'st> {
 			brigades: Vec::new(),
 			sectors: Vec::new(),
 			
+			houses: Default::default(),
+			
 			land_discov: Vec::new(),
 			fog: Vec::new()
 }}}
@@ -359,6 +362,9 @@ impl Default for Nms {
 		units: Vec::new(),
 		brigades: Vec::new(),
 		sectors: Vec::new(),
+		noble_houses: Vec::new(),
+		females: Vec::new(),
+		males: Vec::new()
 }}}
 
 impl Default for Log {

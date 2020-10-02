@@ -2,7 +2,7 @@
 use super::*;
 use crate::KeyboardMap;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Copy)]
 pub struct ScreenCoord {
 	pub y: isize,
 	pub x: isize
