@@ -10,7 +10,7 @@ use crate::disp::{Buttons};
 use crate::localization::Localization;
 
 const COMMIT_ID: &str = include_str!("../../../.git/refs/heads/v0.3.0");//master");
-const IRONNETPRO_COMMIT_ID: &str = include_str!("../../../../ironnetpro/.git/refs/heads/master");
+const IRONNETPRO_COMMIT_ID: &str = COMMIT_ID; //include_str!("../../../../ironnetpro/.git/refs/heads/master");
 
 const COMMIT_LEN: usize = 9;
 
