@@ -13,6 +13,8 @@ use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
+use crate::nobility::House;
+use crate::containers::Templates;
 
 // check if unit present, it is owned by current player, has actions available, and no other action mode is active
 impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
@@ -52,18 +54,24 @@ fn start_zoning<'bt,'ut,'rt,'dt>(unit_inds: &Vec<usize>, zone_type: ZoneType, un
 	}
 }
 
-pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<MEVENT>, turn: &mut usize, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, 
+pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &Option<MEVENT>, turn: &mut usize, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, 
 		zone_exs_owners: &mut Vec<HashedMapZoneEx>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
-		bldg_config: &BldgConfig, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, doctrine_templates: &'dt Vec<DoctrineTemplate>,
-		unit_templates: &'ut Vec<UnitTemplate<'rt>>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, 
-		tech_templates: &Vec<TechTemplate>, resource_templates: &'rt Vec<ResourceTemplate>, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>,
-		relations: &mut Relations, owners: &Vec<Owner>, nms: &Nms,
+		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'o,'tt>,
+		disp_chars: &DispChars, disp_settings: &DispSettings,
+		stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>,
+		unaffiliated_houses: &mut Vec<House>, relations: &mut Relations,
 		iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>, production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>,
-		ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>, ai_config: &AIConfig,
+		ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
 		barbarian_states: &mut Vec<Option<BarbarianState>>,
-		logs: &mut Vec<Log>, disp_settings: &DispSettings, disp_chars: &DispChars, menu_options: &mut OptionsUI, frame_stats: &mut FrameStats,
-		kbd: &KeyboardMap, buttons: &mut Buttons, l: &Localization, rng: &mut XorState, d: &mut DispState){
+		logs: &mut Vec<Log>, menu_options: &mut OptionsUI, frame_stats: &mut FrameStats,
+		buttons: &mut Buttons, txt_list: &mut TxtList, rng: &mut XorState, d: &mut DispState){
 	
+	let owners = temps.owners;
+	let nms = &temps.nms;
+	let bldg_config = &temps.bldg_config;
+	let kbd = &temps.kbd;
+	let l = &temps.l;
+
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
 	// cursor and view movement
@@ -82,9 +90,9 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 		}
 	}};
 	
-	macro_rules! end_turn_c{()=>(end_turn(turn, units, bldg_config, bldgs, doctrine_templates, unit_templates, resource_templates, bldg_templates, tech_templates, 
-		map_data, exs, zone_exs_owners, stats, relations, owners, nms, iface_settings, production_options, 
-		ai_states, ai_config, barbarian_states, logs, disp_settings, disp_chars, menu_options, frame_stats, rng, kbd, l, buttons, d););};
+	macro_rules! end_turn_c{()=>(end_turn(turn, units, bldgs, temps, disp_chars, disp_settings,
+		map_data, exs, zone_exs_owners, stats, unaffiliated_houses, relations, iface_settings, production_options, 
+		ai_states, barbarian_states, logs, menu_options, frame_stats, rng, buttons, txt_list, d););};
 		
 	macro_rules! set_taxes{($inc: expr)=>{
 		if let UIMode::SetTaxes(zone_type) = iface_settings.ui_mode {
@@ -107,7 +115,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 									if let Dist::Is {bldg_ind: city_hall_ind, ..} = zone_ex.ret_city_hall_dist() {
 										if city_hall_ind == city_hall_ind_set {
 											let new_income = -bldgs[bldg_ind].template.upkeep * 
-												return_effective_tax_rate(b.coord, map_data, exs, zone_exs, bldgs, stats, doctrine_templates, map_sz, *turn);
+												return_effective_tax_rate(b.coord, map_data, exs, zone_exs, bldgs, stats, temps.doctrines, map_sz, *turn);
 											
 											bldgs[bldg_ind].set_taxable_upkeep(new_income, stats);
 										} // city hall used is the one set
@@ -261,6 +269,58 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 	if kbd.fast_down == k {aupdate!(CoordSet::Y, 1); cursor_moved = true;}
 	if kbd.fast_left == k {aupdate!(CoordSet::X, -1); cursor_moved = true;}
 	if kbd.fast_right == k {aupdate!(CoordSet::X, 1); cursor_moved = true;}
+	
+	/////////// screen reader text tabbing
+	if screen_reader_mode() {
+		if k == kbd.start_tabbing_through_bottom_screen_mode {
+			iface_settings.ui_mode = UIMode::TextTab {
+				mode: 0,
+				loc: TextTabLoc::BottomStats
+			};
+			d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		}
+		
+		if k == kbd.start_tabbing_through_right_screen_mode {
+			iface_settings.ui_mode = UIMode::TextTab {
+				mode: 0,
+				loc: TextTabLoc::RightSide
+			};
+			d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		}
+		
+		if k == kbd.forward_tab {
+			if let UIMode::TextTab {ref mut mode, loc} = &mut iface_settings.ui_mode {
+				*mode += 1;
+				// check if we wrap
+				match loc {
+					TextTabLoc::BottomStats => {
+						if txt_list.bottom.len() <= *mode {*mode = 0;}
+					}
+					TextTabLoc::RightSide => {
+						if txt_list.right.len() <= *mode {*mode = 0;}
+					}
+				}
+			}
+		}
+		
+		if k == kbd.backward_tab {
+			if let UIMode::TextTab {ref mut mode, loc} = &mut iface_settings.ui_mode {
+				if *mode >= 1 {
+					*mode -= 1;
+				// wrap
+				}else{
+					match loc {
+						TextTabLoc::BottomStats => {
+							*mode = txt_list.bottom.len()-1;
+						}
+						TextTabLoc::RightSide => {
+							*mode = txt_list.right.len()-1;
+						}
+					}
+				}
+			}
+		}
+	}
 	
 	/////////// cursor OR view diagonol
 	{
@@ -971,7 +1031,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 				if iface_settings.pre_process_action_chk_valid(cur_mi, units, bldgs, exf, map_data) {
 					if let AddActionTo::IndividualUnit {action_iface} = &iface_settings.add_action_to {
 						let action_iface = action_iface.clone();
-						if iface_settings.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, stats, exs, ai_states, barbarian_states, relations, owners, bldg_config, unit_templates, bldg_templates, tech_templates, doctrine_templates, zone_exs_owners, map_data, map_sz, disp_settings, disp_chars, menu_options, logs, *turn, rng, frame_stats, kbd, l, buttons, d) {
+						if iface_settings.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, stats, exs, ai_states, barbarian_states, relations, owners, bldg_config, temps.units, temps.bldgs, temps.techs, temps.doctrines, zone_exs_owners, map_data, map_sz, disp_settings, disp_chars, menu_options, logs, *turn, rng, frame_stats, kbd, l, buttons, txt_list, d) {
 							iface_settings.add_action_to = AddActionTo::None;
 						}
 					}else{panicq!("invalid add_action_to state");}
@@ -987,7 +1047,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 				
 				// add action to all units in brigade
 				for action_iface in action_ifaces.clone() {
-					if iface_settings.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, stats, exs, ai_states, barbarian_states, relations, owners, bldg_config, unit_templates, bldg_templates, tech_templates, doctrine_templates, zone_exs_owners, map_data, map_sz, disp_settings, disp_chars, menu_options, logs, *turn, rng, frame_stats, kbd, l, buttons, d) {
+					if iface_settings.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, stats, exs, ai_states, barbarian_states, relations, owners, bldg_config, temps.units, temps.bldgs, temps.techs, temps.doctrines, zone_exs_owners, map_data, map_sz, disp_settings, disp_chars, menu_options, logs, *turn, rng, frame_stats, kbd, l, buttons, txt_list, d) {
 						any_success = true;
 					}
 				}

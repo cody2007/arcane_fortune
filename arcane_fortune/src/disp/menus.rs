@@ -14,6 +14,7 @@ use crate::gcore::rand::XorState;
 use crate::gcore::GameDifficulties;
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
+use crate::nobility::House;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 
@@ -243,9 +244,11 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				self.set_auto_turn(prev_auto_turn, d);
 			} 
 			UIMode::None |
+			UIMode::TextTab {..} |
 			UIMode::SetTaxes(_) |
 			UIMode::ProdListWindow {..} |
 			UIMode::GenericAlert {..} |
+			UIMode::NobilityReqToJoin {..} |
 			UIMode::PublicPollingWindow |
 			UIMode::CurrentBldgProd {..} |
 			UIMode::SelectBldgDoctrine {..} |
@@ -294,6 +297,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		self.ui_mode = UIMode::Menu {
 			mode: None,
 			sub_mode: None,
+			sel_loc: (0,0),
 			prev_auto_turn: self.auto_turn
 		};
 		self.set_auto_turn(AutoTurn::Off, d);
@@ -311,9 +315,11 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, m
 		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &mut Vec<HashedMapZoneEx>, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>,
 		disp_settings: &mut DispSettings, lang: &Localization,
 		disp_chars: &mut DispChars, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
-		bldg_config: &BldgConfig, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, owners: &mut Vec<Owner>, nms: &Nms,
+		bldg_config: &BldgConfig, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, owners: &Vec<Owner>, nms: &Nms,
 		doctrine_templates: &'dt Vec<DoctrineTemplate>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, unit_templates: &'ut Vec<UnitTemplate<'rt>>,
-		turn: &mut usize, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, relations: &mut Relations, tech_templates: &mut Vec<TechTemplate>, resource_templates: &'rt Vec<ResourceTemplate>,
+		turn: &mut usize, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>,
+		unaffiliated_houses: &mut Vec<House>,
+		relations: &mut Relations, tech_templates: &Vec<TechTemplate>, resource_templates: &'rt Vec<ResourceTemplate>,
 		ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>, ai_config: &AIConfig,
 		barbarian_states: &mut Vec<Option<BarbarianState>>,
 		logs: &mut Vec<Log>, production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>,
@@ -339,7 +345,7 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, m
 		exit(0);
 	}else if m("F|ile", "S|ave") {
 		iface_settings.reset_auto_turn(d); // iface_settings.ui_mode is cleared by save_game(), so the tmp settings of auto turn are lost
-		save_game(SaveType::Manual, *turn, map_data, exs, zone_exs_owners, bldg_config, bldgs, units, stats, relations, iface_settings, doctrine_templates, bldg_templates, unit_templates, resource_templates, owners, nms, disp_settings, disp_chars, tech_templates, ai_states, ai_config, barbarian_states, logs, l, frame_stats, rng, d);
+		save_game(SaveType::Manual, *turn, map_data, exs, zone_exs_owners, bldg_config, bldgs, units, stats, unaffiliated_houses, relations, iface_settings, doctrine_templates, bldg_templates, unit_templates, resource_templates, owners, nms, disp_settings, disp_chars, tech_templates, ai_states, ai_config, barbarian_states, logs, l, frame_stats, rng, d);
 	
 	}else if m("F|ile", "Save |A|s") {
 		if let UIMode::Menu {prev_auto_turn, ..} = iface_settings.ui_mode {
@@ -814,11 +820,12 @@ pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event_opt: &
 		disp_chars: &mut DispChars,
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
 		bldg_config: &BldgConfig, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, 
-		owners: &mut Vec<Owner>, nms: &Nms,
+		owners: &Vec<Owner>, nms: &Nms,
 		doctrine_templates: &'dt Vec<DoctrineTemplate>,
 		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>,
-		unit_templates: &'ut Vec<UnitTemplate<'rt>>, turn: &mut usize, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
-		tech_templates: &mut Vec<TechTemplate>, resource_templates: &'rt Vec<ResourceTemplate>,
+		unit_templates: &'ut Vec<UnitTemplate<'rt>>, turn: &mut usize, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>,
+		unaffiliated_houses: &mut Vec<House>, relations: &mut Relations,
+		tech_templates: &Vec<TechTemplate>, resource_templates: &'rt Vec<ResourceTemplate>,
 		ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>, ai_config: &AIConfig,
 		barbarian_states: &mut Vec<Option<BarbarianState>>, logs: &mut Vec<Log>,
 		production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>, frame_stats: &FrameStats,
@@ -826,7 +833,7 @@ pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event_opt: &
 		l: &Localization, buttons: &mut Buttons, rng: &mut XorState, d: &mut DispState) -> UIRet {
 	
 	macro_rules! exec_sub{($mode: expr, $sub:expr) => {
-		return if let Some(g) = execute_submenu($mode, $sub, main_options, map_data, exs, zone_exs_owners, iface_settings, disp_settings, lang, disp_chars, units, bldg_config, bldgs, owners, nms, doctrine_templates, bldg_templates, unit_templates, turn, stats, relations, tech_templates, resource_templates, ai_states, ai_config, barbarian_states, logs, production_options, frame_stats, game_opts, game_difficulties, l, buttons, rng, d) {
+		return if let Some(g) = execute_submenu($mode, $sub, main_options, map_data, exs, zone_exs_owners, iface_settings, disp_settings, lang, disp_chars, units, bldg_config, bldgs, owners, nms, doctrine_templates, bldg_templates, unit_templates, turn, stats, unaffiliated_houses, relations, tech_templates, resource_templates, ai_states, ai_config, barbarian_states, logs, production_options, frame_stats, game_opts, game_difficulties, l, buttons, rng, d) {
 			*game_state = g;
 			UIRet::ChgGameState
 		}else{
@@ -980,7 +987,7 @@ pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event_opt: &
 	// sub menu active -- execute command if enter or shortcut key pressed
 	if let UIMode::Menu {mode: Some(mode), sub_mode: Some(sub_mode), ..} = iface_settings.ui_mode {
 		macro_rules! exec_sub{($mode: expr, $sub:expr) => {
-			return if let Some(g) = execute_submenu($mode, $sub, main_options, map_data, exs, zone_exs_owners, iface_settings, disp_settings, lang, disp_chars, units, bldg_config, bldgs, owners, nms, doctrine_templates, bldg_templates, unit_templates, turn, stats, relations, tech_templates, resource_templates, ai_states, ai_config, barbarian_states, logs, production_options, frame_stats, game_opts, game_difficulties, l, buttons, rng, d) {
+			return if let Some(g) = execute_submenu($mode, $sub, main_options, map_data, exs, zone_exs_owners, iface_settings, disp_settings, lang, disp_chars, units, bldg_config, bldgs, owners, nms, doctrine_templates, bldg_templates, unit_templates, turn, stats, unaffiliated_houses, relations, tech_templates, resource_templates, ai_states, ai_config, barbarian_states, logs, production_options, frame_stats, game_opts, game_difficulties, l, buttons, rng, d) {
 				*game_state = g;
 				UIRet::ChgGameState
 			}else{
@@ -1161,12 +1168,13 @@ pub fn update_menu_indicators(main_options: &mut OptionsUI, iface_settings: &Ifa
 
 // prints nm with one space before & after, will highlight if entry_active = True
 // used for both top-menu, sub-menu, and building production displays
-fn print_menu_item(nm: &String, entry_active: bool, menu_active: bool, owner_opt: Option<&Owner>, d: &mut DispState){
+// returns the row and col the text starts at
+fn print_menu_item(nm: &String, entry_active: bool, menu_active: bool, owner_opt: Option<&Owner>, d: &mut DispState) -> (i32, i32) {
 	if nm.chars().nth(0).unwrap() == MENU_INACTIVEC {
 		d.attron(COLOR_PAIR(CGRAY)); //A_DIM());
 		d.addstr(format!(" {} ", &nm[1..]).as_ref());
 		d.attroff(COLOR_PAIR(CGRAY)); //A_DIM());
-		return;
+		return (0,0);
 	}
 	
 	// count tokens
@@ -1186,16 +1194,32 @@ fn print_menu_item(nm: &String, entry_active: bool, menu_active: bool, owner_opt
 	
 	let color = if menu_active {shortcut_indicator()} else {COLOR_PAIR(CWHITE)};
 	
+	// for screen readers
+	let mut first_non_whitespace_char_found = false; // attempt to skip over whitespace
+	let mut sel_loc = {
+		let curs = cursor_pos(d);
+		(curs.y as i32, curs.x as i32)
+	};
+	
 	// print w/ key underlined
 	let pats: Vec<&str> = nm.split(MENU_DELIMC).collect(); 
 	for (token_ind, pat) in pats.iter().enumerate() {
+		// set cursor start loc for screen readers -- find first non whitespace
+		if !first_non_whitespace_char_found {
+			for (c_ind, c) in pat.chars().enumerate().filter(|(_, c)| *c != ' ') {
+				let curs = cursor_pos(d);
+				sel_loc = (curs.y as i32, curs.x as i32 + c_ind as i32);
+				first_non_whitespace_char_found = true;
+				break;
+			}
+		}
 		if pat.chars().count() == 1 && (token_ind != 0 || n_tokens == 2) &&
 			(token_ind != (n_tokens-1) || n_tokens == 2) &&
 			(token_ind == 0 || nm.chars().count() != 3) { // < ex in the case of "G|o" choose the first
-
+				if screen_reader_mode() {d.addch('[');}
 				d.addch(pat.chars().nth(0).unwrap() as chtype | color);
-				
-		}else{		d.addstr(format!("{}", pat).as_ref()); }
+				if screen_reader_mode() {d.addch(']');}
+		}else{d.addstr(format!("{}", pat).as_ref()); }
 	}
 	
 	// print padding
@@ -1206,6 +1230,7 @@ fn print_menu_item(nm: &String, entry_active: bool, menu_active: bool, owner_opt
 	}else if let Some(owner) = owner_opt {
 		set_player_color(owner, false, d);
 	}
+	sel_loc
 }
 
 // prints vertical list of menu items at row, col, with width w as:
@@ -1218,9 +1243,11 @@ fn print_menu_item(nm: &String, entry_active: bool, menu_active: bool, owner_opt
 // only part of it is supplied here if more is in the list than is to be shown on the
 // screen). `start_ind` is used to save values in `buttons`
 // if owners_opt supplied, print owner colors
+// sel_loc is set to the location of the selected text
 pub fn print_menu_vstack(sub_options: &OptionsUI, row: i32, col: i32, w: usize, 
 		ind_active: usize, disp_chars: &DispChars, show_ai_pause: bool,
 		owners_opt: Option<&Vec<Owner>>, start_ind: usize,
+		sel_loc: &mut Option<&mut (i32, i32)>,
 		buttons: &mut Buttons, d: &mut DispState){
 	
 	macro_rules! sub_ln_s{($row_add: expr) => {d.mv($row_add as i32 + row, col);};};
@@ -1240,15 +1267,20 @@ pub fn print_menu_vstack(sub_options: &OptionsUI, row: i32, col: i32, w: usize,
 		let entry_active = i == ind_active;
 		
 		// print menu item
-		{
-			let mut printed = false;
+		let cur_sel_loc = (|| {
 			if let Some(owners) = owners_opt {
 				if let ArgOptionUI::OwnerInd(owner_ind) = sub_opt.arg {
-					print_menu_item(&sub_opt.dyn_str, entry_active, true, Some(&owners[owner_ind]), d);
-					printed = true;
+					return print_menu_item(&sub_opt.dyn_str, entry_active, true, Some(&owners[owner_ind]), d);
 				}
 			}
-			if !printed {print_menu_item(&sub_opt.dyn_str, entry_active, true, None, d);}
+			print_menu_item(&sub_opt.dyn_str, entry_active, true, None, d)
+		})();
+		
+		// for screen readers
+		if entry_active {
+			if let Some(ref mut sel_loc) = sel_loc {
+				**sel_loc = cur_sel_loc;
+			}
 		}
 		
 		// have menu end at same spot for all entries
@@ -1275,11 +1307,13 @@ pub fn print_menu_vstack(sub_options: &OptionsUI, row: i32, col: i32, w: usize,
 // prints top menu and expanded submenus
 // inputs: iface_settings: menu_active, menu_mode, sub_menu_mode
 impl IfaceSettings<'_,'_,'_,'_,'_> {
-	pub fn print_menus(&self, disp_chars: &DispChars, main_options: &OptionsUI, show_ai_pause: bool, kbd: &KeyboardMap, 
-			buttons: &mut Buttons, d: &mut DispState){
+	pub fn print_menus(&mut self, disp_chars: &DispChars, main_options: &OptionsUI, show_ai_pause: bool, kbd: &KeyboardMap, 
+			buttons: &mut Buttons, l: &Localization, d: &mut DispState){
 		let menu_active = match self.ui_mode {
-			UIMode::Menu {..} => true,
-			_ => false
+			UIMode::Menu {ref mut sel_loc, ..} => {
+				*sel_loc = (0,0); // cursor location for screen readers, this will be set below if a particular item is active
+				true
+			} _ => false
 		};
 		
 		/////////////// top menu
@@ -1299,19 +1333,28 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		debug_assertq!(MENU_NMS.len() == main_options.options.len());
 		
+		// print top-level menu items
 		for (i, option) in main_options.options.iter().enumerate() {
-			let entry_active = if let UIMode::Menu {mode: Some(mode), ..} = self.ui_mode {
-				mode == i
+			let entry_active = if let UIMode::Menu {mode: Some(mode), sub_mode, ref mut sel_loc, ..} = self.ui_mode {
+				if mode == i {
+					// set cursor location for screen readers
+					if sub_mode.is_none() {
+						let cur = cursor_pos(d);
+						*sel_loc = (cur.y as i32, cur.x as i32);
+					}
+					true
+				}else{false}
 			}else {false};
 			
 			print_menu_item(&option.dyn_str, entry_active, menu_active, None, d);
-
+			
 			if i != (MENU_NMS.len()-1) {d.addch(disp_chars.vline_char);}	
 		}
 		
 		if menu_active {
 			d.attron(COLOR_PAIR(ESC_COLOR));
-			d.addstr("   (<Esc> to exit menu)");
+			d.addstr("   ");
+			d.addstr(&l.Esc_to_exit_menu);
 			d.attroff(COLOR_PAIR(ESC_COLOR));
 		}else{ 
 			d.addch('\n' as chtype); }
@@ -1319,7 +1362,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		const SUB_MENU_LN_OFFSET: usize = 2;
 		
 		////// show submenu
-		if let UIMode::Menu {mode: Some(mode), sub_mode: Some(sub_mode), ..} = self.ui_mode {
+		if let UIMode::Menu {mode: Some(mode), sub_mode: Some(sub_mode), ref mut sel_loc, ..} = self.ui_mode {
 			let main_opt = &main_options.options[mode];
 			if let ArgOptionUI::MainMenu {col_start, sub_options} = &main_opt.arg {
 				macro_rules! sub_ln_s{($row: expr) => {d.mv($row as i32, *col_start as i32);};};
@@ -1350,7 +1393,8 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				
 				// print stack of submenu options
 				print_menu_vstack(sub_options, SUB_MENU_LN_OFFSET as i32, *col_start as i32, 
-						w_use + 2, sub_mode, disp_chars, show_ai_pause, None, 0, buttons, d);
+						w_use + 2, sub_mode, disp_chars, show_ai_pause, None, 0,
+						&mut Some(sel_loc), buttons, d);
 			
 			}else{panicq!("main menu arguments not set");}
 		}else if let UIMode::Menu {mode: Some(_), sub_mode: None, ..} = self.ui_mode { 

@@ -65,8 +65,12 @@ impl NoblePair {
 			// line between the two:        | Partner 1 |-------| Partner 2 |
 			let box_middle_row = y + BOX_HEIGHT as i32/2;
 			d.mv(box_middle_row, x + BOX_WIDTH as i32);
-			for _ in 0..SPACE_BETWEEN_PAIRS_X {
-				d.addch(disp_chars.hline_char);
+			for col in 0..SPACE_BETWEEN_PAIRS_X {
+				d.addch(if col != (SPACE_BETWEEN_PAIRS_X/2) {
+					disp_chars.hline_char
+				}else{
+					disp_chars.urcorner_char
+				});
 			}
 			
 			let coord = ScreenCoord {
@@ -82,7 +86,6 @@ impl NoblePair {
 					d.addch(disp_chars.vline_char);
 				}
 			}
-			
 		}
 	}
 	
@@ -116,53 +119,99 @@ impl House {
 		center_txt!(l.House_of.replace("[]", &self.name), w);
 		
 		if let Some(head_pair) = self.noble_pairs.first() {
-			let coord = ScreenCoord {
-				y: 1,
-				x: (screen_sz.w - head_pair.disp_width()) as isize / 2
+			let head_branch_w = self.branch_disp_width(head_pair) as i32;
+			debug_assertq!(w > head_branch_w);
+			self.print_branch(1, (w - head_branch_w)/2, head_pair, w, disp_chars, l, d, turn);
+		}
+	}
+	
+	fn print_branch(&self, start_row: i32, start_col: i32, head_pair: &NoblePair, screen_sz_w: i32,
+			disp_chars: &DispChars, l: &Localization, d: &mut DispState, turn: usize) {
+		let head_branch_w = self.branch_disp_width(head_pair) as isize;
+		let head_pair_w = head_pair.disp_width() as isize;
+		
+		{ // print head pair
+			// head pair is wider than the children
+			let head_start_col = if head_pair_w == head_branch_w {
+				start_col
+			// center head pair on top of the children
+			}else{
+				debug_assertq!(head_pair_w < head_branch_w);
+				start_col + (head_branch_w - head_pair_w) as i32 /2
 			};
 			
-			head_pair.print(false, coord, disp_chars, l, d, turn);
-			let head_branch_w = self.branch_disp_width(0) as isize;
-			let child_start_row = (screen_sz.w as i32 - head_branch_w as i32)/2;
+			head_pair.print(false, ScreenCoord {y: start_row as isize, x: head_start_col as isize}, disp_chars, l, d, turn);
+		}
+		
+		// show children
+		if let Some(marriage) = &head_pair.marriage {
+			let child_branch_ws = marriage.children.iter().map(|child| 
+				self.branch_disp_width(&self.noble_pairs[*child])
+			).collect::<Vec<usize>>();
 			
-			{ // horizontal line between parents & direct children
-				d.mv(BOX_HEIGHT as i32 + 2, child_start_row);
-				d.addch(disp_chars.ulcorner_char);
-				for col in 0..(head_branch_w-2) {
-					d.addch(if col != (head_branch_w/2)-1 {
-						disp_chars.hline_char
-					}else{
-						disp_chars.llcorner_char
-					});
-				}
-				d.addch(disp_chars.urcorner_char);
-			}
+			let mut start_row = start_row + 1 + BOX_HEIGHT as i32;
+			let mut start_col = 
+				// center children under the head pair
+				if head_pair_w == head_branch_w {
+					start_col + (head_pair_w - head_branch_w) as i32/2
+				// children are wider than the head pair
+				} else {start_col};
 			
-			// show children
-			if let Some(marriage) = &head_pair.marriage {
-				let mut coord = ScreenCoord {
-					y: (1 + SPACE_BETWEEN_GENERATIONS_Y + BOX_HEIGHT) as isize,
-					x: (screen_sz.w as isize - head_branch_w as isize) / 2
-				};
+			(|| { // horizontal line connection between parents and children
+				if child_branch_ws.len() == 0 {return;} // no children
 				
-				for child in marriage.children.iter() {
-					self.noble_pairs[*child].print(true, coord, disp_chars, l, d, turn);
-					coord.x += (self.branch_disp_width(*child) + SPACE_BETWEEN_PAIRS_X) as isize;
+				d.mv(start_row, start_col + BOX_WIDTH as i32/2);
+				
+				// only one child and no partner, only draw: |
+				if child_branch_ws.len() == 1 && self.noble_pairs[marriage.children[0]].marriage.is_none() {
+					d.addch(disp_chars.vline_char);
+					return;
 				}
+				
+				// far left child
+				if let Some(child_w) = child_branch_ws.first() {
+					d.addch(disp_chars.ulcorner_char);
+					for _ in 0..(child_w - (BOX_WIDTH/2)) {d.addch(disp_chars.hline_char);}
+				}
+				
+				// middle children
+				for (child_w_ind, child_w) in child_branch_ws.iter().enumerate().skip(1) {
+					// skip last child
+					if child_w_ind == (child_branch_ws.len()-1) {break;}
+					
+					for _ in 0..(*child_w + SPACE_BETWEEN_PAIRS_X) {d.addch(disp_chars.hline_char);}
+				}
+				
+				// last child
+				if child_branch_ws.len() > 1 {
+					let child_w = child_branch_ws.last().unwrap();
+					
+					for _ in 0..(2+child_w - (BOX_WIDTH/2)) {d.addch(disp_chars.hline_char);}
+					d.addch(disp_chars.urcorner_char);
+				}
+			})();
+			
+			start_row += 1;
+			
+			for (child_ind, child_branch_w) in marriage.children.iter().zip(child_branch_ws.iter()) {
+				let child = &self.noble_pairs[*child_ind];
+				self.print_branch(start_row, start_col, child, screen_sz_w, disp_chars, l, d, turn);
+				start_col += (child_branch_w + SPACE_BETWEEN_PAIRS_X) as i32;
 			}
 		}
 	}
 	
-	// max width of any generation that is a successor of the pair_ind noble_pair
-	fn branch_disp_width(&self, pair_ind: usize) -> usize {
-		let noble_pair = &self.noble_pairs[pair_ind];
-		if let Some(marriage) = &noble_pair.marriage {
+	// max width of any generation that is a successor of the head_pair
+	fn branch_disp_width(&self, head_pair: &NoblePair) -> usize {
+		let head_w = head_pair.disp_width();
+		
+		if let Some(marriage) = &head_pair.marriage {
 			let mut children_w = SPACE_BETWEEN_PAIRS_X * (marriage.children.len() - 1);
 			for child_ind in marriage.children.iter() {
-				children_w += self.branch_disp_width(*child_ind);
+				children_w += self.branch_disp_width(&self.noble_pairs[*child_ind]);
 			}
-			max(children_w, noble_pair.disp_width())
-		}else{noble_pair.disp_width()}
+			max(children_w, head_w)
+		}else{head_w}
 	}
 }
 

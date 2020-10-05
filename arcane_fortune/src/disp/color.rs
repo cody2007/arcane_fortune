@@ -78,7 +78,8 @@ const FG_BLACK_OFFSET: i16 = 55; // note: see disp_lib/mod.rs (CWHITE; it should
 
 pub const ESC_COLOR: CInd = CSAND4;
 
-pub const PLAYER_COLORS: &[i32] = &[1, 2, 3, CREDGREEN4, 5, 6, CREDBLUE, CREDSAND1, CGREEN4, 38];
+pub const PLAYER_COLORS: &[i32] = &[CLOGO, 1, 2, 3, CREDGREEN4, 5, 6, CREDBLUE, CREDSAND1, CGREEN4, 38];
+// ^ zeroth entry are unaffiliated nobility, first entry is the human player
 
 #[derive(PartialEq, Clone)]
 pub struct DispSettings {
@@ -88,6 +89,7 @@ pub struct DispSettings {
 
 impl_saving!{DispSettings {limit_schars, limit_colors}}
 
+#[derive(Clone)]
 pub struct DispChars {
 	pub land_char: u64,
 	

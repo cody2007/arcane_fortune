@@ -12,6 +12,9 @@ use crate::disp_lib::endwin;
 use crate::ai::AIState;
 use crate::localization::Localization;
 
+pub const HUMAN_PLAYER_IND: usize = 1;
+pub const HUMAN_PLAYER_ID: u32 = HUMAN_PLAYER_IND as u32;
+
 pub mod profiling;
 pub mod hashing;
 pub mod rand;

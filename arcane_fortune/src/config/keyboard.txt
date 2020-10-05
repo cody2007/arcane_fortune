@@ -93,3 +93,14 @@ Unit actions
 	decrease_tax: -
 }
 
+-----------------
+Text mode cursor control
+	(these are only used when the game is launched in screen_reader_mode and are
+	 used to tab through text at the bottom and right side of the screen)
+{
+	start_tabbing_through_bottom_screen_mode: B
+	start_tabbing_through_right_screen_mode: R
+	forward_tab: .
+	backward_tab: ,
+}
+

@@ -23,7 +23,8 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 		map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &mut Vec<HashedMapZoneEx>,
 		owners: &Vec<Owner>, logs: &mut Vec<Log>, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>, disp_chars: &DispChars,
 		disp_settings: &DispSettings, menu_options: &mut OptionsUI, cur_ui_ai_player_is_paused: Option<bool>,
-		map_sz: MapSz, frame_stats: &mut FrameStats, turn: usize, rng: &mut XorState, kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, d: &mut DispState) {
+		map_sz: MapSz, frame_stats: &mut FrameStats, turn: usize, rng: &mut XorState, kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons,
+		txt_list: &mut TxtList, d: &mut DispState) {
 	#[cfg(feature="profile")]
 	let _g = Guard::new("do_attack_actions");
 	
@@ -145,8 +146,8 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 			let u = &mut units[unit_ind];
 			iface_settings.center_on_next_unmoved_menu_item(false, FindType::Coord(u.return_coord()), map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, turn, d);
 			
-			iface_settings.print_map(menu_options, disp_chars, map_data, units, bldg_config, bldgs, owners, ai_states, stats, tech_templates, doctrine_templates, zone_exs_owners, exs, relations, logs, frame_stats, 0, turn, kbd, l, buttons, d);
-			iface_settings.update_cursor(&stats[iface_settings.cur_player as usize], map_data, disp_chars, d);
+			iface_settings.print_map(menu_options, disp_chars, map_data, units, bldg_config, bldgs, owners, ai_states, stats, tech_templates, doctrine_templates, zone_exs_owners, exs, relations, logs, frame_stats, 0, turn, kbd, l, buttons, txt_list, d);
+			iface_settings.update_cursor(&stats[iface_settings.cur_player as usize], map_data, disp_chars, txt_list, d);
 			d.refresh();
 			
 			let u = &units[unit_ind];
@@ -268,7 +269,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 					}
 				}
 				
-				iface_settings.update_cursor(&stats[iface_settings.cur_player as usize], map_data, disp_chars, d);
+				iface_settings.update_cursor(&stats[iface_settings.cur_player as usize], map_data, disp_chars, txt_list, d);
 				d.refresh();
 				//thread::sleep(Duration::from_millis(2));
 			}

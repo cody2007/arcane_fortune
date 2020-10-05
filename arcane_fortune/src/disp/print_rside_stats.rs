@@ -30,7 +30,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			stats: &Vec<Stats>, tech_templates: &Vec<TechTemplate>, doctrine_templates: &Vec<DoctrineTemplate>,
 			disp_chars: &DispChars, l: &Localization,
 			exf: &HashedMapEx, map_data: &MapData, zone_exs: &HashedMapZoneEx,
-			map_sz: MapSz, kbd: &KeyboardMap, buttons: &mut Buttons, d: &mut DispState) {
+			map_sz: MapSz, kbd: &KeyboardMap, buttons: &mut Buttons, txt_list: &mut TxtList, d: &mut DispState) {
 		
 		let screen_sz = self.screen_sz;
 		
@@ -43,6 +43,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			debug_assertq!(w > $txt.len());
 			let pad = (w - $txt.len()) / 2;
 			for _i in 0..pad {d.addch(' ' as chtype);}
+			txt_list.add_r(d);
 			d.addstr($txt);
 		};};
 		
@@ -54,6 +55,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			debug_assertq!(w >= txt.len());
 			let pad = w - txt.len();
 			for _i in 0..pad {d.addch(' ' as chtype);}
+			txt_list.add_r(d);
 			d.addstr(&txt);
 		};};
 		
@@ -74,7 +76,10 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				d.clrtoeol();
 			}
 			
-			macro_rules! button{($nm: ident) => {buttons.$nm.print(Some(self), l, d);};};
+			macro_rules! button{($nm: ident) => {
+				txt_list.add_r(d);
+				buttons.$nm.print(Some(self), l, d);};
+			};
 			
 			match self.auto_turn {
 				AutoTurn::Off => {
@@ -115,14 +120,17 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			{
 				mvclr!(); center_txt!(&l.Budget); mvclr!();
 				
+				txt_list.add_r(d);
 				d.addstr(&l.Taxes); d.addch(':');
 				ralign_txt!(&format!("{:.1}", pstats.tax_income));
 				mvclr!();
 				
+				txt_list.add_r(d);
 				d.addstr(&l.Units); d.addch(':');
 				ralign_txt!(&format!("{:.1}", -pstats.unit_expenses));
 				mvclr!();
 				
+				txt_list.add_r(d);
 				d.addstr(&l.Bldgs); d.addch(':');
 				ralign_txt!(&format!("{:.1}", -pstats.bldg_expenses));
 				mvclr!();
@@ -131,6 +139,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				for _ in (turn_col as usize)..screen_sz.w {d.addch(disp_chars.hline_char);}
 				
 				mvclr!();
+				txt_list.add_r(d);
 				d.addstr(&l.Net); d.addch(':');
 				let net_val = pstats.tax_income - pstats.unit_expenses - pstats.bldg_expenses;
 				let net_color = COLOR_PAIR(if net_val >= 0. {CGREEN} else {CRED});
@@ -139,11 +148,13 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				d.attroff(net_color);
 				
 				mvclr!();
+				txt_list.add_r(d);
 				d.addstr(&l.Gold); d.addch(':');
 				ralign_txt!(&float_string(pstats.gold));
 				
 				if net_val < 0.01 {
 					mvclr!();
+					txt_list.add_r(d);
 					d.addstr(&l.Bnkrpt); d.addch(':');
 					mvclr!();
 					ralign_txt!(&l.date_interval_str(-pstats.gold/net_val));
@@ -155,13 +166,15 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			/////////// demographics
 			{
 				mvclr!(); center_txt!(&l.Demographics); mvclr!();
+				txt_list.add_r(d);
 				d.addstr(&l.Rsdnts);
 				ralign_txt!(&format!("{}", pstats.population));
 				
 				if pstats.population != 0 {
 					let unemp = ((pstats.population - pstats.employed) as f32) / (pstats.population as f32);
-
+					
 					mvclr!();
+					txt_list.add_r(d);
 					d.addstr(&l.Unemp);
 					ralign_txt!(&format!("{}%", (unemp*100.).round()));
 				}
@@ -171,8 +184,9 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			///////// tech
 			{
 				mvclr!(); center_txt!(&l.Tech);
-				mvclr!(); d.addstr(&format!("{}: {}", l.Rsrch_turn, pstats.research_per_turn));
-				mvclr!(); d.addstr(&l.Rsrching);
+				mvclr!(); txt_list.add_r(d); d.addstr(&format!("{}: ", l.Rsrch_turn));
+				txt_list.add_r(d); d.addstr(&format!("{}", pstats.research_per_turn));
+				mvclr!(); txt_list.add_r(d); d.addstr(&l.Rsrching);
 				
 				if let Some(tech_scheduled) = pstats.techs_scheduled.last() {
 					let tech_ind = *tech_scheduled as usize;
@@ -180,6 +194,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					mvclr!(); ralign_txt!(&tech.nm[l.lang_ind]);
 					//d.mv(roff, turn_col); ///////////////////////////////////// !!!!!! mvclr!();
 					mvclr!();
+					txt_list.add_r(d);
 					d.addstr(&l.Fin); d.addch(':');
 					if pstats.research_per_turn == 0 {
 						ralign_txt!(&l.Never);
@@ -208,7 +223,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					owner_id: self.cur_player
 				}, d);
 			}
-		
+			
 			////// local zone demand
 			{
 				let plot_local_demand = {
@@ -272,6 +287,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		///////// arrow keys mode
 		{
+			txt_list.add_r(d);
 			d.addstr(&l.Arrow_keys_mv); mvclr!();
 			
 			macro_rules! show_toggle{() => {
@@ -282,11 +298,15 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			
 			match self.view_mv_mode {
 				ViewMvMode::Screen => {
+					txt_list.add_r(d);
 					d.addstr(&format!("* {}", l.Screen)); mvclr!();
+					txt_list.add_r(d);
 					d.addstr(&format!("  {}", l.Cursor)); show_toggle!();
 				}
 				ViewMvMode::Cursor => {
+					txt_list.add_r(d);
 					d.addstr(&format!("  {}", l.Screen)); show_toggle!(); mvclr!();
+					txt_list.add_r(d);
 					d.addstr(&format!("* {}", l.Cursor));
 				}
 				ViewMvMode::N => {}

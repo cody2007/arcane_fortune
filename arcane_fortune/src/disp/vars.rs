@@ -104,10 +104,18 @@ pub enum SectorAction {
 	SetBrigadeToRepairWalls(String) // the brigade name
 }
 
+pub enum TextTabLoc {
+	BottomStats,
+	RightSide
+}
+
 pub enum UIMode<'bt,'ut,'rt,'dt> {
 	None,
 	SetTaxes(ZoneType),
-	Menu {mode: Option<usize>, sub_mode: Option<usize>, prev_auto_turn: AutoTurn},
+	TextTab {mode: usize, loc: TextTabLoc}, // for screen readers -- text cursor is moved to printed text
+	Menu {mode: Option<usize>, sub_mode: Option<usize>, prev_auto_turn: AutoTurn,
+		sel_loc: (i32, i32) // sel_loc is the row and col on the screen where the active menu item is -- used to set the text cursor for screen readers
+	},
 	ProdListWindow {mode: usize}, 
 	// ^ bldg unit production: when bldg under cursor
 	//   worker bldg production: when unit under cursor
@@ -182,6 +190,7 @@ pub enum UIMode<'bt,'ut,'rt,'dt> {
 	EndGameWindow,
 	AboutWindow,
 	UnmovedUnitsNotification,
+	NobilityReqToJoin {mode: usize, unaffiliated_house_nm: String},
 	NoblePedigree {mode: usize, house_nm: Option<String>},
 	ForeignUnitInSectorAlert {sector_nm: String, battalion_nm: String},
 }
@@ -189,13 +198,13 @@ pub enum UIMode<'bt,'ut,'rt,'dt> {
 impl UIMode<'_,'_,'_,'_> {
 	pub fn is_none(&self) -> bool {
 		match self {
-			UIMode::None => {true}
+			UIMode::TextTab {..} | UIMode::None => {true}
 			_ => {false}
 		}
 	}
 }
 
-impl fmt::Display for UIMode<'_,'_,'_,'_> {
+/*impl fmt::Display for UIMode<'_,'_,'_,'_> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "{}", match self {
 			UIMode::None => "None",
@@ -251,7 +260,7 @@ impl fmt::Display for UIMode<'_,'_,'_,'_> {
 			UIMode::NoblePedigree {..} => "NoblePedigree"
 		})
 	}
-}
+}*/
 
 enum_From!{ViewMvMode {Cursor, Screen}}
 enum_From!{AutoTurn {Off, On, FinishAllActions}}

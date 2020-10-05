@@ -134,9 +134,9 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					let tile_len = METERS_PER_TILE*(map_data.map_szs.last().unwrap().w as f32) / (map_data.map_szs[self.zoom_ind].w as f32);
 					
 					let tile_str2 = if tile_len < 1000. {
-						format!("{:.1} m\n", tile_len)
+						format!("{:.1} m", tile_len)
 					}else{
-						format!("{:.1} km\n", tile_len/1000.)
+						format!("{:.1} km", tile_len/1000.)
 					};
 					tile_str.push_str(&tile_str2);
 				}
@@ -201,6 +201,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				d.addstr("  ");
 				d.addch(disp_chars.land_char as chtype | COLOR_PAIR(CGREEN));
 				d.addstr(&tile_str);
+				d.mv((self.screen_sz.h - MAP_ROW_STOP_SZ) as i32 + 1, 0);
 			}
 			
 			bounding_box!(ScreenSz {h: SUB_MAP_HEIGHT, w: SUB_MAP_WIDTH, sz: 0});

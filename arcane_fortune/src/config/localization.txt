@@ -17,6 +17,7 @@ Generic text
 		The "|" won't be displayed in the game.
 {
 	Empty_txt: "", "" // should be first entry
+	Esc_to_exit_menu: "(<Esc> to exit menu)", "#(<Esc> to exit menu)"
 	Action: "Action", "#Action" // @
 	Edition: "League of War", "#League of War" // @
 	Language: "Language", "Langue" // @
@@ -768,6 +769,7 @@ Buildings
 	_: "Auditorium", "#Auditorium"
 	_: "Court House", "#Court House"
 	_: "Market", "#Market"
+	_: "Manor", "#Manor"
 }
 
 Technologies

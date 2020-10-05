@@ -48,7 +48,7 @@ pub fn new_game_options(game_opts: &mut GameOptions, game_difficulties: &GameDif
 	loop {
 		let screen_sz = getmaxyxu(d);
 		let mouse_event = d.getmouse(key_pressed);
-
+		
 		// clear screen if terminal sz changes
 		if screen_sz != screen_sz_prev {
 			d.clear();
@@ -303,6 +303,18 @@ pub fn new_game_options(game_opts: &mut GameOptions, game_difficulties: &GameDif
 		
 		d.refresh();
 		d.set_mouse_to_arrow();
+		
+		// key handling occurs after printing. therefore, the frame that was
+		// last displayed will be stale if a selection was changed.
+		// we could put the key handling before the printing but that has issues
+		// because we'd be handling buttons that had never been printed and this 
+		// may not behave nicely.
+		if key_pressed != ERR {
+			key_pressed = d.getch();
+			continue;
+		}
+		
+		// prevent burning cpu cycles -- don't update the screen unless something changed
 		loop {
 			key_pressed = d.getch();
 			if key_pressed != ERR {break;}

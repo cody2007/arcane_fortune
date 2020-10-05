@@ -31,6 +31,7 @@ pub mod assign_action_iface; pub use assign_action_iface::*;
 pub mod draw_selection; pub use draw_selection::*;
 pub mod buttons; pub use buttons::*;
 pub mod pie_plot; pub use pie_plot::*;
+pub mod screen_reader; pub use screen_reader::*;
 
 pub use vars::*;
 pub use fns::*;
@@ -691,7 +692,7 @@ pub fn shortcut_indicator() -> chtype {
 
 pub fn shortcut_or_default_show(ui_mode: &UIMode, def_color: i32) -> chtype {
 	match *ui_mode {
-		UIMode::None | UIMode::SetTaxes(_) => {shortcut_indicator()},
+		UIMode::TextTab {..} | UIMode::None | UIMode::SetTaxes(_) => {shortcut_indicator()},
 		_ => {COLOR_PAIR(def_color)}
 	}
 }
@@ -830,7 +831,32 @@ pub fn is_printable(c: char, printable_type: Printable) -> bool {
 }
 
 impl IfaceSettings<'_,'_,'_,'_,'_> {
-	pub fn update_cursor(&self, pstats: &Stats, map_data: &mut MapData, disp_chars: &DispChars, d: &mut DispState) {
+	pub fn update_cursor(&self, pstats: &Stats, map_data: &mut MapData, disp_chars: &DispChars,
+			txt_list: &TxtList, d: &mut DispState) {
+		
+		if screen_reader_mode() {
+			d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+			
+			if let UIMode::Menu {sel_loc, ..} = &self.ui_mode {
+				d.mv(sel_loc.0, sel_loc.1);
+				return;
+			}else if let UIMode::TextTab {mode, loc} = &self.ui_mode {
+				match loc {
+					TextTabLoc::BottomStats => {
+						if let Some(loc) = txt_list.bottom.get(*mode) {
+							d.mv(loc.0, loc.1);
+						}
+					}
+					TextTabLoc::RightSide => {
+						if let Some(loc) = txt_list.right.get(*mode) {
+							d.mv(loc.0, loc.1);
+						}
+					}
+				}
+				return;
+			}
+		}
+		
 		match &self.ui_mode {
 			// these windows need to show the cursor in another location (input)
 			UIMode::ContactEmbassyWindow{..} | UIMode::SaveAsWindow {..} |
@@ -841,6 +867,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			
 			// show cursor at selection location (on map) -- cursor is hidden for options != None
 			UIMode::None |
+			UIMode::TextTab {..} |
 			UIMode::SetTaxes(_) |
 			UIMode::Menu {..} |
 			UIMode::ProdListWindow {..} |
@@ -857,6 +884,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			UIMode::UnitsWindow {..} |
 			UIMode::GenericAlert {..} |
 			UIMode::NoblePedigree {..} |
+			UIMode::NobilityReqToJoin {..} |
 			
 			UIMode::BrigadesWindow {..} |
 			UIMode::BrigadeBuildList {..} |

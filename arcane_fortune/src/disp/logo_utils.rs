@@ -12,7 +12,7 @@ use super::color::*;
 use super::version_status::{VERSION};
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
-use super::{addstr_c, addstr_attr, Button, Buttons};
+use super::{addstr_c, addstr_attr, Button, Buttons, cursor_pos, screen_reader_mode};
 
 const IGN_KEY_TIME: u64 = 50;
 
@@ -63,12 +63,17 @@ pub fn print_centered_logo(screen_sz: ScreenSz, disp_chars: &DispChars, addition
 	txt_under_logo_row_off
 }
 
-fn print_ln(button: &mut Button, roff: usize, highlight: bool, screen_sz: ScreenSz,
-		d: &mut DispState) {
+fn print_ln(button: &mut Button, roff: usize, highlight: bool, sel_loc: &mut (i32, i32),
+		screen_sz: ScreenSz, d: &mut DispState) {
 	let col = ((screen_sz.w - button.txt.len() - 4) as i32)/2;
+	
 	d.mv(roff as i32, col);
 	if highlight {
 		d.addstr("* ");
+		{ // set position for screen readers
+			let curs = cursor_pos(d);
+			*sel_loc = (curs.y as i32, curs.x as i32);
+		}
 		button.print_without_parsing(d);
 		d.addstr(" *");
 	}else{
@@ -96,7 +101,10 @@ pub const URL: &str = "https://arcanefortune.com";
 
 pub fn show_title_screen<'f,'bt,'ut>(disp_chars: &DispChars, kbd: &KeyboardMap,
 		buttons: &mut Buttons, l: &mut Localization, d: &mut DispState) -> GameState {
-	d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+	d.curs_set(if screen_reader_mode() {CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE
+	}else{CURSOR_VISIBILITY::CURSOR_INVISIBLE});
+	
+	let mut sel_loc = (0,0); // cursor loc for screen readers
 	
 	let screen_sz = getmaxyxu(d);
 	let mut screen_sz_prev = screen_sz.clone();
@@ -196,16 +204,16 @@ pub fn show_title_screen<'f,'bt,'ut>(disp_chars: &DispChars, kbd: &KeyboardMap,
 		
 		if save_file_exists {
 			let highlight = title_option_sel == TitleOptionSel::LoadGm as isize;
-			print_ln(&mut buttons.Load_game, roff, highlight, screen_sz, d);
+			print_ln(&mut buttons.Load_game, roff, highlight, &mut sel_loc, screen_sz, d);
 			roff += 2;
 		}
 		
 		let highlight = title_option_sel == TitleOptionSel::NewGm as isize;
-		print_ln(&mut buttons.New_game, roff, highlight, screen_sz, d);
+		print_ln(&mut buttons.New_game, roff, highlight, &mut sel_loc, screen_sz, d);
 		roff += 2;
 		
 		let highlight = title_option_sel == TitleOptionSel::Exit as isize;
-		print_ln(&mut buttons.Exit, roff, highlight, screen_sz, d);
+		print_ln(&mut buttons.Exit, roff, highlight, &mut sel_loc, screen_sz, d);
 		
 		/*{ // language prefs
 			let mut lang_txt = String::from(": ");
@@ -224,6 +232,7 @@ pub fn show_title_screen<'f,'bt,'ut>(disp_chars: &DispChars, kbd: &KeyboardMap,
 			d.addstr(&lang_txt);
 		}*/
 		
+		d.mv(sel_loc.0, sel_loc.1);
 		d.refresh();
 		d.set_mouse_to_arrow();
 		loop {

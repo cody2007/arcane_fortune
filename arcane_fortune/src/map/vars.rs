@@ -163,7 +163,8 @@ impl AIPersonality {
 pub enum PlayerType {
 	Human,
 	AI(AIPersonality),
-	Barbarian
+	Barbarian,
+	Nobility
 }
 
 impl PlayerType {
@@ -182,6 +183,7 @@ impl fmt::Display for PlayerType {
 			PlayerType::Human => {"Human"}
 			PlayerType::AI(_personality) => {"AI"}
 			PlayerType::Barbarian => {"Barbarian"}
+			PlayerType::Nobility => {"Nobility"}
 		})
 	}
 }

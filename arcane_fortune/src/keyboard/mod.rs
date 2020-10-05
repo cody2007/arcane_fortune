@@ -3,6 +3,7 @@ use crate::config_load::*;
 macro_rules! create_keys{($($entry:ident = $nm: expr)*) => (
 	// each field's value is the value we should actually
 	// expect from the keyboard
+	#[derive(Clone)]
 	pub struct KeyboardMap {$(pub $entry: i32),*}
 	
 	impl KeyboardMap {
@@ -90,5 +91,11 @@ create_keys!(
 	increase_tax = "increase_tax"
 	increase_tax_alt = "increase_tax_alt"
 	decrease_tax = "decrease_tax"
+	
+	//////// text mode tabbing (used with screen readers)
+	start_tabbing_through_bottom_screen_mode = "start_tabbing_through_bottom_screen_mode"
+	start_tabbing_through_right_screen_mode = "start_tabbing_through_right_screen_mode"
+	forward_tab = "forward_tab"
+	backward_tab = "backward_tab"
 );
 

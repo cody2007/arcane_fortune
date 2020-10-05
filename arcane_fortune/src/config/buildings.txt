@@ -287,6 +287,26 @@ Note: workers by default do 3000 actions_per_turn
 }
 
 {
+	nm: Manor
+	menu_txt: M|anor
+	print_str: [
+		┌───────────────────────┐
+            │          /\           │
+		│         /  \          │
+		│┌/\__/\_|    |_/\__/\ ┐│
+		│|``  ``   ||   ``  `` |│
+		└───────────────────────┘
+	]
+	plot_zoomed: M
+	construction_req: 2160000
+	upkeep: 0
+	residential_bonus: 200
+	business_bonus: 200
+	agricultural_bonus: 200
+	industrial_bonus: 200
+}
+
+{
 	nm: Academy
 	menu_txt: A|cademy
 	print_str: [

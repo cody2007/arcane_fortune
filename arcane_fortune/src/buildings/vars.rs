@@ -17,6 +17,7 @@ pub const BOOT_CAMP_NM: &str = "Boot Camp";
 pub const DOCK_NM: &str = "Dock";
 pub const ACADEMY_NM: &str = "Academy";
 pub const BARBARIAN_CAMP_NM: &str = "Camp";
+pub const MANOR_NM: &str = "Manor";
 
 // global parameters
 #[derive(PartialEq, Clone)]

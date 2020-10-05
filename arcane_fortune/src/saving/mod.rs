@@ -441,6 +441,8 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for PlayerType {
 				personality.sv(res);
 			} PlayerType::Barbarian => {
 				res.push(2);
+			} PlayerType::Nobility => {
+				res.push(3);
 			}
 	}}
 	

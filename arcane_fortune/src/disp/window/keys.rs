@@ -15,6 +15,7 @@ use crate::doctrine::{DoctrineTemplate, DOCTRINE_SZ_PRINT};
 use crate::nn::{TxtPrinter, TxtCategory};
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
+use crate::nobility::House;
 
 use super::*;
 
@@ -99,8 +100,8 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, 
 		bldg_config: &BldgConfig, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 		production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>,
-		stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, relations: &mut Relations, owners: &Vec<Owner>,
-		doctrine_templates: &'dt Vec<DoctrineTemplate>,
+		stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, unaffiliated_houses: &mut Vec<House>,
+		relations: &mut Relations, owners: &Vec<Owner>, doctrine_templates: &'dt Vec<DoctrineTemplate>,
 		unit_templates: &'ut Vec<UnitTemplate<'rt>>,
 		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, resource_templates: &'rt Vec<ResourceTemplate>,
 		tech_templates: &Vec<TechTemplate>, logs: &mut Vec<Log>, 
@@ -132,7 +133,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				*mode = ind;
 				return UIRet::Active;
 			}
-
+			
 			// windows with lists
 			UIMode::CivilizationIntelWindow {ref mut mode, ..} |
 			UIMode::DiscoverTechWindow {ref mut mode} |
@@ -150,6 +151,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			UIMode::CreateSectorAutomation {ref mut mode, ..} |
 			UIMode::ProdListWindow {ref mut mode} |
 			UIMode::CurrentBldgProd {ref mut mode} |
+			UIMode::NobilityReqToJoin {ref mut mode, ..} |
 			UIMode::SelectBldgDoctrine {ref mut mode, ..} |
 			UIMode::SelectExploreType {ref mut mode} |
 			UIMode::NoblePedigree {ref mut mode, ..} |
@@ -167,6 +169,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			
 			// windows that do not use lists
 			UIMode::None |
+			UIMode::TextTab {..} |
 			UIMode::SetTaxes(_) |
 			UIMode::Menu {..} |
 			UIMode::GenericAlert {..} |
@@ -235,6 +238,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			}
 			return UIRet::Active;
 		};};
+		if let Some(ind) = buttons.list_item_clicked(mouse_event) {	enter_action!(ind);}
 		
 		match key_pressed {
 			// down
@@ -426,7 +430,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		if buttons.Save.activated(key_pressed, mouse_event) && save_nm.len() > 0 {
 			iface_settings.save_nm = save_nm.clone();
 			iface_settings.reset_auto_turn(d); // save_game will clear iface_settings.ui_mode which contains the prior value of the auto turn setting
-			save_game(SaveType::Manual, turn, map_data, exs, zone_exs_owners, bldg_config, bldgs, units, stats, relations, iface_settings, doctrine_templates, bldg_templates, unit_templates, resource_templates, owners, nms, disp_settings, disp_chars, tech_templates, ai_states, ai_config, barbarian_states, logs, l, frame_stats, rng, d);
+			save_game(SaveType::Manual, turn, map_data, exs, zone_exs_owners, bldg_config, bldgs, units, stats, unaffiliated_houses, relations, iface_settings, doctrine_templates, bldg_templates, unit_templates, resource_templates, owners, nms, disp_settings, disp_chars, tech_templates, ai_states, ai_config, barbarian_states, logs, l, frame_stats, rng, d);
 			end_window(iface_settings, d);
 		}else{
 			do_txt_entry_keys!(key_pressed, curs_col, save_nm, Printable::FileNm, iface_settings, d);

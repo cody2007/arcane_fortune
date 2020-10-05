@@ -16,20 +16,29 @@ use crate::gcore::Relations;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
+use crate::nobility::{House, new_unaffiliated_houses};
+use crate::containers::Templates;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 use super::*;
 
-pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldg_config: &BldgConfig, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
-		doctrine_templates: &'dt Vec<DoctrineTemplate>, unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>,
-		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, tech_templates: &Vec<TechTemplate>,
+pub fn end_turn<'f,'bt,'ut,'rt,'dt,'o,'tt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
+		temps: &Templates<'bt,'ut,'rt,'dt,'o,'tt>, disp_chars: &DispChars, disp_settings: &DispSettings,
 		map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &mut Vec<HashedMapZoneEx>, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>,
-		relations: &mut Relations,
-		owners: &Vec<Owner>, nms: &Nms, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>, production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>,
-		ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>, ai_config: &AIConfig,
+		unaffiliated_houses: &mut Vec<House>, relations: &mut Relations,
+		iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>, production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>,
+		ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
 		barbarian_states: &mut Vec<Option<BarbarianState>>, logs: &mut Vec<Log>,
-		disp_settings: &DispSettings, disp_chars: &DispChars, menu_options: &mut OptionsUI, frame_stats: &mut FrameStats,
-		rng: &mut XorState, kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, d: &mut DispState) {
+		menu_options: &mut OptionsUI, frame_stats: &mut FrameStats,
+		rng: &mut XorState, buttons: &mut Buttons,
+		txt_list: &mut TxtList, d: &mut DispState) {
+	
+	let owners = temps.owners;
+	let nms = &temps.nms;
+	let bldg_config = &temps.bldg_config;
+	let kbd = &temps.kbd;
+	let l = &temps.l;
+	
 	#[cfg(feature="profile")]
 	let _g = Guard::new("end_turn");
 	
@@ -48,6 +57,20 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
 	//////////////////////////////////////////////
+	// nobility
+	{
+		for pstats in stats.iter_mut() {
+			pstats.houses.end_turn(nms, rng, *turn);
+		}
+		
+		for house in unaffiliated_houses.iter_mut() {
+			house.end_turn(nms, rng, *turn);
+		}
+		
+		new_unaffiliated_houses(unaffiliated_houses, stats, bldgs, temps.bldgs, temps.doctrines, map_data, exs, zone_exs_owners, owners, nms, logs, ai_states, map_sz, rng, *turn);
+	}
+	
+	//////////////////////////////////////////////
 	// ai & barbarians
 	let mut disband_unit_inds = Vec::new();
 	
@@ -56,16 +79,16 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 		let _g = Guard::new("end_turn ai");
 		for ((ai_ind, owner), ai_state_opt) in owners.iter().enumerate().zip(ai_states.iter_mut()) {
 			if let Some(a_state) = ai_state_opt {
-				a_state.plan_actions(ai_ind, owner, units, bldgs, stats, relations, map_data, exs, owners, unit_templates, bldg_templates, &mut disband_unit_inds, logs, rng, map_sz, *turn, iface_settings, ai_config, disp_settings, menu_options, cur_ui_ai_player_is_paused, d);
+				a_state.plan_actions(ai_ind, owner, units, bldgs, stats, relations, map_data, exs, owners, temps.units, temps.bldgs, &mut disband_unit_inds, logs, rng, map_sz, *turn, iface_settings, &temps.ai_config, disp_settings, menu_options, cur_ui_ai_player_is_paused, d);
 			}
 		}
 		
 		//////////////////////////
 		// barbarians
-		if *turn > 30*12*15 {
+		if *turn > (GAME_START_TURN + 30*12*15) {
 			for (owner, barbarian_state_opt) in owners.iter().zip(barbarian_states.iter_mut()) {
 				if let Some(b_state) = barbarian_state_opt {
-					b_state.plan_actions(owner, units, bldgs, map_data, exs, stats, unit_templates, owners, map_sz, rng, *turn);
+					b_state.plan_actions(owner, units, bldgs, map_data, exs, stats, temps.units, owners, map_sz, rng, *turn);
 				}
 			}
 		}
@@ -165,7 +188,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 		const RIOTING_THRESH: f32 = -275.;
 		const MAX_PROB: f32 = 0.1;
 		
-		let ut = UnitTemplate::frm_str(RIOTER_NM, unit_templates);
+		let ut = UnitTemplate::frm_str(RIOTER_NM, temps.units);
 		
 		// create rioters
 		{
@@ -206,7 +229,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 						let barbarian_state_opt = &mut barbarian_states[owner_ind];
 						let ai_state_opt = &mut ai_states[owner_ind];
 						
-						add_unit(coord, owner_id, owner_id == iface_settings.cur_player, ut, units, map_data, exs, bldgs, stats, relations, logs, barbarian_state_opt, ai_state_opt, unit_templates, owners, nms, *turn, rng);
+						add_unit(coord, owner_id, owner_id == iface_settings.cur_player, ut, units, map_data, exs, bldgs, stats, relations, logs, barbarian_state_opt, ai_state_opt, temps.units, owners, nms, *turn, rng);
 						
 						// log and create alert window if relevant
 						{
@@ -403,10 +426,10 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 		
 		// attacks
 		for unit_ind in 0..units.len() {
-			do_attack_action(unit_ind, &mut disband_unit_inds, units, bldg_config, bldgs, tech_templates, unit_templates, bldg_templates, 
-				doctrine_templates, stats, relations, ai_states, barbarian_states,
+			do_attack_action(unit_ind, &mut disband_unit_inds, units, bldg_config, bldgs, temps.techs, temps.units, temps.bldgs, 
+				temps.doctrines, stats, relations, ai_states, barbarian_states,
 				map_data, exs, zone_exs_owners, owners, logs, iface_settings, disp_chars, disp_settings, menu_options, cur_ui_ai_player_is_paused,
-				map_sz, frame_stats, *turn, rng, kbd, l, buttons, d);
+				map_sz, frame_stats, *turn, rng, kbd, l, buttons, txt_list, d);
 		}
 		
 		// all other actions aside from attacking
@@ -470,10 +493,10 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 				// add road
 				ex.actual.set_structure(u, StructureType::Road, map_sz);
 				ex.actual.owner_id = Some(u.owner_id);
-				ex.actual.rm_zone(u_coord, zone_exs_owners, stats, doctrine_templates, map_sz);
+				ex.actual.rm_zone(u_coord, zone_exs_owners, stats, temps.doctrines, map_sz);
 				
 				//printlnq!("adding road at {}, unit owner {}", Coord::frm_ind(u.return_coord(), map_sz), owners[u.owner_id as usize].nm);
-				compute_zooms_coord(u.return_coord(), RecompType::Bldgs(bldgs, bldg_templates, zone_exs_owners), map_data, exs, owners);
+				compute_zooms_coord(u.return_coord(), RecompType::Bldgs(bldgs, temps.bldgs, zone_exs_owners), map_data, exs, owners);
 				
 				// end action or mv unit
 				if u.action.last().unwrap().path_coords.len() == 0 {
@@ -522,7 +545,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 						let ex = exf.get_mut(&u_coord).unwrap();
 						ex.actual.set_structure(u, StructureType::Wall, map_sz);
 						
-						compute_zooms_coord(u_coord, RecompType::Bldgs(bldgs, bldg_templates, zone_exs_owners), map_data, exs, owners);
+						compute_zooms_coord(u_coord, RecompType::Bldgs(bldgs, temps.bldgs, zone_exs_owners), map_data, exs, owners);
 					}else{
 						*turns_expended += 1;
 						continue 'outer;
@@ -638,7 +661,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 				/////////////////////////////////////////////////////////
 				// create zone
 				if ex.actual.structure == None {
-					ex.actual.add_zone(u_coord, *zone_type, u.owner_id, zone_exs_owners, stats, doctrine_templates, map_sz);
+					ex.actual.add_zone(u_coord, *zone_type, u.owner_id, zone_exs_owners, stats, temps.doctrines, map_sz);
 				}
 				
 				/////////////////////////////////////////////
@@ -654,7 +677,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 					}
 					
 					// finally, move unit
-					compute_zooms_coord(u_coord, RecompType::Bldgs(bldgs, bldg_templates, zone_exs_owners), map_data, exs, owners);
+					compute_zooms_coord(u_coord, RecompType::Bldgs(bldgs, temps.bldgs, zone_exs_owners), map_data, exs, owners);
 					let owner_id = units[unit_ind].owner_id;
 					set_coord(coord_new, unit_ind, owner_id == iface_settings.cur_player, units, map_data, exs, &mut stats[owner_id as usize], owners, map_sz, relations, logs, *turn);
 					
@@ -718,9 +741,9 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 				// add gate
 				ex.actual.set_structure(u, StructureType::Gate, map_sz);
 				ex.actual.owner_id = Some(u.owner_id);
-				ex.actual.rm_zone(u_coord, zone_exs_owners, stats, doctrine_templates, map_sz);
+				ex.actual.rm_zone(u_coord, zone_exs_owners, stats, temps.doctrines, map_sz);
 				
-				compute_zooms_coord(u.return_coord(), RecompType::Bldgs(bldgs, bldg_templates, zone_exs_owners), map_data, exs, owners);
+				compute_zooms_coord(u.return_coord(), RecompType::Bldgs(bldgs, temps.bldgs, zone_exs_owners), map_data, exs, owners);
 				
 				u.action.pop();
 			
@@ -764,7 +787,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 				// rm bldg
 				if let Some(bldg_ind) = ex.bldg_ind {
 					if removable_bldg(bldg_ind) {
-						rm_bldg(bldg_ind, u.owner_id == iface_settings.cur_player, bldgs, bldg_templates, map_data, exs, zone_exs_owners,
+						rm_bldg(bldg_ind, u.owner_id == iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, zone_exs_owners,
 							stats, ai_states, owners, UnitDelAction::Delete {units, relations, barbarian_states, logs, turn: *turn}, map_sz);
 					}else{
 						u.action.pop();
@@ -772,7 +795,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 					continue;
 				}
 				
-				ex.actual.rm_zone(u_coord, zone_exs_owners, stats, doctrine_templates, map_sz);
+				ex.actual.rm_zone(u_coord, zone_exs_owners, stats, temps.doctrines, map_sz);
 				ex.actual.structure = None;
 				
 				/////////////////////////////////////////////
@@ -823,7 +846,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 							continue;
 						}
 							
-						rm_bldg(bldg_ind, u.owner_id == iface_settings.cur_player, bldgs, bldg_templates, map_data, exs, zone_exs_owners,
+						rm_bldg(bldg_ind, u.owner_id == iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, zone_exs_owners,
 							stats, ai_states, owners, UnitDelAction::Delete {units, relations, barbarian_states, logs, turn: *turn}, map_sz);
 					}
 				}
@@ -837,7 +860,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 				}
 				
 				// finally, move unit
-				compute_zooms_coord(u_coord, RecompType::Bldgs(bldgs, bldg_templates, zone_exs_owners), map_data, exs, owners);
+				compute_zooms_coord(u_coord, RecompType::Bldgs(bldgs, temps.bldgs, zone_exs_owners), map_data, exs, owners);
 				set_coord(coord_new, unit_ind, u_owner == iface_settings.cur_player, units, map_data, exs, &mut stats[u_owner as usize], owners, map_sz, relations, logs, *turn);
 			
 			//////////////////////////////////////////// zoning (from start/end coords from human UI)
@@ -896,7 +919,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 						}
 						
 					//////////////////// place zone
-					}else {ex.actual.add_zone(u_coord, *zone_type, u.owner_id, zone_exs_owners, stats, doctrine_templates, map_sz);}
+					}else {ex.actual.add_zone(u_coord, *zone_type, u.owner_id, zone_exs_owners, stats, temps.doctrines, map_sz);}
 				} // create zone or road
 				
 				/////////////////////////////////////////////
@@ -950,7 +973,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 				}
 				
 				// finally, move unit
-				compute_zooms_coord(u_coord, RecompType::Bldgs(bldgs, bldg_templates, zone_exs_owners), map_data, exs, owners);
+				compute_zooms_coord(u_coord, RecompType::Bldgs(bldgs, temps.bldgs, zone_exs_owners), map_data, exs, owners);
 				set_coord(coord_new, unit_ind, u_owner == iface_settings.cur_player, units, map_data, exs, &mut stats[u_owner as usize], owners, map_sz, relations, logs, *turn);
 				
 			///////////////////////////////////////// buildings
@@ -979,11 +1002,11 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 						let u_owner_id = u.owner_id as usize;
 						let doctrine_dedication = if let Some(dedication) = doctrine_dedication {
 							//printlnq!("owner {} target: {} closest avail: {}", u_owner_id, dedication.nm[0],
-							//		dedication.closest_available(&stats[u_owner_id], doctrine_templates).nm[0]);
-							Some(dedication.closest_available(&stats[u_owner_id], doctrine_templates))
+							//		dedication.closest_available(&stats[u_owner_id], temps.doctrines).nm[0]);
+							Some(dedication.closest_available(&stats[u_owner_id], temps.doctrines))
 						}else{None};
 						
-						if !add_bldg(map_coord, u.owner_id, bldgs, template, doctrine_dedication, bldg_templates, doctrine_templates, map_data, exs, zone_exs_owners, 
+						if !add_bldg(map_coord, u.owner_id, bldgs, template, doctrine_dedication, temps.bldgs, temps.doctrines, map_data, exs, zone_exs_owners, 
 								stats, &mut ai_states[u_owner_id], owners, nms, *turn, logs, rng) {
 							u.action.pop(); // couldn't create bldg
 							continue;
@@ -1060,7 +1083,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 					($map_ex: expr) => {
 						if *turns_expended == WORKER_WALL_CONSTRUCTION_TURNS {
 							$map_ex.actual.set_structure(u, StructureType::Wall, map_sz);
-							compute_zooms_coord(u.return_coord(), RecompType::Bldgs(bldgs, bldg_templates, zone_exs_owners), map_data, exs, owners);
+							compute_zooms_coord(u.return_coord(), RecompType::Bldgs(bldgs, temps.bldgs, zone_exs_owners), map_data, exs, owners);
 						}else{
 							*turns_expended += 1;
 							continue 'outer;
@@ -1074,7 +1097,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 							let ex = exf.get_mut(&u.return_coord()).unwrap();
 							
 							ex.actual.set_structure(u, StructureType::Wall, map_sz);
-							compute_zooms_coord(u.return_coord(), RecompType::Bldgs(bldgs, bldg_templates, zone_exs_owners), map_data, exs, owners);
+							compute_zooms_coord(u.return_coord(), RecompType::Bldgs(bldgs, temps.bldgs, zone_exs_owners), map_data, exs, owners);
 						}else{
 							*turns_expended += 1;
 							continue 'outer;
@@ -1354,7 +1377,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 			let owner_id = b.owner_id as usize;
 			if let Some(zone_ex) = zone_exs_owners[owner_id].get(&return_zone_coord(b.coord, map_sz)) {
 				if let Dist::NotInit = zone_ex.ret_city_hall_dist() {
-					set_city_hall_dist(b.coord, map_data, exs, &mut zone_exs_owners[owner_id], bldgs, stats, doctrine_templates, map_sz, *turn);
+					set_city_hall_dist(b.coord, map_data, exs, &mut zone_exs_owners[owner_id], bldgs, stats, temps.doctrines, map_sz, *turn);
 				}
 			}
 		}
@@ -1365,11 +1388,11 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 			let owner_id = bldgs[bldg_ind].owner_id as usize;
 			let barbarian_state = &mut barbarian_states[owner_id];
 			let ai_state = &mut ai_states[owner_id];
-			build_unit(bldg_ind, iface_settings.cur_player, units, map_data, exs, bldgs, stats, relations, logs, barbarian_state, ai_state, unit_templates, owners, nms, *turn, rng);
+			build_unit(bldg_ind, iface_settings.cur_player, units, map_data, exs, bldgs, stats, relations, logs, barbarian_state, ai_state, temps.units, owners, nms, *turn, rng);
 		}
 		
 		///////////
-		create_taxable_constructions(bldg_templates, doctrine_templates, map_data, exs, zone_exs_owners, bldgs, stats, ai_states, owners, logs, nms, map_sz, *turn, rng);
+		create_taxable_constructions(temps.bldgs, temps.doctrines, map_data, exs, zone_exs_owners, bldgs, stats, ai_states, owners, logs, nms, map_sz, *turn, rng);
 		
 		////////////////////////
 		// destroy taxable constructions
@@ -1391,7 +1414,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 					
 					// destroy
 					if rng.gen_f32b() < rand_cutoff {
-						rm_bldg(*bldg_ind, bldgs[*bldg_ind].owner_id == iface_settings.cur_player, bldgs, bldg_templates, map_data, exs, zone_exs_owners, stats, ai_states, owners,
+						rm_bldg(*bldg_ind, bldgs[*bldg_ind].owner_id == iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, zone_exs_owners, stats, ai_states, owners,
 							  UnitDelAction::Delete {units, relations, barbarian_states, logs, turn: *turn}, map_sz);
 					}
 				}
@@ -1446,7 +1469,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 						// add residents
 						if b.template.resident_max > b.n_residents() {
 							demand = Some(return_potential_demand(coord, map_data, exs, zone_exs, bldgs, stats, map_sz, *turn));
-							return_happiness(coord, map_data, exs, zone_exs, bldgs, stats, doctrine_templates, relations, logs, map_sz, *turn);
+							return_happiness(coord, map_data, exs, zone_exs, bldgs, stats, temps.doctrines, relations, logs, map_sz, *turn);
 							let effective_tax = b.ret_taxable_upkeep_pre_operating_frac();
 							
 							//println!("demand {} effective_tax {}", demand.unwrap(), -effective_tax);
@@ -1512,7 +1535,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 		}
 		/////////////
 		
-		randomly_update_happiness(map_data, exs, zone_exs_owners, bldgs, stats, doctrine_templates, relations, logs, map_sz, *turn, rng);
+		randomly_update_happiness(map_data, exs, zone_exs_owners, bldgs, stats, temps.doctrines, relations, logs, map_sz, *turn, rng);
 		
 		////////////////////////
 		// fire damage
@@ -1528,7 +1551,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 							let new_damage = damage + bldg_config.fire_damage_rate;
 							// remove bldg
 							if new_damage >= bldg_config.max_bldg_damage {
-								rm_bldg(bldg_ind, b.owner_id == iface_settings.cur_player, bldgs, bldg_templates, map_data, exs, zone_exs_owners, stats, ai_states, owners,
+								rm_bldg(bldg_ind, b.owner_id == iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, zone_exs_owners, stats, ai_states, owners,
 									UnitDelAction::Delete {units, relations, barbarian_states, logs, turn: *turn}, map_sz);
 								continue;
 						
@@ -1545,10 +1568,10 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 	for (owner_id, pstats) in stats.iter_mut().enumerate() {
 		let mut max_val = pstats.locally_logged.doctrinality_sum[0];
 		let prev_prevailing = pstats.doctrine_template;
-		pstats.doctrine_template = &doctrine_templates[0];
+		pstats.doctrine_template = &temps.doctrines[0];
 		
 		for (doc_pts, d) in pstats.locally_logged.doctrinality_sum.iter()
-							.zip(doctrine_templates.iter())
+							.zip(temps.doctrines.iter())
 							.skip(1) {
 			if !d.bldg_reqs_met(pstats) || max_val >= *doc_pts {continue;}
 			
@@ -1573,7 +1596,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 		}
 	}
 	
-	research_techs(stats, tech_templates, bldg_templates, iface_settings.cur_player as usize, 
+	research_techs(stats, temps.techs, temps.bldgs, iface_settings.cur_player as usize, 
 			production_options, iface_settings, l, d);
 	
 	*turn += 1;
@@ -1688,7 +1711,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 						}
 					}
 					
-					rm_bldg(bldg_expense.ind, owner_id as SmSvType == iface_settings.cur_player, bldgs, bldg_templates, map_data, exs, zone_exs_owners, stats, ai_states, owners,
+					rm_bldg(bldg_expense.ind, owner_id as SmSvType == iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, zone_exs_owners, stats, ai_states, owners,
 						  UnitDelAction::Delete {units, relations, barbarian_states, logs, turn: *turn}, map_sz);
 					
 					// last bldg_ind should be updated to bldg_expense.ind because it swapped position
@@ -1718,7 +1741,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 		}
 		
 		/////////// civ collapsed -- removed all units, bldgs, zones
-		if n_cities == 0 && *turn > NO_CITY_HALL_GRACE_TURNS {
+		if n_cities == 0 && *turn > (GAME_START_TURN + NO_CITY_HALL_GRACE_TURNS) {
 			logs.push(Log {
 				turn: *turn,
 				val: LogType::CivCollapsed {owner_id}
@@ -1734,12 +1757,12 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 			// rm bldgs in reverse order to avoid index issues (the tax paying bldgs weren't removed above)
 			for bldg_ind in (0..bldgs.len()).rev() {
 				if (owner_id as SmSvType) == bldgs[bldg_ind].owner_id {
-					rm_bldg(bldg_ind, owner_id as SmSvType == iface_settings.cur_player, bldgs, bldg_templates, map_data, exs, zone_exs_owners, stats, ai_states, owners,
+					rm_bldg(bldg_ind, owner_id as SmSvType == iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, zone_exs_owners, stats, ai_states, owners,
 						  UnitDelAction::Delete {units, relations, barbarian_states, logs, turn: *turn}, map_sz);
 				}
 			}
 			
-			rm_player_zones(owner_id, bldgs, bldg_templates, stats, doctrine_templates, exs, map_data, zone_exs_owners, owners, map_sz);
+			rm_player_zones(owner_id, bldgs, temps.bldgs, stats, temps.doctrines, exs, map_data, zone_exs_owners, owners, map_sz);
 			civ_destroyed(owner_id, stats, ai_states, relations, iface_settings, *turn, d);
 		}
 		
@@ -1791,7 +1814,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 			{
 				let mut research_completed = 0;
 				for (tp, tech_template) in pstats.techs_progress.iter()
-									.zip(tech_templates.iter()) {
+									.zip(temps.techs.iter()) {
 					research_completed += match tp {
 						TechProg::Prog(prog) => {*prog}
 						TechProg::Finished => tech_template.research_req
@@ -1829,13 +1852,13 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 		if day == 0 {
 			let year = (*turn)/(30*12);
 			if iface_settings.checkpoint_freq != 0 && (year % iface_settings.checkpoint_freq as usize) == 0 {
-				save_game(SaveType::Auto, *turn, map_data, exs, zone_exs_owners, bldg_config, bldgs, units, stats, relations, iface_settings, doctrine_templates, bldg_templates, unit_templates, resource_templates, owners, nms, disp_settings, disp_chars, tech_templates, ai_states, ai_config, barbarian_states, logs, l, frame_stats, rng, d);
+				save_game(SaveType::Auto, *turn, map_data, exs, zone_exs_owners, bldg_config, bldgs, units, stats, unaffiliated_houses, relations, iface_settings, temps.doctrines, temps.bldgs, temps.units, temps.resources, owners, nms, disp_settings, disp_chars, temps.techs, ai_states, &temps.ai_config, barbarian_states, logs, l, frame_stats, rng, d);
 			}
 		}
 	}
 	
 	#[cfg(any(feature="opt_debug", debug_assertions))]
-	chk_data(units, bldgs, exs, zone_exs_owners, stats, barbarian_states, ai_states, doctrine_templates, map_data, owners, map_sz);
+	chk_data(units, bldgs, exs, zone_exs_owners, stats, barbarian_states, ai_states, temps.doctrines, map_data, owners, map_sz);
 	
 	frame_stats.update(frame_start);
 }

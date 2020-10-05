@@ -29,7 +29,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			map_data: &mut MapData<'rt>, map_sz: MapSz,
 			disp_settings: &DispSettings, disp_chars: &DispChars, menu_options: &mut OptionsUI,
 			logs: &mut Vec<Log>, turn: usize, rng: &mut XorState, frame_stats: &mut FrameStats,
-			kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, d: &mut DispState) -> bool {
+			kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons,
+			txt_list: &mut TxtList, d: &mut DispState) -> bool {
 		if !self.pre_process_action_chk_valid(cur_mi, units, bldgs, exs.last().unwrap(), map_data) {return false;}
 		let unit_ind = action_iface.unit_ind.unwrap();
 		let u = &mut units[unit_ind];
@@ -235,7 +236,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		do_attack_action(unit_ind, &mut disband_unit_inds, units, bldg_config, bldgs, tech_templates, unit_templates, bldg_templates, 
 			doctrine_templates, stats, relations, ai_states, barbarian_states,
 			map_data, exs, zone_exs_owners, owners, logs, self, disp_chars, disp_settings, menu_options, self.cur_player_paused(ai_states),
-			map_sz, frame_stats, turn, rng, kbd, l, buttons, d);
+			map_sz, frame_stats, turn, rng, kbd, l, buttons, txt_list, d);
 		
 		// do not allow repeat attacking
 		if !disband_unit_inds.contains(&unit_ind) {

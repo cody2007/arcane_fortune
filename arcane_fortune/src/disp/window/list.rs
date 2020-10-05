@@ -1187,7 +1187,7 @@ pub fn print_list_window(mut mode: usize, top_txt: &str, mut options: OptionsUI,
 	///////////////////////////// print list options
 	if options.options.len() > 0 {
 		//let w = if show_scroll_bars {w - 1} else {w};
-		print_menu_vstack(&options, y + row, x, w as usize, mode, disp_chars, true, owners_opt, start_ind, buttons, d);
+		print_menu_vstack(&options, y + row, x, w as usize, mode, disp_chars, true, owners_opt, start_ind, &mut None, buttons, d);
 	}else{
 		nln!();
 		d.addstr(&l.None); eln!();

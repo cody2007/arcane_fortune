@@ -18,7 +18,7 @@ impl <'f,'bt,'ut,'rt,'st>IfaceSettings<'f,'bt,'ut,'rt,'st> {
 			zone_exs_owners: &Vec<HashedMapZoneEx>,
 			exs: &Vec<HashedMapEx>,	relations: &Relations, logs: &Vec<Log>,
 			frame_stats: &mut FrameStats, alt_ind: usize, turn: usize, kbd: &KeyboardMap,
-			l: &Localization, buttons: &mut Buttons, d: &mut DispState) {
+			l: &Localization, buttons: &mut Buttons, txt_list: &mut TxtList, d: &mut DispState) {
 		let cur_mc = self.cursor_to_map_coord(&map_data);
 		
 		let screen_sz = self.screen_sz;
@@ -210,13 +210,12 @@ impl <'f,'bt,'ut,'rt,'st>IfaceSettings<'f,'bt,'ut,'rt,'st> {
 			d.clrtoeol();
 		}
 		
-		//////////////
-		self.print_bottom_stats(map_data, exs, zone_exs_owners, units, bldg_config, bldgs, pstats, relations, owners, logs, kbd, l, buttons, disp_chars, d);
-		self.print_rside_stats(frame_stats, turn, bldgs, stats, tech_templates, doctrine_templates, disp_chars, l, exf, map_data, &zone_exs_owners[self.cur_player as usize], map_sz, kbd, buttons, d);
-		self.print_submap(disp_chars, map_data, units, bldgs, exs, zone_exs_owners, pstats, owners, alt_ind, kbd, l, buttons, d);
-		self.print_menus(disp_chars, menu_options, ai_states[self.cur_player as usize] != None, kbd, buttons, d);
+		txt_list.clear();
+		
+		self.print_menus(disp_chars, menu_options, ai_states[self.cur_player as usize] != None, kbd, buttons, l, d);
 		
 		///////////// show most recent log entry
+		// (should come after print_menus() as that clears the first line
 		{
 			for log in logs.iter().rev() {
 				// only show if somewhat recent
@@ -235,6 +234,7 @@ impl <'f,'bt,'ut,'rt,'st>IfaceSettings<'f,'bt,'ut,'rt,'st> {
 					let start_col = self.screen_sz.w - txt_len;
 					
 					d.mv(0, start_col as i32);
+					txt_list.add_r(d);
 					d.attron(COLOR_PAIR(CYELLOW));
 					d.addstr(&date_txt);
 					d.attroff(COLOR_PAIR(CYELLOW));
@@ -244,6 +244,11 @@ impl <'f,'bt,'ut,'rt,'st>IfaceSettings<'f,'bt,'ut,'rt,'st> {
 				break;
 			}
 		}
+		
+		//////////////
+		self.print_bottom_stats(map_data, exs, zone_exs_owners, units, bldg_config, bldgs, pstats, relations, owners, logs, kbd, l, buttons, txt_list, disp_chars, d);
+		self.print_rside_stats(frame_stats, turn, bldgs, stats, tech_templates, doctrine_templates, disp_chars, l, exf, map_data, &zone_exs_owners[self.cur_player as usize], map_sz, kbd, buttons, txt_list, d);
+		self.print_submap(disp_chars, map_data, units, bldgs, exs, zone_exs_owners, pstats, owners, alt_ind, kbd, l, buttons, d);
 	}
 }
 

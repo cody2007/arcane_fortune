@@ -19,7 +19,7 @@ impl ActionType<'_,'_,'_,'_> {
 	pub fn print(&self, roff: &mut i32, path_valid: bool, actions_req: f32,
 			turns_est: bool, ut_opt: Option<&UnitTemplate>, bldgs: &Vec<Bldg>, exf: &HashedMapEx,
 			map_data: &mut MapData, iface_settings: &IfaceSettings,
-			l: &Localization, kbd: &KeyboardMap, disp_chars: &DispChars, d: &mut DispState) {
+			l: &Localization, kbd: &KeyboardMap, disp_chars: &DispChars, txt_list: &mut TxtList, d: &mut DispState) {
 		macro_rules! mvl {() => (d.mv(*roff, UNIT_STATS_COL); *roff += 1;);}
 			
 		macro_rules! action_key {
@@ -58,27 +58,27 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Select_an_area,
 						(&l.Change_location, &l.move_mouse),
 						(&l.Start_selecting, &l.click_and_drag),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 			} ActionType::WorkerRmZonesAndBldgs {..} => {
 				print_mv_to_sel2(full_zoom, PathValid::True, None, roff,
 						&l.Select_an_area,
 						(&l.Change_location, &l.move_mouse),
 						(&l.Confirm_selection, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 
 			} ActionType::WorkerZone {valid_placement: false, ..} => {
 				print_mv_to_sel2(full_zoom, PathValid::False, None, roff,
 						&l.Zoning_instructions,
 						(&l.Change_location, &l.move_mouse),
 						(&l.Finish_zoning, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 			
 			} ActionType::WorkerBuildBldg {valid_placement: false, ..} => {
 				print_mv_to_sel2(full_zoom, PathValid::False, None, roff,
 						&l.Building_instructions,
 						(&l.Change_location, &l.drag_the_X),
 						(&l.Build, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 			
 			} ActionType::WorkerBuildBldg {template, valid_placement: true, ..} => {
 				let actions_req = if let Some(ut) = ut_opt {
@@ -88,7 +88,7 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Building_instructions,
 						(&l.Change_location, &l.drag_the_X),
 						(&l.Build, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 			
 			} ActionType::WorkerContinueBuildBldg {..} => {
 				// valid placement of cursor
@@ -103,7 +103,7 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Building_instructions,
 						(&l.Change_location, &l.drag_the_X),
 						(&l.Resume_construction, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 					return;
 
 				// invalid placement
@@ -114,7 +114,7 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Building_instructions,
 						(&l.Change_location, &l.drag_the_X),
 						(&l.Resume_construction, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 				}
 			
 			} ActionType::WorkerZone {start_coord: Some(start_coord), ..} => {
@@ -132,7 +132,7 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Zoning_instructions,
 						(&l.Change_location, &l.move_mouse),
 						(&l.Finish_zoning, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 				
 			} ActionType::WorkerZone {..} => {
 				let actions_req = if let Some(ut) = ut_opt {
@@ -144,7 +144,7 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Zoning_instructions,
 						(&l.Change_location, &l.move_mouse),
 						(&l.Start_zoning, &l.click_and_drag),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 
 			} ActionType::WorkerRepairWall {wall_coord: coord_opt, ..} => {
 				let actions_req = if let Some(ut) = ut_opt {
@@ -173,7 +173,7 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Repair_wall_instructions,
 						(&l.Change_dest, &l.drag_the_X),
 						(&l.Repair_wall, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 
 			} ActionType::WorkerBuildStructure {structure_type: StructureType::Gate, ..} => {
 				print_mv_to_sel2(full_zoom, PathValid::from(path_valid),
@@ -181,7 +181,7 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Build_gate_instructions,
 						(&l.Change_dest, &l.drag_the_X),
 						(&l.Build_gate_no_pre_colon, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 			
 			} ActionType::WorkerBuildStructure {structure_type: StructureType::Road, ..} => {
 				print_mv_to_sel2(full_zoom, PathValid::from(path_valid),
@@ -189,7 +189,7 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Building_instructions,
 						(&l.Change_dest, &l.drag_the_X),
 						(&l.Build_road, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 
 			} ActionType::WorkerBuildStructure {structure_type: StructureType::Wall, ..} => {
 				print_mv_to_sel2(full_zoom, PathValid::from(path_valid),
@@ -197,7 +197,7 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Building_instructions,
 						(&l.Change_dest, &l.drag_the_X),
 						(&l.Build_wall, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 
 			} ActionType::Attack {..} => {
 				let actions_req = if let Some(ut) = ut_opt {
@@ -208,7 +208,7 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Attacking_instructions,
 						(&l.Change_dest, &l.drag_the_X),
 						(&format!("{}:", l.Attack), &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 			
 			} ActionType::Mv | ActionType::MvIgnoreWalls | ActionType::MvIgnoreOwnWalls |
 			ActionType::GroupMv {start_coord: Some(_), end_coord: Some(_)} => {
@@ -221,7 +221,7 @@ impl ActionType<'_,'_,'_,'_> {
 						&l.Move_unit_instructions,
 						(&l.Change_dest, &l.drag_the_X),
 						(&l.Move_unit, &l.stop_dragging),
-						kbd, l, disp_chars, iface_settings, d);
+						kbd, l, disp_chars, iface_settings, txt_list, d);
 			
 			} ActionType::BrigadeCreation {start_coord: Some(_), end_coord: Some(_), ..} => {
 			  
@@ -238,13 +238,14 @@ impl ActionType<'_,'_,'_,'_> {
 }
 
 fn print_city_hist(city_nm_show: &str, stats_row: i32, owners: &Vec<Owner>, logs: &Vec<Log>,
-		l: &Localization, d: &mut DispState) {
+		l: &Localization, txt_list: &mut TxtList, d: &mut DispState) {
 	let mut roff = stats_row; // row offset for printing
 	
 	macro_rules! mvl {() => (d.mv(roff, UNIT_STATS_COL); roff += 1;);}
 	
 	macro_rules! print_owner{($id: expr) => {
 		let o = &owners[$id];
+		txt_list.add_b(d);
 		set_player_color(o, true, d);
 		d.addstr(&o.nm);
 		set_player_color(o, false, d);
@@ -257,6 +258,7 @@ fn print_city_hist(city_nm_show: &str, stats_row: i32, owners: &Vec<Owner>, logs
 			LogType::CityFounded {owner_id, city_nm} => {
 				if city_nm == city_nm_show {
 					mvl!();
+					txt_list.add_b(d);
 					l.print_date_log(log.turn, d);
 					d.addstr("Founded by the ");
 					print_owner!(*owner_id);
@@ -273,6 +275,7 @@ fn print_city_hist(city_nm_show: &str, stats_row: i32, owners: &Vec<Owner>, logs
 			LogType::CityCaptured {city_attackee_nm, owner_attacker_id, ..} => {
 				if city_attackee_nm == city_nm_show {
 					mvl!();
+					txt_list.add_b(d);
 					l.print_date_log(log.turn, d);
 					d.addstr("Captured by the ");
 					print_owner!(*owner_attacker_id);
@@ -288,6 +291,7 @@ fn print_city_hist(city_nm_show: &str, stats_row: i32, owners: &Vec<Owner>, logs
 			LogType::CityDestroyed {city_attackee_nm, owner_attacker_id, ..} => {
 				if city_attackee_nm == city_nm_show {
 					mvl!();
+					txt_list.add_b(d);
 					l.print_date_log(log.turn, d);
 					d.addstr("Destroyed by the ");
 					print_owner!(*owner_attacker_id);
@@ -316,6 +320,7 @@ fn print_city_hist(city_nm_show: &str, stats_row: i32, owners: &Vec<Owner>, logs
 	// print name of city (centered)
 	d.mv(stats_row - 2, UNIT_STATS_COL + if max_width >= city_nm_show.len()
 			{(max_width - city_nm_show.len())/2} else {0} as i32);
+	txt_list.add_b(d);
 	d.addstr(&format!("{}", city_nm_show));
 }
 
@@ -342,7 +347,7 @@ impl <'l>PathValid<'l> {
 // `change` and `confirm` tuples: (label on left most column, mouse instructions on next column over)
 fn print_mv_to_sel2<'l>(full_zoom: bool, path_valid: PathValid<'l>, turns_req: Option<(f32, bool)>, roff: &mut i32,
 		title: &str, change: (&str, &str), mut confirm: (&'l str, &'l str), kbd: &KeyboardMap, l: &'l Localization,
-		disp_chars: &DispChars, iface_settings: &IfaceSettings, d: &mut DispState) {
+		disp_chars: &DispChars, iface_settings: &IfaceSettings, txt_list: &mut TxtList, d: &mut DispState) {
 	macro_rules! color_txt {($nm: expr, $color: expr) => {
 		d.attron(COLOR_PAIR($color)); d.addstr($nm); d.attroff(COLOR_PAIR($color))}};
 	
@@ -379,6 +384,7 @@ fn print_mv_to_sel2<'l>(full_zoom: bool, path_valid: PathValid<'l>, turns_req: O
 	
 	// title
 	d.mv(*roff-2, UNIT_STATS_COL + (lbl_w + mouse_w + kbd_w - title.len() as i32)/2);
+	txt_list.add_b(d);
 	color_txt!(title, CGREEN);
 	
 	// path blocked
@@ -397,6 +403,15 @@ fn print_mv_to_sel2<'l>(full_zoom: bool, path_valid: PathValid<'l>, turns_req: O
 		for _ in 0..gap {d.addch(' ');}
 		d.addstr($txt);
 	};};
+	
+	// adds to txt list for screen readers
+	macro_rules! center_log{($txt: expr, $w: expr) => {
+		let gap = ($w - $txt.len() as i32)/2;
+		for _ in 0..gap {d.addch(' ');}
+		txt_list.add_b(d);
+		d.addstr($txt);
+	};};
+
 	
 	let v = disp_chars.vline_char;
 	
@@ -438,6 +453,7 @@ fn print_mv_to_sel2<'l>(full_zoom: bool, path_valid: PathValid<'l>, turns_req: O
 		
 		// label
 		d.mv(*roff, UNIT_STATS_COL + lbl_w - lbl.len() as i32 - 1);
+		txt_list.add_b(d);
 		d.addstr(lbl);
 		vline!(col2);
 		
@@ -452,6 +468,7 @@ fn print_mv_to_sel2<'l>(full_zoom: bool, path_valid: PathValid<'l>, turns_req: O
 			// a,s,d,w
 			1 => {
 				d.addch(' ');
+				txt_list.add_b(d);
 				for k in &[kbd.left, kbd.down, kbd.right] {
 					iface_settings.print_key(*k, l, d);
 					d.addstr(", ");
@@ -462,16 +479,17 @@ fn print_mv_to_sel2<'l>(full_zoom: bool, path_valid: PathValid<'l>, turns_req: O
 			} 2 => {
 				if confirm_key == '\n' as u8 as i32 {
 					d.attron(COLOR_PAIR(CGREEN));
-					center!(&l.Enter_key, kbd_w);
+					center_log!(&l.Enter_key, kbd_w);
 					d.attroff(COLOR_PAIR(CGREEN));
 				}else{
 					d.mv(*roff, col3 + (kbd_w - 1)/2);
+					txt_list.add_b(d);
 					iface_settings.print_key(confirm_key, l, d);
 				}
 			// <Esc>
 			} 3 => {
 				d.attron(COLOR_PAIR(ESC_COLOR));
-				center!("<Esc>", kbd_w);
+				center_log!("<Esc>", kbd_w);
 				d.attroff(COLOR_PAIR(ESC_COLOR));
 			} _ => {panicq!("unsupported # of rows");}
 		}
@@ -548,13 +566,14 @@ fn print_mv_to_sel2<'l>(full_zoom: bool, path_valid: PathValid<'l>, turns_req: O
 
 impl IfaceSettings<'_,'_,'_,'_,'_> {
 	// cmds: Vec<(key, txt)>
-	fn print_cmds(&self, mut cmds: Vec<&mut Button>, roff: i32, l: &Localization, d: &mut DispState) {
+	fn print_cmds(&self, mut cmds: Vec<&mut Button>, roff: i32, l: &Localization, txt_list: &mut TxtList, d: &mut DispState) {
 		const ROWS_PER_COL: usize = 5;
 		let mut col_offset = UNIT_STATS_COL;
 		for col_cmds in cmds.chunks_mut(ROWS_PER_COL) {
 			let mut max_w = 0;
 			for (cmd_ind, button) in col_cmds.iter_mut().enumerate() {
 				d.mv(roff + cmd_ind as i32, col_offset);
+				txt_list.add_b(d);
 				let w = button.print(Some(self), l, d) + 1;
 				if w > max_w {max_w = w;}
 			}
@@ -564,19 +583,23 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		}
 	}
 
-	fn print_owner(&self, mut roff: i32, o: &Owner, relations: &Relations, d: &mut DispState) {
+	fn print_owner(&self, mut roff: i32, o: &Owner, relations: &Relations,
+			txt_list: &mut TxtList, d: &mut DispState) {
 		if o.player_type != PlayerType::Barbarian {
 			d.mv(roff, LAND_STATS_COL); roff += 1;
+			txt_list.add_b(d);
 			d.addstr("Country: ");
 		}
-
+		
 		d.mv(roff, LAND_STATS_COL);
+		txt_list.add_b(d);
 		set_player_color(o, true, d);
 		d.addstr(if o.id == self.cur_player {"You"} else {&o.nm});
 		set_player_color(o, false, d);
 		
 		if self.cur_player != o.id && relations.at_war(self.cur_player as usize, o.id as usize) {
 			d.mv(roff + 1, LAND_STATS_COL);
+			txt_list.add_b(d);
 			d.addch('(');
 			d.attron(COLOR_PAIR(CRED));
 			d.addstr("WAR");
@@ -585,8 +608,9 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		}
 	}
 	
-	fn zoom_in_to_change_actions(&self, roff: i32, kbd: &KeyboardMap, l: &Localization, d: &mut DispState) {
+	fn zoom_in_to_change_actions(&self, roff: i32, kbd: &KeyboardMap, l: &Localization, txt_list: &mut TxtList, d: &mut DispState) {
 		d.mv(roff, UNIT_STATS_COL);
+		txt_list.add_b(d);
 		d.addstr("Zoom ");
 		
 		let combine_w_word = kbd.zoom_in == 'i' as i32;
@@ -605,7 +629,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	}
 	
 	fn print_unit_nm_health(&self, roff: &mut i32, unit_ind: usize, u: &Unit, owners: &Vec<Owner>, pstats: &Stats,
-			l: &Localization, buttons: &mut Buttons, d: &mut DispState) {
+			l: &Localization, buttons: &mut Buttons, txt_list: &mut TxtList, d: &mut DispState) {
 		macro_rules! mvl {() => (d.mv(*roff, UNIT_STATS_COL); *roff += 1;);}
 		
 		// print nm
@@ -613,11 +637,13 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			mvl!();
 			if u.template.nm[0] != RIOTER_NM {
 				d.mv(*roff-2, UNIT_STATS_COL);
+				txt_list.add_b(d);
 				d.addstr(&l.The_Battalion.replace("[nm]", &u.nm).replace("[type]", &u.template.nm[l.lang_ind]));				
 				
 				if self.add_action_to.is_none() {
 					if let Some(brigade_nm) = pstats.unit_brigade_nm(unit_ind) {
 						d.mv(*roff-1, UNIT_STATS_COL);
+						txt_list.add_b(d);
 						d.addstr(&l.Member_of_the_Brigade.replace("[]", brigade_nm));
 						d.addstr(" (");
 						buttons.view_brigade.print(Some(self), l, d);
@@ -627,12 +653,15 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					}
 				}
 				
-			}else{d.addstr(&u.template.nm[0]);}		
+			}else{
+				txt_list.add_b(d);
+				d.addstr(&u.template.nm[0]);
+			}
 		}
 		
 		// print health
 		{
-			mvl!(); d.addstr(&format!("{}: ", l.Health));
+			mvl!(); txt_list.add_b(d); d.addstr(&format!("{}: ", l.Health));
 			let health_frac = u.health();
 			colorize(health_frac, true, d);
 			if health_frac > 1. {
@@ -650,7 +679,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				
 				let col2 = ("Action: Fortified   ".chars().count() as i32) + UNIT_STATS_COL;
 				
-				d.mv(*roff, col2);
+				d.mv(*roff, col2); txt_list.add_b(d);
 				d.addstr(&l.Carrying); d.addch(' ');
 				for (i, c) in units_carried.iter().enumerate() {
 					plot_unit(c.template, &owners[c.owner_id as usize], d);
@@ -666,11 +695,11 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	// if in mv mode
 	fn print_unit_action(&self, mut roff: i32, action_iface: &ActionInterfaceMeta, pstats: &Stats, units: &Vec<Unit>,
 			bldgs: &Vec<Bldg>, exf: &HashedMapEx, map_data: &mut MapData, owners: &Vec<Owner>, kbd: &KeyboardMap, l: &Localization,
-			buttons: &mut Buttons, disp_chars: &DispChars, d: &mut DispState) {
+			buttons: &mut Buttons, disp_chars: &DispChars, txt_list: &mut TxtList, d: &mut DispState) {
 		if let Some(unit_ind) = action_iface.unit_ind {
 			let u = &units[unit_ind];
 			
-			self.print_unit_nm_health(&mut roff, unit_ind, u, owners, pstats, l, buttons, d);
+			self.print_unit_nm_health(&mut roff, unit_ind, u, owners, pstats, l, buttons, txt_list, d);
 			
 			let actions_req = if let Some(ActionMetaCont {final_end_coord, ..}) = &action_iface.action.action_meta_cont {
 				let map_sz = *map_data.map_szs.last().unwrap();
@@ -684,7 +713,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			
 			let turns_est = !action_iface.action.action_meta_cont.is_none();
 			
-			action_iface.action.action_type.print(&mut roff, path_valid, actions_req, turns_est, Some(u.template), bldgs, exf, map_data, self, l, kbd, disp_chars, d);
+			action_iface.action.action_type.print(&mut roff, path_valid, actions_req, turns_est, Some(u.template), bldgs, exf, map_data, self, l, kbd, disp_chars, txt_list, d);
 		}
 	}
 	
@@ -692,14 +721,14 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	fn print_broadcastable_actions(&self, brigade_nm: &String, pstats: &Stats, units: &Vec<Unit>,
 			bldgs: &Vec<Bldg>, exf: &HashedMapEx,
 			stats_row: i32, map_data: &mut MapData, kbd: &KeyboardMap, l: &Localization,
-			buttons: &mut Buttons, disp_chars: &DispChars, d: &mut DispState) {
+			buttons: &mut Buttons, disp_chars: &DispChars, txt_list: &mut TxtList, d: &mut DispState) {
 		let brigade = pstats.brigade_frm_nm(brigade_nm);
 		let mut roff = stats_row;
 		macro_rules! mvl {() => (d.mv(roff, UNIT_STATS_COL); roff += 1;);}
 		d.mv(roff-1, UNIT_STATS_COL);
 		buttons.Cancel.print(Some(self), l, d);
 		
-		mvl!();
+		mvl!(); txt_list.add_b(d);
 		d.addstr(&l.Choose_an_action_for_all_brigade_units.replace("[]", brigade_nm));
 		mvl!();
 		
@@ -711,7 +740,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				let turns_est = false;
 				let ut_opt = None;
 				mvl!();
-				action_iface.action.action_type.print(&mut roff, path_valid, actions_req, turns_est, ut_opt, bldgs, exf, map_data, self, l, kbd, disp_chars, d);
+				action_iface.action.action_type.print(&mut roff, path_valid, actions_req, turns_est, ut_opt, bldgs, exf, map_data, self, l, kbd, disp_chars, txt_list, d);
 			}else{panicq!("no active action_ifaces in AllInBrigade move");}
 		
 		// show possible actions
@@ -742,10 +771,10 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					{true} else {false}
 			}) {add!(unload_boat);}
 			
-			self.print_cmds(cmds, roff, l, d);
+			self.print_cmds(cmds, roff, l, txt_list, d);
 		// zoom in to change actions
 		}else{
-			self.zoom_in_to_change_actions(roff, kbd, l, d);
+			self.zoom_in_to_change_actions(roff, kbd, l, txt_list, d);
 		}
 	}
 	
@@ -753,14 +782,14 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	fn print_build_list_actions(&self, brigade_nm: &String, pstats: &Stats, units: &Vec<Unit>,
 			bldgs: &Vec<Bldg>, exf: &HashedMapEx,
 			stats_row: i32, map_data: &mut MapData, kbd: &KeyboardMap, l: &Localization,
-			buttons: &mut Buttons, disp_chars: &DispChars, d: &mut DispState) {
+			buttons: &mut Buttons, disp_chars: &DispChars, txt_list: &mut TxtList, d: &mut DispState) {
 		let brigade = pstats.brigade_frm_nm(brigade_nm);
 		let mut roff = stats_row;
 		macro_rules! mvl {() => (d.mv(roff, UNIT_STATS_COL); roff += 1;);}
 		d.mv(roff-1, UNIT_STATS_COL);
 		buttons.Cancel.print(Some(self), l, d);
 		
-		mvl!();
+		mvl!(); txt_list.add_b(d);
 		d.addstr(&l.Choose_an_action_to_add_to_the_brigade_build_list.replace("[]", brigade_nm));
 		mvl!();
 		
@@ -771,7 +800,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			let turns_est = false;
 			let ut_opt = None;
 			mvl!();
-			action.action_type.print(&mut roff, path_valid, actions_req, turns_est, ut_opt, bldgs, exf, map_data, self, l, kbd, disp_chars, d);
+			action.action_type.print(&mut roff, path_valid, actions_req, turns_est, ut_opt, bldgs, exf, map_data, self, l, kbd, disp_chars, txt_list, d);
 		// show possible actions
 		}else if self.zoom_ind == map_data.max_zoom_ind() {
 			let mut cmds = Vec::with_capacity(30);
@@ -786,10 +815,10 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			
 			add!(build_gate);
 			
-			self.print_cmds(cmds, roff, l, d);
+			self.print_cmds(cmds, roff, l, txt_list, d);
 		// zoom in to change actions
 		}else{
-			self.zoom_in_to_change_actions(roff, kbd, l, d);
+			self.zoom_in_to_change_actions(roff, kbd, l, txt_list, d);
 		}
 	}
 	
@@ -798,7 +827,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			show_land: bool, pstats: &Stats, units: &Vec<Unit>, 
 			bldgs: &Vec<Bldg>, map_data: &mut MapData, exf: &HashedMapEx, 
 			relations: &Relations, owners: &Vec<Owner>, kbd: &KeyboardMap, l: &Localization,
-			buttons: &mut Buttons, disp_chars: &DispChars, d: &mut DispState){
+			buttons: &mut Buttons, disp_chars: &DispChars, txt_list: &mut TxtList, d: &mut DispState){
 		
 		//debug_assertq!(self.zoom_ind == map_data.max_zoom_ind());
 		//debug_assertq!(unit_inds.len() <= MAX_UNITS_PER_PLOT);
@@ -810,6 +839,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		// multi-unit display
 		if show_land && unit_inds.len() != 1 {
 			d.mv(roff - 2, UNIT_STATS_COL);
+			txt_list.add_b(d);
 			d.addstr(&format!("{}: ", l.Units));
 			for unit_ind_ind in 0..unit_inds.len() {
 				if unit_ind_ind > 0 {d.addstr(", ");}
@@ -831,14 +861,15 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			
 		// in action mode
 		if let AddActionTo::IndividualUnit {action_iface} = &self.add_action_to {
-			self.print_unit_action(roff, action_iface, pstats, units, bldgs, exf, map_data, owners, kbd, l, buttons, disp_chars, d);
+			self.print_unit_action(roff, action_iface, pstats, units, bldgs, exf, map_data, owners, kbd, l, buttons, disp_chars, txt_list, d);
 		
 		// not interactively moving or building anything -- show actions unit could perform
 		}else if show_land {
-			self.print_unit_nm_health(&mut roff, unit_ind, u, owners, pstats, l, buttons, d);
+			self.print_unit_nm_health(&mut roff, unit_ind, u, owners, pstats, l, buttons, txt_list, d);
 			
 			// player's unit
 			if u.owner_id == self.cur_player || self.show_actions {
+				txt_list.add_b(d);
 				d.addstr(&format!("{}: ", l.Action));
 				if let Some(action) = u.action.last() {
 					d.addstr(&action.action_type.nm(l));
@@ -910,11 +941,11 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 							}
 						}
 						
-						self.print_cmds(cmds, roff, l, d);
+						self.print_cmds(cmds, roff, l, txt_list, d);
 						
 					// zoom in to change actions
 					}else if self.zoom_ind != map_data.max_zoom_ind() {
-						self.zoom_in_to_change_actions(roff, kbd, l, d);
+						self.zoom_in_to_change_actions(roff, kbd, l, txt_list, d);
 					}
 				} // menu/windows not active
 			// currently owned unit
@@ -931,14 +962,15 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		// Country owner
 		if show_land && u.owner_id != self.cur_player {
-			self.print_owner(lside_row, &owners[u.owner_id as usize], relations, d);
+			self.print_owner(lside_row, &owners[u.owner_id as usize], relations, txt_list, d);
 		}
 	}
 	
 	fn print_unit_bldg_stats(&self, map_cur_coord: u64, stats_row: i32, lside_row: i32, show_land: bool,
 			map_data: &mut MapData, exs: &Vec<HashedMapEx>, zone_exs_owners: &Vec<HashedMapZoneEx>,
 			units: &Vec<Unit>, bldg_config: &BldgConfig, bldgs: &Vec<Bldg>, relations: &Relations, pstats: &Stats,
-			owners: &Vec<Owner>, logs: &Vec<Log>, kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, disp_chars: &DispChars, d: &mut DispState){
+			owners: &Vec<Owner>, logs: &Vec<Log>, kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, disp_chars: &DispChars,
+			txt_list: &mut TxtList, d: &mut DispState){
 
 		//if self.zoom_ind != map_data.max_zoom_ind() {return;} // only show at full zoom
 		
@@ -958,9 +990,9 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		// show brigade
 		if let AddActionTo::AllInBrigade {brigade_nm, ..} = &self.add_action_to {
-			self.print_broadcastable_actions(brigade_nm, pstats, units, bldgs, exf, stats_row, map_data, kbd, l, buttons, disp_chars, d);
+			self.print_broadcastable_actions(brigade_nm, pstats, units, bldgs, exf, stats_row, map_data, kbd, l, buttons, disp_chars, txt_list, d);
 		}else if let AddActionTo::BrigadeBuildList {brigade_nm, ..} = &self.add_action_to {
-			self.print_build_list_actions(brigade_nm, pstats, units, bldgs, exf, stats_row, map_data, kbd, l, buttons, disp_chars, d);
+			self.print_build_list_actions(brigade_nm, pstats, units, bldgs, exf, stats_row, map_data, kbd, l, buttons, disp_chars, txt_list, d);
 
 		// ex data
 		}else if let Some(ex) = exz.get(&get_cursor_or_sel_coord()) {
@@ -968,7 +1000,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			if show_land {
 				if let Some(fog) = self.get_fog_or_actual(get_cursor_or_sel_coord(), ex, pstats) {
 					if let Some(max_city_nm) = &fog.max_city_nm {
-						print_city_hist(max_city_nm, stats_row, owners, logs, l, d);
+						print_city_hist(max_city_nm, stats_row, owners, logs, l, txt_list, d);
 						return;
 					}
 				}
@@ -976,7 +1008,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			
 			// show unit
 			if let Some(unit_inds) = &ex.unit_inds {
-				self.print_unit_stats(unit_inds, stats_row, lside_row, show_land, pstats, units, bldgs, map_data, exz, relations, owners, kbd, l, buttons, disp_chars, d);
+				self.print_unit_stats(unit_inds, stats_row, lside_row, show_land, pstats, units, bldgs, map_data, exz, relations, owners, kbd, l, buttons, disp_chars, txt_list, d);
 				return;
 				
 			// show bldg (full zoom)
@@ -995,12 +1027,14 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					// if city hall & we're not showing all player's actions, show history and return
 					if let BldgArgs::CityHall {nm, ..} = &b.args {
 						if b.owner_id == self.cur_player || self.show_actions {
+							txt_list.add_b(d);
 							d.addstr(&format!("{} ({})", nm, bt.nm[l.lang_ind]));
 						}else{
-							print_city_hist(nm, stats_row, owners, logs, l, d);
+							print_city_hist(nm, stats_row, owners, logs, l, txt_list, d);
 							return;
 						}
 					}else{
+						txt_list.add_b(d);
 						d.addstr(&bt.nm[l.lang_ind]);
 						
 						// print "(abandoned)"?
@@ -1016,6 +1050,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					// print damage
 					if let Some(damage) = b.damage {
 						d.mv(roff - 1, UNIT_STATS_COL);
+						txt_list.add_b(d);
 						d.addstr(&l.Damage);
 						let damage_frac = (damage as f32 / bldg_config.max_bldg_damage as f32) * 100.;
 						colorize(100.-damage_frac, true, d);
@@ -1031,6 +1066,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						BldgType::Gov(_) => {
 							// under construction?
 							if let Some(prog) = b.construction_done {
+								txt_list.add_b(d);
 								d.addstr(&format!("{} {}%", l.Construction_progress,
 										((100.*prog as f32 / bt.construction_req as f32).round() as usize)));
 								return;
@@ -1040,6 +1076,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 							if !b.template.units_producable.is_none() && (b.owner_id == self.cur_player || self.show_actions) {
 								// constructed
 								if let BldgArgs::CityHall {tax_rates, ..} = &b.args {
+									txt_list.add_b(d);
 									d.addstr(&l.Taxes);
 									
 									macro_rules! tax_ln{($shortcut_key: expr, $nm: expr, $zt: path) => (
@@ -1071,12 +1108,14 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 								
 								// production
 								mvl!();
+								txt_list.add_b(d);
 								d.addstr(&l.Production); d.mv(roff, UNIT_STATS_COL); /////!!!!!!!!!!!!!! (roff not incremented or else you get a compiler warning)
 								buttons.change_bldg_production.print(Some(self), l, d);
 								
 								if let BldgArgs::CityHall {production, ..} | BldgArgs::GenericProducable {production} = &b.args {
 									if let Some(production_entry) = production.last() {
 										let ut = production_entry.production;
+										txt_list.add_b(d);
 										d.addstr(&format!("{}  ({}/{})", &ut.nm[l.lang_ind],
 											production_entry.progress, ut.production_req.round() as usize));
 										if production.len() > 1 {
@@ -1092,12 +1131,14 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 								}
 							}else if b.template.doctrinality_bonus > 0. {
 								d.mv(roff, UNIT_STATS_COL);
+								txt_list.add_b(d);
 								d.addstr(&format!("{}: ", l.Dedication));
 								d.addstr(&b.doctrine_dedication.nm[l.lang_ind]);
 							}
 						/////////////////////////////////////
 						// taxable bldg
 						} BldgType::Taxable(zone_type) => {
+							txt_list.add_b(d);
 							d.addstr(&l.City_Hall_dist); d.addch(' ');
 							
 							let zi = zone_exs_owners[b.owner_id as usize].get(&return_zone_coord(b.coord, *map_data.map_szs.last().unwrap())).unwrap();
@@ -1108,10 +1149,12 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 									let taxable_upkeep = b.return_taxable_upkeep();
 									if taxable_upkeep != 0. {
 										let effective_tax_rate = -100. * taxable_upkeep / (b.template.upkeep * b.operating_frac());
+										txt_list.add_b(d);
 										d.addstr(&l.Enforced_tax);
 										d.addstr(&format!(" {:.1}%", effective_tax_rate));
 										mvl!();
 									}
+									txt_list.add_b(d);
 									d.addstr(&l.Tax_payments); d.addch(' ');
 									if taxable_upkeep == 0. {
 										d.addch('0');
@@ -1137,12 +1180,14 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 								debug_assertq!(Some(zone_type) == ex.actual.ret_zone_type());
 								let is_residential_zone = ex.actual.ret_zone_type() == Some(ZoneType::Residential);
 								
+								txt_list.add_b(d);
 								d.addstr(if is_residential_zone {&l.Residents} else {&l.Employees});
 								d.addch(' ');
 								
 								d.addstr(&format!("{}/{}", b.n_residents(), bt.resident_max));
 								
 								mvl!();
+								txt_list.add_b(d);
 								if is_residential_zone {
 									d.addstr(&l.Employed);
 									d.addstr(&format!(" {}/{}", b.n_sold(), b.n_residents() ));
@@ -1152,6 +1197,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 								}
 								
 								d.mv(roff, UNIT_STATS_COL);
+								txt_list.add_b(d);
 								d.addstr(&l.Consumption);
 								d.addstr(&format!(" {}/{}", b.cons(), b.cons_capac() ));
 								
@@ -1159,6 +1205,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 									let zs = &zi.zone_agnostic_stats;
 									{ // Dispositions: doctrine_sum
 										d.mv(resident_start_line, UNIT_STATS_COL + 20);
+										txt_list.add_b(d);
 										d.addstr(&l.Dispositions);
 										
 										const RANGE: f32 = 0.5*2.;
@@ -1177,6 +1224,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 									
 									{ // Politics: pacifism
 										d.mv(resident_start_line+1, UNIT_STATS_COL + 20);
+										txt_list.add_b(d);
 										d.addstr(&l.Politics);
 										
 										const POL_RANGE: f32 = 0.5*2.;
@@ -1193,6 +1241,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 									
 									{ // Moods: happiness
 										d.mv(resident_start_line+2, UNIT_STATS_COL + 20);
+										txt_list.add_b(d);
 										d.addstr(&l.Moods);
 										
 										const RANGE: f32 = 200.*2.;
@@ -1217,13 +1266,13 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		// show action (can occur if we are zoomed out and `ex` is empty)
 		}else if let AddActionTo::IndividualUnit {action_iface} = &self.add_action_to {
-			self.print_unit_action(stats_row as i32, action_iface, pstats, units, bldgs, exs.last().unwrap(), map_data, owners, kbd, l, buttons, disp_chars, d);
+			self.print_unit_action(stats_row as i32, action_iface, pstats, units, bldgs, exs.last().unwrap(), map_data, owners, kbd, l, buttons, disp_chars, txt_list, d);
 		}
 	}
 	
 	pub fn print_bottom_stats(&self, map_data: &mut MapData, exs: &Vec<HashedMapEx>, zone_exs_owners: &Vec<HashedMapZoneEx>, units: &Vec<Unit>,
 			bldg_config: &BldgConfig, bldgs: &Vec<Bldg>, pstats: &Stats, relations: &Relations, owners: &Vec<Owner>, logs: &Vec<Log>,
-			kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, disp_chars: &DispChars, d: &mut DispState){
+			kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, txt_list: &mut TxtList, disp_chars: &DispChars, d: &mut DispState){
 		////////////////////////////////////////////////
 		// land stats
 		let stats_row = (self.screen_sz.h - MAP_ROW_STOP_SZ + 2) as i32;
@@ -1239,6 +1288,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		// land is undiscovered
 		let show_land = !self.show_fog || pstats.land_discov[self.zoom_ind].map_coord_ind_discovered(map_cur_coord);
 		if !show_land {
+			txt_list.add_b(d);
 			d.addstr(&l.Undiscovered);
 			//return;
 		
@@ -1261,6 +1311,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			if self.show_sectors && self.zoom_ind == map_data.max_zoom_ind() {
 				if let Some(sector_nm) = pstats.sector_nm_frm_coord(map_cur_coord, map_sz) {
 					d.mv(stats_row-1, LAND_STATS_COL);
+					txt_list.add_b(d);
 					d.addstr(&l.Sector); d.addch(' ');
 					if space_empty_ign_zone {
 						d.addstr(&sector_nm);
@@ -1278,6 +1329,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				let arability_str = ArabilityType::frm_arability(mzc.arability, mzc.map_type, mzc.show_snow).to_str(l);
 				let arability_str_lns: Vec<&str> = arability_str.split(" ").collect();
 				
+				txt_list.add_b(d);
 				d.addstr(arability_str_lns[0]);
 				
 				// print second line of arability name
@@ -1286,6 +1338,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					if ex_wrapped.is_none() && self.add_action_to.is_none() && resource_wrapped.is_none() { 
 						d.addch(' ');
 					}else{
+						txt_list.add_b(d);
 						d.mv(stats_row + 2, LAND_STATS_COL);
 					}
 					d.addstr(&arability_str_lns[1]);
@@ -1298,6 +1351,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				if let Some(resource) = resource_wrapped {
 					if pstats.resource_discov(resource) {
 						d.mv(r_off, LAND_STATS_COL); r_off += 1;
+						txt_list.add_b(d);
 						d.attron(COLOR_PAIR(resource.zone.to_color()));
 						d.addstr(&format!("{}", resource.nm[l.lang_ind]));
 						d.attroff(COLOR_PAIR(resource.zone.to_color()));
@@ -1306,8 +1360,10 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						
 						macro_rules! lr_txt{($row: expr, $l_txt: expr, $r_txt: expr) => {
 							d.mv($row, UNIT_STATS_COL+2);
+							txt_list.add_b(d);
 							d.addstr($l_txt);
 							d.mv($row, UNIT_STATS_COL + window_w - $r_txt.len() as i32);
+							txt_list.add_b(d);
 							d.addstr($r_txt);
 							$row += 1;
 						};};
@@ -1317,6 +1373,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 							
 							// center title
 							d.mv(row, (window_w - resource.nm.len() as i32)/2 + UNIT_STATS_COL as i32); row += 2;
+							txt_list.add_b(d);
 							d.addstr(&resource.nm[l.lang_ind]);
 							
 							lr_txt!(row, &l.Zoning_req_to_use, resource.zone.to_str());
@@ -1347,6 +1404,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				if let Some(ex) = ex_wrapped {
 					// structure
 					if let Some(s) = ex.actual.structure {
+						txt_list.add_b(d);
 						d.addstr(match s.structure_type {
 								StructureType::Road => {&l.Road}
 								StructureType::Wall => {&l.Wall}
@@ -1356,6 +1414,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						
 						// damaged
 						if s.health != std::u8::MAX {
+							txt_list.add_b(d);
 							d.mv(r_off, LAND_STATS_COL); r_off += 1;
 							let health_frac = 100.*(s.health as f32) / (std::u8::MAX as f32); 
 							colorize(health_frac, true, d);
@@ -1367,6 +1426,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					// Zone
 					}else if self.zoom_ind == map_data.max_zoom_ind() && !ex.actual.ret_zone_type().is_none() && ex.actual.owner_id == Some(self.cur_player) {
 						let zt = ex.actual.ret_zone_type().unwrap();
+						txt_list.add_b(d);
 						d.addstr(zt.to_str());
 					}
 					
@@ -1413,7 +1473,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					
 					// Country owner
 					if let Some(owner_id) = ex.actual.owner_id {
-						self.print_owner(r_off+1, &owners[owner_id as usize], relations, d);
+						self.print_owner(r_off+1, &owners[owner_id as usize], relations, txt_list, d);
 					}	
 				} // extended data
 			}
@@ -1435,7 +1495,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						&l.Select_a_rectangular_group_of_units,
 						(&l.Move_corner, &l.drag_the_X),
 						(&l.Finish, &l.stop_dragging),
-						kbd, l, disp_chars, self, d);
+						kbd, l, disp_chars, self, txt_list, d);
 					return;
 				}
 				// rectangle started
@@ -1444,7 +1504,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						&l.Create_brigade_by_drawing_a_rectangle,
 						(&l.Change_location, &l.move_mouse),
 						(&l.Finish, &l.stop_dragging),
-						kbd, l, disp_chars, self, d);
+						kbd, l, disp_chars, self, txt_list, d);
 					return;
 				}
 				// rectangle started
@@ -1453,7 +1513,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						&l.Create_sector_by_drawing_a_rectangle,
 						(&l.Change_location, &l.move_mouse),
 						(&l.Finish, &l.stop_dragging),
-						kbd, l, disp_chars, self, d);
+						kbd, l, disp_chars, self, txt_list, d);
 					return;
 				}
 				// enter to start selecting
@@ -1462,7 +1522,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						&l.Create_brigade_by_drawing_a_rectangle,
 						(&l.Change_location, &l.move_mouse),
 						(&l.Start_selecting, &l.click_and_drag),
-						kbd, l, disp_chars, self, d);
+						kbd, l, disp_chars, self, txt_list, d);
 					return;
 				}
 				// enter to start selecting
@@ -1471,14 +1531,14 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						&l.Create_sector_by_drawing_a_rectangle,
 						(&l.Change_location, &l.move_mouse),
 						(&l.Start_selecting, &l.click_and_drag),
-						kbd, l, disp_chars, self, d);
+						kbd, l, disp_chars, self, txt_list, d);
 					return;
 				}
 				_ => {}
 			}
 		}
 		
-		self.print_unit_bldg_stats(map_cur_coord, stats_row, r_off+1, show_land, map_data, exs, zone_exs_owners, units, bldg_config, bldgs, relations, pstats, owners, logs, kbd, l, buttons, disp_chars, d);
+		self.print_unit_bldg_stats(map_cur_coord, stats_row, r_off+1, show_land, map_data, exs, zone_exs_owners, units, bldg_config, bldgs, relations, pstats, owners, logs, kbd, l, buttons, disp_chars, txt_list, d);
 	}
 }
 
