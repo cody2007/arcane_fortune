@@ -3,20 +3,21 @@ use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::buildings::{Bldg, BldgType, BldgTemplate, bldg_resource, StatsAction};
 use crate::units::Unit;
 use crate::doctrine::DoctrineTemplate;
-use crate::map::{Owner, MapSz, Dist, ZoneType, MapData, RecompType, Stats,
+use crate::map::{MapSz, Dist, ZoneType, MapData, RecompType,
 	compute_zooms_coord, compute_active_window, PresenceAction};
+use crate::player::Player;
 use crate::saving::SmSvType;
 use super::{return_zone_coord};
 use crate::map::utils::ZoneExFns;
 use crate::ai::CityState;
+use crate::containers::Templates;
 use crate::disp::Coord;
 //use crate::disp_lib::endwin;
 
 pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize, cur_player: usize, to_city_state_opt: &mut Option<&mut CityState>,
-		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>,
-		doctrine_templates: &'dt Vec<DoctrineTemplate>,
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &mut Vec<HashedMapZoneEx>, map_data: &mut MapData,
-		stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, relations: &mut Relations, owners: &Vec<Owner>, logs: &mut Vec<Log>, map_sz: MapSz, turn: usize) {
+		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_data: &mut MapData,
+		relations: &mut Relations, logs: &mut Vec<Log>, map_sz: MapSz, turn: usize) {
 	
 	if let Some(ref mut ex) = exs.last_mut().unwrap().get_mut(&coord) {
 		if ex.actual.owner_id == Some(to_owner as SmSvType) {return;}
@@ -31,35 +32,35 @@ pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize,
 				
 				// update population stats
 				if let BldgType::Taxable(ZoneType::Residential) = bt.bldg_type {
-					stats[frm_owner].population -= b_update.n_residents();
-					stats[to_owner].population += b_update.n_residents();
+					players[frm_owner].stats.population -= b_update.n_residents();
+					players[to_owner].stats.population += b_update.n_residents();
 					
 				// update employment stats
 				}else if let BldgType::Taxable(_) = bt.bldg_type {
-					stats[frm_owner].employed -= b_update.n_residents();
-					stats[to_owner].employed += b_update.n_residents();
+					players[frm_owner].stats.employed -= b_update.n_residents();
+					players[to_owner].stats.employed += b_update.n_residents();
 				}
 				
 				// update tax income or expenses
 				if bt.upkeep < 0. {
-					stats[frm_owner].tax_income -= b_update.return_taxable_upkeep();
-					stats[to_owner].tax_income += b_update.return_taxable_upkeep();
+					players[frm_owner].stats.tax_income -= b_update.return_taxable_upkeep();
+					players[to_owner].stats.tax_income += b_update.return_taxable_upkeep();
 				}else{
-					stats[frm_owner].bldg_expenses -= b_update.return_taxable_upkeep();
-					stats[to_owner].bldg_expenses += b_update.return_taxable_upkeep();
+					players[frm_owner].stats.bldg_expenses -= b_update.return_taxable_upkeep();
+					players[to_owner].stats.bldg_expenses += b_update.return_taxable_upkeep();
 				}
 				
 				//se also when altering: worker create building, building/add_bldg
 				// research, crime, happiness, doctrinality, health, pacifism
 				if b_update.construction_done == None {
-					stats[frm_owner].bldg_stats(StatsAction::Rm, bt);
-					stats[to_owner].bldg_stats(StatsAction::Add, bt);
+					players[frm_owner].stats.bldg_stats(StatsAction::Rm, bt);
+					players[to_owner].stats.bldg_stats(StatsAction::Add, bt);
 				}
 				
 				// log resource
 				if let Some(resource) = bldg_resource(coord, bt, map_data, map_sz) {
-					stats[frm_owner].resources_avail[resource.id as usize] += 1;
-					stats[to_owner].resources_avail[resource.id as usize] += 1;
+					players[frm_owner].stats.resources_avail[resource.id as usize] += 1;
+					players[to_owner].stats.resources_avail[resource.id as usize] += 1;
 				}
 
 				b_update.owner_id = to_owner as SmSvType;
@@ -81,10 +82,10 @@ pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize,
 		let zt_wrapped = ex.actual.ret_zone_type();
 		if let Some(zt) = zt_wrapped {
 			let zone_coord = return_zone_coord(coord, map_sz);
-			if zone_exs_owners[frm_owner].contains_key(&zone_coord) {
-				let b_zone_ex = zone_exs_owners[frm_owner].get(&zone_coord).unwrap().clone();
-				zone_exs_owners[to_owner].create_if_empty(zone_coord, doctrine_templates);
-				let zone_ex = zone_exs_owners[to_owner].get_mut(&zone_coord).unwrap();
+			if players[frm_owner].zone_exs.contains_key(&zone_coord) {
+				let b_zone_ex = players[frm_owner].zone_exs.get(&zone_coord).unwrap().clone();
+				players[to_owner].zone_exs.create_if_empty(zone_coord, temps.doctrines);
+				let zone_ex = players[to_owner].zone_exs.get_mut(&zone_coord).unwrap();
 				let zt = zt as usize;
 				
 				// do not need to set demand_weighted_sum_map_counter because 
@@ -117,7 +118,7 @@ pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize,
 						zone_ex.set_city_hall_dist(zone_coord, b_zone_ex.city_hall_dist, bldgs, map_sz);
 					} Dist::Is {..} | Dist::ForceRecompute {..} => {
 						let zone_ex = zone_ex.clone();
-						let b_zone_ex = zone_exs_owners[frm_owner].get_mut(&zone_coord).unwrap();
+						let b_zone_ex = players[frm_owner].zone_exs.get_mut(&zone_coord).unwrap();
 						b_zone_ex.set_city_hall_dist(zone_coord, zone_ex.city_hall_dist, bldgs, map_sz);
 					}
 				}
@@ -126,12 +127,12 @@ pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize,
 				match b_zone_ex.city_hall_dist {
 					Dist::NotInit | Dist::NotPossible {..} => {}
 					Dist::Is {..} | Dist::ForceRecompute {..} => {
-						let b_zone_ex = zone_exs_owners[frm_owner].get_mut(&zone_coord).unwrap();
+						let b_zone_ex = players[frm_owner].zone_exs.get_mut(&zone_coord).unwrap();
 						b_zone_ex.city_hall_removed();
 					}
 				}
 			}
-			ex.actual.rm_zone(coord, zone_exs_owners, stats, doctrine_templates, map_sz);
+			ex.actual.rm_zone(coord, players, temps.doctrines, map_sz);
 		}
 		
 		// don't do this until zone has been removed (so that stats and zone_ex counters are updated)
@@ -139,23 +140,22 @@ pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize,
 		
 		// add zone type with new owner
 		if let Some(zt) = zt_wrapped {
-			ex.actual.add_zone(coord, zt, to_owner as SmSvType, zone_exs_owners, stats, doctrine_templates, map_sz);
+			ex.actual.add_zone(coord, zt, &mut players[to_owner], temps.doctrines, map_sz);
 		}
 		
-		compute_zooms_coord(coord, RecompType::Bldgs(bldgs, bldg_templates, zone_exs_owners), map_data, exs, owners);
+		compute_zooms_coord(coord, bldgs, temps.bldgs, map_data, exs, players);
 		
-		compute_active_window(coord, to_owner, cur_player == to_owner, PresenceAction::SetPresentAndDiscover, map_data, exs, &mut stats[to_owner], owners, map_sz, relations, units, logs, turn);
-		compute_active_window(coord, frm_owner, cur_player == frm_owner, PresenceAction::SetAbsent, map_data, exs, &mut stats[frm_owner], owners, map_sz, relations, units, logs, turn);
+		compute_active_window(coord, cur_player == to_owner, PresenceAction::SetPresentAndDiscover, map_data, exs, &mut players[to_owner].stats, map_sz, relations, units, logs, turn);
+		compute_active_window(coord, cur_player == frm_owner, PresenceAction::SetAbsent, map_data, exs, &mut players[frm_owner].stats, map_sz, relations, units, logs, turn);
 	}
 }
 
 // adj_stack: coords
 // registers bldgs in to_city_state_opt, if provided
 pub fn set_all_adj_owner<'bt,'ut,'rt,'dt>(mut adj_stack: Vec<u64>, to_owner: usize, frm_owner: usize, cur_player: usize, to_city_state_opt: &mut Option<&mut CityState>,
-		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>,
-		doctrine_templates: &'dt Vec<DoctrineTemplate>,
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &mut Vec<HashedMapZoneEx>, map_data: &mut MapData,
-		stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, relations: &mut Relations, owners: &Vec<Owner>, logs: &mut Vec<Log>, map_sz: MapSz, turn: usize) {
+		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_data: &mut MapData,
+		relations: &mut Relations, logs: &mut Vec<Log>, map_sz: MapSz, turn: usize) {
 	if adj_stack.len() == 0 {return;}
 	
 	let mut adj_stack_ind = 0;
@@ -164,7 +164,7 @@ pub fn set_all_adj_owner<'bt,'ut,'rt,'dt>(mut adj_stack: Vec<u64>, to_owner: usi
 		let prev_coord = Coord::frm_ind(coord, map_sz);
 		
 		///////////// update owner
-		set_owner(coord, to_owner, frm_owner, cur_player, to_city_state_opt, units, bldgs, bldg_templates, doctrine_templates, exs, zone_exs_owners, map_data, stats, relations, owners, logs, map_sz, turn);
+		set_owner(coord, to_owner, frm_owner, cur_player, to_city_state_opt, units, bldgs, temps, exs, players, map_data, relations, logs, map_sz, turn);
 		let exf = &exs.last().unwrap();
 		
 		//////////// add all neighbors to list to be updated

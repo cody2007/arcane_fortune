@@ -7,6 +7,7 @@ use crate::gcore::{Relations, Log};
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::zones::{FogVars, return_zone_coord, StructureData};
 use crate::ai::{AIState, BarbarianState};
+use crate::player::{Player, PlayerType, Stats, PersonName};
 use crate::localization::Localization;
 
 mod vars;
@@ -132,9 +133,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	
 	// for the cursor
 	pub fn linear_update(&mut self, coord_set: CoordSet, sign: isize, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations, owners: &Vec<Owner>,
-			barbarian_states: &mut Vec<Option<BarbarianState>>, ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-			stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
+			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
+			map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
 		if coord_set == CoordSet::X {
 			self.cur.x += sign;
 		}else{
@@ -144,26 +144,24 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		self.reset_cur_accel();
 		self.reset_unit_subsel();
 		self.chk_cursor_bounds(map_data);
-		self.update_move_search_ui(map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, map_sz, turn, d);
+		self.update_move_search_ui(map_data, exs, units, bldgs, relations, players, logs, map_sz, turn, d);
 	}
 	
 	// input is in screen coordinates
 	pub fn set_text_coord(&mut self, coord: Coord, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, relations: &mut Relations, map_data: &mut MapData<'rt>,
-			barbarian_states: &mut Vec<Option<BarbarianState>>, ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-			stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, owners: &Vec<Owner>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
+			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
 		
 		self.cur = coord;
 		self.reset_unit_subsel();
 		self.chk_cursor_bounds(map_data);
-		self.update_move_search_ui(map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, map_sz, turn, d);
+		self.update_move_search_ui(map_data, exs, units, bldgs, relations, players, logs, map_sz, turn, d);
 	}
 	
 	// for the view
 	pub fn linear_update_screen(&mut self, coord_set: CoordSet, sign: isize, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations, owners: &Vec<Owner>,
-			barbarian_states: &mut Vec<Option<BarbarianState>>, ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-			stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
+			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
+			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
 		if coord_set == CoordSet::X {
 			self.map_loc.x += sign;
 		}else{
@@ -173,13 +171,12 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		self.reset_cur_accel();
 		self.reset_unit_subsel();
 		self.chk_cursor_bounds(map_data);
-		self.update_move_search_ui(map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, map_sz, turn, d);
+		self.update_move_search_ui(map_data, exs, units, bldgs, relations, players, logs, map_sz, turn, d);
 	}
 	
 	pub fn accel_update(&mut self, coord_set: CoordSet, sign: f32, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations, owners: &Vec<Owner>,
-			barbarian_states: &mut Vec<Option<BarbarianState>>, ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-			stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
+			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
+			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
 		if coord_set == CoordSet::X {
 			self.cur.x = ((self.cur.x as f32) + (self.cur_v.x * sign)) as isize;
 			self.cur_v.x = if self.cur_v.x > SCROLL_MAX_V {SCROLL_MAX_V}
@@ -193,13 +190,12 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		
 		self.reset_unit_subsel();
 		self.chk_cursor_bounds(map_data);
-		self.update_move_search_ui(map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, map_sz, turn, d);
+		self.update_move_search_ui(map_data, exs, units, bldgs, relations, players, logs, map_sz, turn, d);
 	}
 	
 	pub fn accel_update_screen(&mut self, coord_set: CoordSet, sign: f32, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations, owners: &Vec<Owner>,
-			barbarian_states: &mut Vec<Option<BarbarianState>>, ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-			stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
+			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
+			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
 		if coord_set == CoordSet::X {
 			self.map_loc.x = ((self.map_loc.x as f32) + (self.map_loc_v.x * sign)) as isize;
 			self.map_loc_v.x = if self.map_loc_v.x > SCROLL_MAX_V {SCROLL_MAX_V}
@@ -212,13 +208,12 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		
 		self.reset_unit_subsel();
 		self.chk_cursor_bounds(map_data);
-		self.update_move_search_ui(map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, map_sz, turn, d);
+		self.update_move_search_ui(map_data, exs, units, bldgs, relations, players, logs, map_sz, turn, d);
 	}
 
 	pub fn chg_zoom(&mut self, inc: isize, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations, owners: &Vec<Owner>,
-			barbarian_states: &mut Vec<Option<BarbarianState>>, ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-			stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
+			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
+			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
 		if ((inc == 1) && (self.zoom_ind == map_data.max_zoom_ind())) ||
 			((inc == -1) && (self.zoom_ind - 1) == ZOOM_IND_SUBMAP) { return; }
 		
@@ -246,20 +241,20 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		
 		self.chk_cursor_bounds(map_data);
 		if self.zoom_ind == map_data.max_zoom_ind() {
-			self.update_move_search_ui(map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, map_sz, turn, d);
+			self.update_move_search_ui(map_data, exs, units, bldgs, relations, players, logs, map_sz, turn, d);
 		}
 	}
 }
 
-fn plot_unit(unit_template: &UnitTemplate, owner: &Owner, d: &mut DispState){
+fn plot_unit(unit_template: &UnitTemplate, player: &Player, d: &mut DispState){
 	if unit_template.nm[0] != RIOTER_NM {
-		set_player_color(owner, true, d);
+		set_player_color(player, true, d);
 	}else{d.attron(COLOR_PAIR(CWHITE));}
 	
 	d.addch(unit_template.char_disp as chtype);
 	
 	if unit_template.nm[0] != RIOTER_NM {
-		set_player_color(owner, false, d);
+		set_player_color(player, false, d);
 	}else{d.attroff(COLOR_PAIR(CWHITE));}
 }
 
@@ -332,8 +327,8 @@ pub fn print_bldg_char(mut c_plot: Coord, mut c_bldg: Coord, bt: &BldgTemplate,
 	d.addch(disp_chars.convert_to_line(pchar));	
 }
 
-pub fn ret_bldg_color(at_edge: bool, bldg_ind: usize, b: &Bldg, bldgs: &Vec<Bldg>, owners: &Vec<Owner>,
-		iface_settings: &IfaceSettings, map_data: &MapData, exf: &HashedMapEx, zone_exs: &HashedMapZoneEx, map_sz: MapSz) -> chtype {
+pub fn ret_bldg_color(at_edge: bool, bldg_ind: usize, b: &Bldg, bldgs: &Vec<Bldg>, player: &Player,
+		iface_settings: &IfaceSettings, map_data: &MapData, exf: &HashedMapEx, map_sz: MapSz) -> chtype {
 	if b.construction_done != None && !at_edge {
 		return COLOR_PAIR(CYELLOW);
 	}
@@ -342,7 +337,7 @@ pub fn ret_bldg_color(at_edge: bool, bldg_ind: usize, b: &Bldg, bldgs: &Vec<Bldg
 	if iface_settings.show_unconnected_bldgs && iface_settings.cur_player == b.owner_id {
 		// only show in unconnected color if not a city hall
 		if let BldgArgs::CityHall {..} = &b.args {} else {
-			if let Some(zone_ex) = zone_exs.get(&return_zone_coord(b.coord, map_sz)) {
+			if let Some(zone_ex) = player.zone_exs.get(&return_zone_coord(b.coord, map_sz)) {
 				match zone_ex.ret_city_hall_dist() {
 					Dist::NotInit | Dist::NotPossible {..} => {
 						return COLOR_PAIR(CDARKRED);
@@ -367,16 +362,15 @@ pub fn ret_bldg_color(at_edge: bool, bldg_ind: usize, b: &Bldg, bldgs: &Vec<Bldg
 		return match bldgs[bldg_ind_sel].connected(bldg_ind) {
 			CommuteType::To => {COLOR_PAIR(CGREENWHITE)}
 			CommuteType::Frm => {COLOR_PAIR(CBLUEWHITE)}
-			CommuteType::None => {COLOR_PAIR(owners[b.owner_id as usize].color)}
+			CommuteType::None => {COLOR_PAIR(player.personalization.color)}
 		};
 	}
-	COLOR_PAIR(owners[b.owner_id as usize].color)
+	COLOR_PAIR(player.personalization.color)
 }
 
 // plot_coord is in map coordinates, not screen coordinates
-fn plot_bldg(plot_coord: u64, bldgs: &Vec<Bldg>, ex: &MapEx, owners: &Vec<Owner>, map_sz: MapSz,
-		disp_chars: &DispChars, fog: &FogVars, iface_settings: &IfaceSettings, map_data: &MapData, exf: &HashedMapEx,
-		zone_exs_owners: &Vec<HashedMapZoneEx>, d: &mut DispState){
+fn plot_bldg(plot_coord: u64, bldgs: &Vec<Bldg>, ex: &MapEx, players: &Vec<Player>, map_sz: MapSz,
+		disp_chars: &DispChars, fog: &FogVars, iface_settings: &IfaceSettings, map_data: &MapData, exf: &HashedMapEx, d: &mut DispState){
 	
 	debug_assertq!(ex.bldg_ind.is_none() != fog.max_bldg_template.is_none());
 	
@@ -393,15 +387,15 @@ fn plot_bldg(plot_coord: u64, bldgs: &Vec<Bldg>, ex: &MapEx, owners: &Vec<Owner>
 		let at_edge = (c_plot.y == c_bldg.y) || (c_plot.x == c_bldg.x) ||
 			(c_plot.y - c_bldg.y) == (h-1) || (c_plot.x - c_bldg.x) == (w-1);
 		
-		let bldg_color = ret_bldg_color(at_edge, bldg_ind, b, bldgs, owners, iface_settings, map_data, exf,
-				&zone_exs_owners[b.owner_id as usize], map_sz);
+		let bldg_color = ret_bldg_color(at_edge, bldg_ind, b, bldgs, &players[b.owner_id as usize],
+				iface_settings, map_data, exf, map_sz);
 		
 		d.attron(bldg_color);
 		print_bldg_char(c_plot, c_bldg, b.template, &b.fire, disp_chars, map_sz, d);
 		d.attroff(bldg_color);
 	// zoomed out
 	}else{
-		let o = &owners[fog.owner_id.unwrap() as usize];
+		let o = &players[fog.owner_id.unwrap() as usize];
 		set_player_color(o, true, d);
 		d.addch(fog.max_bldg_template.unwrap().plot_zoomed as chtype);
 		set_player_color(o, false, d);
@@ -418,12 +412,13 @@ pub const GATE_CHAR: chtype = '=' as chtype;
 impl IfaceSettings<'_,'_,'_,'_,'_> {
 	// `coord` is in map coordinates, not screen coordinates
 	pub fn plot_land(&self, zoom_ind: usize, coord: u64, map_data: &mut MapData, units: &Vec<Unit>, bldgs: &Vec<Bldg>,
-			exs: &Vec<HashedMapEx>, zone_exs_owners: &Vec<HashedMapZoneEx>, pstats: &Stats,
-			owners: &Vec<Owner>, disp_chars: &DispChars, sel: bool, alt_ind: usize, d: &mut DispState) {
+			exs: &Vec<HashedMapEx>, players: &Vec<Player>, 
+			disp_chars: &DispChars, sel: bool, alt_ind: usize, d: &mut DispState) {
 		
 		let map_sz = map_data.map_szs[zoom_ind];
 		let mfc = map_data.get(ZoomInd::Val(zoom_ind), coord);
 		let ex_wrapped = exs[zoom_ind].get(&coord);
+		let pstats = &players[self.cur_player as usize].stats;
 		
 		let land_discovered = pstats.land_discov[zoom_ind].map_coord_ind_discovered(coord);
 		
@@ -476,7 +471,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				if let Some(unit_inds) = &ex.unit_inds {
 					let sel_show = (alt_ind - alt_ind_offset) % unit_inds.len();
 					let u = &units[unit_inds[sel_show]];
-					plot_unit(u.template, &owners[u.owner_id as usize], d);
+					plot_unit(u.template, &players[u.owner_id as usize], d);
 					return;
 				}
 			}
@@ -485,7 +480,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			if let Some(fog) = self.get_fog_or_actual(coord, ex, pstats) {
 				// bldg
 				if self.show_bldgs && (!fog.max_bldg_template.is_none() || !ex.bldg_ind.is_none()) {
-					plot_bldg(coord, bldgs, ex, owners, map_sz, disp_chars, &fog, self, map_data, exs.last().unwrap(), zone_exs_owners, d);
+					plot_bldg(coord, bldgs, ex, players, map_sz, disp_chars, &fog, self, map_data, exs.last().unwrap(), d);
 					return;
 				}
 				
@@ -493,7 +488,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				if self.zone_overlay_map != ZoneOverlayMap::None {
 					if let Some(zt) = ex.actual.ret_zone_type() {
 						let owner_id = ex.actual.owner_id.unwrap() as usize;
-						if let Some(zone_ex) = zone_exs_owners[owner_id].get(&return_zone_coord(coord, map_sz)) {
+						if let Some(zone_ex) = players[owner_id].zone_exs.get(&return_zone_coord(coord, map_sz)) {
 							const N_STEPS: f32 = 6.; // 9.;
 							macro_rules! plot_val{($val: expr, $step: expr, $offset: expr) => {
 								let c = 
@@ -807,10 +802,10 @@ impl Localization {
 	}
 }
 
-pub fn print_civ_nm (owner: &Owner, d: &mut DispState) {
-	set_player_color(owner, true, d);
-	d.addstr(&owner.nm);
-	set_player_color(owner, false, d);
+pub fn print_civ_nm (player: &Player, d: &mut DispState) {
+	set_player_color(player, true, d);
+	d.addstr(&player.personalization.nm);
+	set_player_color(player, false, d);
 }
 
 pub enum Printable { FileNm, Numeric, Coordinate }
@@ -973,10 +968,13 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	}
 	
 	// used for updating menu indicators (none when current player is not an AI)
-	pub fn cur_player_paused(&self, ai_states: &Vec<Option<AIState>>) -> Option<bool> {
-		if let Some(ai_state) = &ai_states[self.cur_player as usize] {
-			Some(ai_state.paused)
-		}else{None}
+	pub fn cur_player_paused(&self, players: &Vec<Player>) -> Option<bool> {
+		if let Some(player) = players.get(self.cur_player as usize) {
+			if let PlayerType::AI {ai_state, ..} = &player.ptype {
+				return Some(ai_state.paused);
+			}
+		}
+		None
 	}
 }
 

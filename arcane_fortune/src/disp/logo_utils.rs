@@ -12,7 +12,7 @@ use super::color::*;
 use super::version_status::{VERSION};
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
-use super::{addstr_c, addstr_attr, Button, Buttons, cursor_pos, screen_reader_mode};
+use super::{addstr_attr, Button, Buttons, cursor_pos, screen_reader_mode};
 
 const IGN_KEY_TIME: u64 = 50;
 

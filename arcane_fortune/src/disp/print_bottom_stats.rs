@@ -3,6 +3,7 @@ use crate::map::*;
 use crate::units::{ActionType, ActionMetaCont, WORKER_NM, worker_can_continue_bldg};//MAX_UNITS_PER_PLOT, WORKER_NM};
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::gcore::{Relations, Log, LogType};
+use crate::player::{Player, PlayerType, Stats};
 use crate::movement::{manhattan_dist_components, manhattan_dist};
 use crate::zones::return_zone_coord;
 use crate::keyboard::KeyboardMap;
@@ -237,18 +238,18 @@ impl ActionType<'_,'_,'_,'_> {
 	}
 }
 
-fn print_city_hist(city_nm_show: &str, stats_row: i32, owners: &Vec<Owner>, logs: &Vec<Log>,
+fn print_city_hist(city_nm_show: &str, stats_row: i32, players: &Vec<Player>, logs: &Vec<Log>,
 		l: &Localization, txt_list: &mut TxtList, d: &mut DispState) {
 	let mut roff = stats_row; // row offset for printing
 	
 	macro_rules! mvl {() => (d.mv(roff, UNIT_STATS_COL); roff += 1;);}
 	
 	macro_rules! print_owner{($id: expr) => {
-		let o = &owners[$id];
+		let player = &players[$id];
 		txt_list.add_b(d);
-		set_player_color(o, true, d);
-		d.addstr(&o.nm);
-		set_player_color(o, false, d);
+		set_player_color(player, true, d);
+		d.addstr(&player.personalization.nm);
+		set_player_color(player, false, d);
 	};};
 	
 	let mut max_width = 0;
@@ -267,7 +268,7 @@ fn print_city_hist(city_nm_show: &str, stats_row: i32, owners: &Vec<Owner>, logs
 					let width = l.date_str(log.turn).len() +
 						"Founded by the ".len() +
 						" civilization.".len() +
-						owners[*owner_id].nm.len();
+						players[*owner_id].personalization.nm.len();
 					
 					if width > max_width {max_width = width;}
 				}
@@ -283,7 +284,7 @@ fn print_city_hist(city_nm_show: &str, stats_row: i32, owners: &Vec<Owner>, logs
 					
 					let width = "Captured by the ".len() +
 						" civilization.".len() +
-						owners[*owner_attacker_id].nm.len();
+						players[*owner_attacker_id].personalization.nm.len();
 					
 					if width > max_width {max_width = width;}
 				}
@@ -299,7 +300,7 @@ fn print_city_hist(city_nm_show: &str, stats_row: i32, owners: &Vec<Owner>, logs
 					
 					let width = "Destroyed by the ".len() +
 						" civilization.".len() +
-						owners[*owner_attacker_id].nm.len();
+						players[*owner_attacker_id].personalization.nm.len();
 					
 					if width > max_width {max_width = width;}
 				}
@@ -583,21 +584,30 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		}
 	}
 
-	fn print_owner(&self, mut roff: i32, o: &Owner, relations: &Relations,
-			txt_list: &mut TxtList, d: &mut DispState) {
-		if o.player_type != PlayerType::Barbarian {
-			d.mv(roff, LAND_STATS_COL); roff += 1;
-			txt_list.add_b(d);
-			d.addstr("Country: ");
+	fn print_owner(&self, mut roff: i32, player: &Player, relations: &Relations,
+			txt_list: &mut TxtList, l: &Localization, d: &mut DispState) {
+		match player.ptype {
+			PlayerType::Human {..} | PlayerType::AI {..} => {
+				d.mv(roff, LAND_STATS_COL); roff += 1;
+				txt_list.add_b(d);
+				d.addstr(&l.Country);
+				d.addstr(": ");
+			}
+			PlayerType::Barbarian {..} => {}
+			PlayerType::Nobility {..} => {
+				d.mv(roff, LAND_STATS_COL); roff += 1;
+				txt_list.add_b(d);
+				d.addstr(&l.Nobility);
+			}
 		}
 		
 		d.mv(roff, LAND_STATS_COL);
 		txt_list.add_b(d);
-		set_player_color(o, true, d);
-		d.addstr(if o.id == self.cur_player {"You"} else {&o.nm});
-		set_player_color(o, false, d);
+		set_player_color(player, true, d);
+		d.addstr(if player.id == self.cur_player {"You"} else {&player.personalization.nm});
+		set_player_color(player, false, d);
 		
-		if self.cur_player != o.id && relations.at_war(self.cur_player as usize, o.id as usize) {
+		if self.cur_player != player.id && relations.at_war(self.cur_player as usize, player.id as usize) {
 			d.mv(roff + 1, LAND_STATS_COL);
 			txt_list.add_b(d);
 			d.addch('(');
@@ -628,7 +638,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		}
 	}
 	
-	fn print_unit_nm_health(&self, roff: &mut i32, unit_ind: usize, u: &Unit, owners: &Vec<Owner>, pstats: &Stats,
+	fn print_unit_nm_health(&self, roff: &mut i32, unit_ind: usize, u: &Unit, pstats: &Stats, players: &Vec<Player>,
 			l: &Localization, buttons: &mut Buttons, txt_list: &mut TxtList, d: &mut DispState) {
 		macro_rules! mvl {() => (d.mv(*roff, UNIT_STATS_COL); *roff += 1;);}
 		
@@ -682,7 +692,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				d.mv(*roff, col2); txt_list.add_b(d);
 				d.addstr(&l.Carrying); d.addch(' ');
 				for (i, c) in units_carried.iter().enumerate() {
-					plot_unit(c.template, &owners[c.owner_id as usize], d);
+					plot_unit(c.template, &players[c.owner_id as usize], d);
 					if i == (units_carried.len()-1) {break;}
 					d.addstr(", ");
 				}
@@ -693,13 +703,13 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	}
 	
 	// if in mv mode
-	fn print_unit_action(&self, mut roff: i32, action_iface: &ActionInterfaceMeta, pstats: &Stats, units: &Vec<Unit>,
-			bldgs: &Vec<Bldg>, exf: &HashedMapEx, map_data: &mut MapData, owners: &Vec<Owner>, kbd: &KeyboardMap, l: &Localization,
+	fn print_unit_action(&self, mut roff: i32, action_iface: &ActionInterfaceMeta, units: &Vec<Unit>,
+			bldgs: &Vec<Bldg>, exf: &HashedMapEx, map_data: &mut MapData, pstats: &Stats, players: &Vec<Player>, kbd: &KeyboardMap, l: &Localization,
 			buttons: &mut Buttons, disp_chars: &DispChars, txt_list: &mut TxtList, d: &mut DispState) {
 		if let Some(unit_ind) = action_iface.unit_ind {
 			let u = &units[unit_ind];
 			
-			self.print_unit_nm_health(&mut roff, unit_ind, u, owners, pstats, l, buttons, txt_list, d);
+			self.print_unit_nm_health(&mut roff, unit_ind, u, pstats, players, l, buttons, txt_list, d);
 			
 			let actions_req = if let Some(ActionMetaCont {final_end_coord, ..}) = &action_iface.action.action_meta_cont {
 				let map_sz = *map_data.map_szs.last().unwrap();
@@ -824,9 +834,9 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	
 	// health, nm, possible actions
 	fn print_unit_stats(&self, unit_inds: &Vec<usize>, stats_row: i32, lside_row: i32,
-			show_land: bool, pstats: &Stats, units: &Vec<Unit>, 
+			show_land: bool, player: &Player, players: &Vec<Player>, units: &Vec<Unit>, 
 			bldgs: &Vec<Bldg>, map_data: &mut MapData, exf: &HashedMapEx, 
-			relations: &Relations, owners: &Vec<Owner>, kbd: &KeyboardMap, l: &Localization,
+			relations: &Relations, kbd: &KeyboardMap, l: &Localization,
 			buttons: &mut Buttons, disp_chars: &DispChars, txt_list: &mut TxtList, d: &mut DispState){
 		
 		//debug_assertq!(self.zoom_ind == map_data.max_zoom_ind());
@@ -846,7 +856,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			
 				let u = &units[unit_inds[unit_ind_ind]];
 				if unit_ind_ind == self.unit_subsel {d.attron(A_UNDERLINE());}
-				plot_unit(u.template, &owners[u.owner_id as usize], d);
+				plot_unit(u.template, &players[u.owner_id as usize], d);
 				if unit_ind_ind == self.unit_subsel {d.attroff(A_UNDERLINE());}
 			}
 			
@@ -861,11 +871,11 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			
 		// in action mode
 		if let AddActionTo::IndividualUnit {action_iface} = &self.add_action_to {
-			self.print_unit_action(roff, action_iface, pstats, units, bldgs, exf, map_data, owners, kbd, l, buttons, disp_chars, txt_list, d);
+			self.print_unit_action(roff, action_iface, units, bldgs, exf, map_data, &player.stats, players, kbd, l, buttons, disp_chars, txt_list, d);
 		
 		// not interactively moving or building anything -- show actions unit could perform
 		}else if show_land {
-			self.print_unit_nm_health(&mut roff, unit_ind, u, owners, pstats, l, buttons, txt_list, d);
+			self.print_unit_nm_health(&mut roff, unit_ind, u, &player.stats, players, l, buttons, txt_list, d);
 			
 			// player's unit
 			if u.owner_id == self.cur_player || self.show_actions {
@@ -910,7 +920,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						add!(pass_move, auto_explore, disband);
 						
 						// leave brigade
-						if pstats.unit_brigade_nm(unit_ind).is_none() && pstats.brigades.len() != 0 {
+						if player.stats.unit_brigade_nm(unit_ind).is_none() && player.stats.brigades.len() != 0 {
 							add!(join_brigade);
 						}
 						
@@ -962,16 +972,16 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		// Country owner
 		if show_land && u.owner_id != self.cur_player {
-			self.print_owner(lside_row, &owners[u.owner_id as usize], relations, txt_list, d);
+			self.print_owner(lside_row, &players[u.owner_id as usize], relations, txt_list, l, d);
 		}
 	}
 	
 	fn print_unit_bldg_stats(&self, map_cur_coord: u64, stats_row: i32, lside_row: i32, show_land: bool,
-			map_data: &mut MapData, exs: &Vec<HashedMapEx>, zone_exs_owners: &Vec<HashedMapZoneEx>,
-			units: &Vec<Unit>, bldg_config: &BldgConfig, bldgs: &Vec<Bldg>, relations: &Relations, pstats: &Stats,
-			owners: &Vec<Owner>, logs: &Vec<Log>, kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, disp_chars: &DispChars,
+			map_data: &mut MapData, exs: &Vec<HashedMapEx>, player: &Player, players: &Vec<Player>,
+			units: &Vec<Unit>, bldg_config: &BldgConfig, bldgs: &Vec<Bldg>, relations: &Relations,
+			logs: &Vec<Log>, kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, disp_chars: &DispChars,
 			txt_list: &mut TxtList, d: &mut DispState){
-
+		let pstats = &player.stats;
 		//if self.zoom_ind != map_data.max_zoom_ind() {return;} // only show at full zoom
 		
 		// if in IndividualUnit move mode:
@@ -1000,7 +1010,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			if show_land {
 				if let Some(fog) = self.get_fog_or_actual(get_cursor_or_sel_coord(), ex, pstats) {
 					if let Some(max_city_nm) = &fog.max_city_nm {
-						print_city_hist(max_city_nm, stats_row, owners, logs, l, txt_list, d);
+						print_city_hist(max_city_nm, stats_row, players, logs, l, txt_list, d);
 						return;
 					}
 				}
@@ -1008,7 +1018,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			
 			// show unit
 			if let Some(unit_inds) = &ex.unit_inds {
-				self.print_unit_stats(unit_inds, stats_row, lside_row, show_land, pstats, units, bldgs, map_data, exz, relations, owners, kbd, l, buttons, disp_chars, txt_list, d);
+				self.print_unit_stats(unit_inds, stats_row, lside_row, show_land, player, players, units, bldgs, map_data, exz, relations, kbd, l, buttons, disp_chars, txt_list, d);
 				return;
 				
 			// show bldg (full zoom)
@@ -1030,7 +1040,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 							txt_list.add_b(d);
 							d.addstr(&format!("{} ({})", nm, bt.nm[l.lang_ind]));
 						}else{
-							print_city_hist(nm, stats_row, owners, logs, l, txt_list, d);
+							print_city_hist(nm, stats_row, players, logs, l, txt_list, d);
 							return;
 						}
 					}else{
@@ -1141,7 +1151,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 							txt_list.add_b(d);
 							d.addstr(&l.City_Hall_dist); d.addch(' ');
 							
-							let zi = zone_exs_owners[b.owner_id as usize].get(&return_zone_coord(b.coord, *map_data.map_szs.last().unwrap())).unwrap();
+							let zi = players[b.owner_id as usize].zone_exs.get(&return_zone_coord(b.coord, *map_data.map_szs.last().unwrap())).unwrap();
 							match zi.ret_city_hall_dist() {
 								Dist::Is {dist, ..} | Dist::ForceRecompute {dist, ..} => {
 									d.addstr(&format!("{}", dist)); mvl!();
@@ -1266,12 +1276,12 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		// show action (can occur if we are zoomed out and `ex` is empty)
 		}else if let AddActionTo::IndividualUnit {action_iface} = &self.add_action_to {
-			self.print_unit_action(stats_row as i32, action_iface, pstats, units, bldgs, exs.last().unwrap(), map_data, owners, kbd, l, buttons, disp_chars, txt_list, d);
+			self.print_unit_action(stats_row as i32, action_iface, units, bldgs, exs.last().unwrap(), map_data, pstats, players, kbd, l, buttons, disp_chars, txt_list, d);
 		}
 	}
 	
-	pub fn print_bottom_stats(&self, map_data: &mut MapData, exs: &Vec<HashedMapEx>, zone_exs_owners: &Vec<HashedMapZoneEx>, units: &Vec<Unit>,
-			bldg_config: &BldgConfig, bldgs: &Vec<Bldg>, pstats: &Stats, relations: &Relations, owners: &Vec<Owner>, logs: &Vec<Log>,
+	pub fn print_bottom_stats(&self, map_data: &mut MapData, exs: &Vec<HashedMapEx>, player: &Player, players: &Vec<Player>, units: &Vec<Unit>,
+			bldg_config: &BldgConfig, bldgs: &Vec<Bldg>, relations: &Relations, logs: &Vec<Log>,
 			kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, txt_list: &mut TxtList, disp_chars: &DispChars, d: &mut DispState){
 		////////////////////////////////////////////////
 		// land stats
@@ -1286,7 +1296,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		let mut r_off = stats_row + 4;
 
 		// land is undiscovered
-		let show_land = !self.show_fog || pstats.land_discov[self.zoom_ind].map_coord_ind_discovered(map_cur_coord);
+		let show_land = !self.show_fog || player.stats.land_discov[self.zoom_ind].map_coord_ind_discovered(map_cur_coord);
 		if !show_land {
 			txt_list.add_b(d);
 			d.addstr(&l.Undiscovered);
@@ -1309,7 +1319,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			
 			// show sector
 			if self.show_sectors && self.zoom_ind == map_data.max_zoom_ind() {
-				if let Some(sector_nm) = pstats.sector_nm_frm_coord(map_cur_coord, map_sz) {
+				if let Some(sector_nm) = player.stats.sector_nm_frm_coord(map_cur_coord, map_sz) {
 					d.mv(stats_row-1, LAND_STATS_COL);
 					txt_list.add_b(d);
 					d.addstr(&l.Sector); d.addch(' ');
@@ -1349,7 +1359,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			if space_empty_ign_zone {
 				///// resource
 				if let Some(resource) = resource_wrapped {
-					if pstats.resource_discov(resource) {
+					if player.stats.resource_discov(resource) {
 						d.mv(r_off, LAND_STATS_COL); r_off += 1;
 						txt_list.add_b(d);
 						d.attron(COLOR_PAIR(resource.zone.to_color()));
@@ -1435,7 +1445,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					if self.zoom_ind == map_data.max_zoom_ind() && !ex.actual.ret_zone_type().is_none() {
 						let zt = ex.actual.ret_zone_type().unwrap();
 
-						if let Some(zone_ex) = zone_exs_owners[ex.actual.owner_id.unwrap() as usize].get(&return_zone_coord(map_cur_coord, *map_data.map_szs.last().unwrap())) {
+						if let Some(zone_ex) = players[ex.actual.owner_id.unwrap() as usize].zone_exs.get(&return_zone_coord(map_cur_coord, *map_data.map_szs.last().unwrap())) {
 							/////////////////////////////
 							// print zone demands
 							if let Some(demand_weighted_sum) = zone_ex.demand_weighted_sum[zt as usize] {
@@ -1473,7 +1483,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					
 					// Country owner
 					if let Some(owner_id) = ex.actual.owner_id {
-						self.print_owner(r_off+1, &owners[owner_id as usize], relations, txt_list, d);
+						self.print_owner(r_off+1, &players[owner_id as usize], relations, txt_list, l, d);
 					}	
 				} // extended data
 			}
@@ -1538,7 +1548,8 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			}
 		}
 		
-		self.print_unit_bldg_stats(map_cur_coord, stats_row, r_off+1, show_land, map_data, exs, zone_exs_owners, units, bldg_config, bldgs, relations, pstats, owners, logs, kbd, l, buttons, disp_chars, txt_list, d);
+		self.print_unit_bldg_stats(map_cur_coord, stats_row, r_off+1, show_land, map_data, exs, player, players, units, bldg_config,
+				bldgs, relations, logs, kbd, l, buttons, disp_chars, txt_list, d);
 	}
 }
 

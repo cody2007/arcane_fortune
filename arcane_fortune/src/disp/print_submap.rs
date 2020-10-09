@@ -2,6 +2,7 @@ use crate::disp_lib::*;
 use crate::map::*;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::keyboard::KeyboardMap;
+use crate::player::{Player, Stats};
 
 use super::*;
 use super::vars::*;
@@ -9,9 +10,8 @@ use super::color::*;
 
 impl IfaceSettings<'_,'_,'_,'_,'_> {
 	pub fn print_submap(&self, disp_chars: &DispChars, map_data: &mut MapData, units: &Vec<Unit>,
-			bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, zone_exs_owners: &Vec<HashedMapZoneEx>,
-			pstats: &Stats, owners: &Vec<Owner>, alt_ind: usize, kbd: &KeyboardMap,
-			l: &Localization, buttons: &mut Buttons, d: &mut DispState){
+			bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, pstats: &Stats, players: &Vec<Player>,
+			alt_ind: usize, kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, d: &mut DispState){
 		////////// print bounding box
 		macro_rules! bounding_box{($map_sz: expr) => {
 			// -
@@ -115,7 +115,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						sub_map_y >= map_view_start.y && sub_map_y <= map_view_end.y && x_in_bounds
 					};
 					let map_coord = sub_map_y*submap_sz.w as isize + sub_map_x;
-					self.plot_land($submap_zoom_ind, map_coord as u64, map_data, units, bldgs, exs, zone_exs_owners, pstats, owners, disp_chars, sel, alt_ind, d);
+					self.plot_land($submap_zoom_ind, map_coord as u64, map_data, units, bldgs, exs, players, disp_chars, sel, alt_ind, d);
 					
 				// show cursor
 				}else{d.addch((disp_chars.land_char as chtype) | COLOR_PAIR(CRED));}

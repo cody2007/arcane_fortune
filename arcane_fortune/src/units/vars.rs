@@ -14,6 +14,7 @@ use crate::disp::Coord;
 use crate::gcore::{Log, Relations};
 use crate::localization::Localization;
 use crate::ai::{BarbarianState, AIState};
+use crate::player::{Stats, Player, Nms};
 
 pub const MAX_UNITS_PER_PLOT: usize = 2;
 
@@ -348,36 +349,38 @@ impl <'bt,'ut,'rt,'dt> Unit<'bt,'ut,'rt,'dt> {
 	pub fn return_coord(&self) -> u64 {self.coord}	
 }
 
-pub fn rm_unit_coord_frm_map<'bt,'ut,'rt,'dt>(unit_ind: usize, is_cur_player: bool, coord: u64, owner_id: SmSvType,
-		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, pstats: &mut Stats<'bt,'ut,'rt,'dt>,
-		owners: &Vec<Owner>, map_sz: MapSz, relations: &mut Relations, logs: &mut Vec<Log>, turn: usize) {
+// a variant of compute_zooms_coord could be made that works only w/ a single player..., making this
+// function not require all player data...
+pub fn rm_unit_coord_frm_map<'bt,'ut,'rt,'dt>(unit_ind: usize, is_cur_player: bool, coord: u64,
+		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
+		pstats: &mut Stats<'bt,'ut,'rt,'dt>, map_sz: MapSz, relations: &mut Relations, logs: &mut Vec<Log>, turn: usize) {
 	
 	// update exs at all zoom lvls
-	compute_zooms_coord(coord, RecompType::RmUnit(unit_ind), map_data, exs, owners);
+	compute_zooms_coord_unit(coord, unit_ind, RecompType::RmUnit, map_data, exs);
 	
 	// update fog of war for old location
-	compute_active_window(coord, owner_id as usize, is_cur_player, PresenceAction::SetAbsent, map_data, exs, pstats, owners, map_sz, relations, units, logs, turn);
+	compute_active_window(coord, is_cur_player, PresenceAction::SetAbsent, map_data, exs, pstats, map_sz, relations, units, logs, turn);
 }
 
 pub fn set_coord<'bt,'ut,'rt,'dt>(coord: u64, unit_ind: usize, is_cur_player: bool, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, 
 		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, pstats: &mut Stats<'bt,'ut,'rt,'dt>,
-		owners: &Vec<Owner>, map_sz: MapSz, relations: &mut Relations, logs: &mut Vec<Log>, turn: usize) {
+		map_sz: MapSz, relations: &mut Relations, logs: &mut Vec<Log>, turn: usize) {
 	
 	let u = &units[unit_ind];
 	let owner_id = u.owner_id as usize;
 	
-	rm_unit_coord_frm_map(unit_ind, is_cur_player, u.coord, u.owner_id, units, map_data, exs, pstats, owners, map_sz, relations, logs, turn);
+	rm_unit_coord_frm_map(unit_ind, is_cur_player, u.coord, units, map_data, exs, pstats, map_sz, relations, logs, turn);
 	units[unit_ind].coord = coord;
 	
 	// update exs at all zoom lvls
-	compute_zooms_coord(coord, RecompType::AddUnit(unit_ind), map_data, exs, owners);
+	compute_zooms_coord_unit(coord, unit_ind, RecompType::AddUnit, map_data, exs);
 	
 	// indicate unit at new location
-	compute_active_window(coord, owner_id, is_cur_player, PresenceAction::SetPresentAndDiscover, map_data, exs, pstats, owners, map_sz, relations, units, logs, turn);
+	compute_active_window(coord, is_cur_player, PresenceAction::SetPresentAndDiscover, map_data, exs, pstats, map_sz, relations, units, logs, turn);
 }
 
 pub fn unboard_unit<'bt,'ut,'rt,'dt>(coord: u64, mut u: Unit<'bt,'ut,'rt,'dt>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, 
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, owners: &Vec<Owner>) {
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, player: &Player) {
 	u.coord = coord;
 	u.action.clear();
 	u.actions_used = Some(0.);
@@ -386,28 +389,27 @@ pub fn unboard_unit<'bt,'ut,'rt,'dt>(coord: u64, mut u: Unit<'bt,'ut,'rt,'dt>, u
 	let unit_ind = units.len() - 1;
 	
 	// update exs at all zoom lvls
-	compute_zooms_coord(coord, RecompType::AddUnit(unit_ind), map_data, exs, owners);
+	compute_zooms_coord_unit(coord, unit_ind, RecompType::AddUnit, map_data, exs);
 }
 
 use crate::movement::movable_to;
 use crate::disp_lib::endwin;
 
-pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, is_cur_player: bool, unit_template: &'ut UnitTemplate<'rt>, 
+pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, is_cur_player: bool, unit_template: &'ut UnitTemplate<'rt>, 
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		bldgs: &Vec<Bldg>, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
-		logs: &mut Vec<Log>, barbarian_state_opt: &mut Option<BarbarianState>,
-		ai_state_opt: &mut Option<AIState>, unit_templates: &Vec<UnitTemplate>,
-		owners: &Vec<Owner>, nms: &Nms, turn: usize, rng: &mut XorState){
+		bldgs: &Vec<Bldg>, player: &mut Player<'bt,'ut,'rt,'dt>, relations: &mut Relations,
+		logs: &mut Vec<Log>, unit_templates: &Vec<UnitTemplate>,
+		nms: &Nms, turn: usize, rng: &mut XorState){
 	
 	let exf = exs.last_mut().unwrap();
 	// set the first param (current location of unit) to some other coord than the destination so movable_to does not always return true
-	debug_assertq!(movable_to(coord+1, coord, &map_data.get(ZoomInd::Full, coord), exf, MvVarsAtZoom::NonCivil{units, start_owner: owner_id, blind_undiscov: None},
+	debug_assertq!(movable_to(coord+1, coord, &map_data.get(ZoomInd::Full, coord), exf, MvVarsAtZoom::NonCivil{units, start_owner: player.id, blind_undiscov: None},
 				bldgs, &Dest::NoAttack, unit_template.movement_type));
 	
 	units.push(Unit {
 			nm: nms.units[rng.usize_range(0, nms.units.len())].clone(),
 			health: unit_template.max_health,
-			owner_id,
+			owner_id: player.id,
 			template: unit_template,
 			coord,
 			units_carried: None,
@@ -416,43 +418,34 @@ pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, is_cur_player: 
 		});
 	
 	let unit_ind = units.len() - 1;
-	let owner_id = owner_id as usize;
+	let owner_id = player.id as usize;
 	
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
-	let pstats = &mut stats[owner_id];
 	
 	// update exs at all zoom lvls
-	compute_zooms_coord(coord, RecompType::AddUnit(unit_ind), map_data, exs, owners);
-	compute_active_window(coord, owner_id, is_cur_player, PresenceAction::SetPresentAndDiscover, map_data, exs, pstats, owners, map_sz, relations, units, logs, turn);
+	compute_zooms_coord_unit(coord, unit_ind, RecompType::AddUnit, map_data, exs);
+	compute_active_window(coord, is_cur_player, PresenceAction::SetPresentAndDiscover, map_data, exs, &mut player.stats, map_sz, relations, units, logs, turn);
 	
-	let owner = &owners[owner_id];
+	player.stats.unit_expenses += unit_template.upkeep;
 	
-	pstats.unit_expenses += unit_template.upkeep;
-	
-	if let Some(b_state) = barbarian_state_opt {
-		b_state.add_unit(unit_ind, &units[unit_ind].template, owner);
-	}
-	if let Some(a_state) = ai_state_opt {a_state.add_unit(unit_ind, coord, unit_template, pstats, unit_templates, owner, map_sz);}
+	// record-keeping
+	player.add_unit(unit_ind, coord, unit_template, unit_templates, map_sz);
 }
 
 pub fn disband_unit<'bt,'ut,'rt,'dt>(unit_ind: usize, is_cur_player: bool, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, 
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, relations: &mut Relations, barbarian_states: &mut Vec<Option<BarbarianState>>,
-		ai_states: &mut Vec<Option<AIState>>, owners: &Vec<Owner>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize){
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
+		map_sz: MapSz, logs: &mut Vec<Log>, turn: usize){
 	
 	let u = &units[unit_ind];
 	let owner_id = u.owner_id as usize;
-	let owner = &owners[owner_id];
-	let pstats = &mut stats[owner_id];
+	let player = &mut players[owner_id];
 	
-	if let Some(b_state) = &mut barbarian_states[owner_id] {b_state.rm_unit(unit_ind, owner);}
-	if let Some(a_state) = &mut ai_states[owner_id] {a_state.rm_unit(unit_ind, u.template, owner);}
+	player.rm_unit(unit_ind, u.template);
 	
-	rm_unit_coord_frm_map(unit_ind, is_cur_player, u.coord, u.owner_id, units, map_data, exs, pstats, owners, map_sz, relations, logs, turn);
+	rm_unit_coord_frm_map(unit_ind, is_cur_player, u.coord, units, map_data, exs, &mut player.stats, map_sz, relations, logs, turn);
 		
 	let u = &units[unit_ind];
-	pstats.unit_expenses -= u.template.upkeep;
-	
-	pstats.rm_unit_frm_brigade(unit_ind);
+	player.stats.unit_expenses -= u.template.upkeep;
 	
 	// swap_remove [move units.last() to units[unit_ind]]... (if we removed the last unit [unit_ind == units.len()] then nothing needs to be done]
 	if let Some(last_unit) = units.pop() {
@@ -464,16 +457,12 @@ pub fn disband_unit<'bt,'ut,'rt,'dt>(unit_ind: usize, is_cur_player: bool, units
 			
 			let u = &units[unit_ind];
 			let owner_id = u.owner_id as usize;
-			let owner = &owners[owner_id];
+			let player = &mut players[owner_id];
 			
-			if let Some(b_state) = &mut barbarian_states[owner_id] {b_state.chg_unit_ind(units.len(), unit_ind, owner);}
-			if let Some(a_state) = &mut ai_states[owner_id] {a_state.chg_unit_ind(units.len(), unit_ind, u.template, owner);}
+			player.chg_unit_ind(units.len(), unit_ind, u.template);
 			
-			let pstats = &mut stats[owner_id];
-			pstats.chg_brigade_unit_ind(units.len(), unit_ind);
-			
-			rm_unit_coord_frm_map(units.len(), is_cur_player, u.coord, u.owner_id, units, map_data, exs, pstats, owners, map_sz, relations, logs, turn); //////////// ??????????
-			compute_zooms_coord(units[unit_ind].coord, RecompType::AddUnit(unit_ind), map_data, exs, owners);
+			rm_unit_coord_frm_map(units.len(), is_cur_player, u.coord, units, map_data, exs, &mut player.stats, map_sz, relations, logs, turn); //////////// ??????????
+			compute_zooms_coord_unit(units[unit_ind].coord, unit_ind, RecompType::AddUnit, map_data, exs);
 		}
 	}
 }

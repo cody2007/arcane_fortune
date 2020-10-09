@@ -2,7 +2,8 @@
 use crate::units::{ActionType, Unit};
 use crate::buildings::{Bldg, BldgType};
 use crate::disp::{Coord};
-use crate::map::{MapSz, PlayerType, MapData, Owner, StructureType};
+use crate::map::{MapSz, MapData, StructureType};
+use crate::player::{Player, PlayerType};
 use crate::movement::{manhattan_dist};
 use crate::gcore::hashing::HashedMapEx;
 #[cfg(feature = "profile")]
@@ -14,7 +15,7 @@ use super::MAX_BARBARIAN_SEARCH;
 // first starts searching for units, then bldgs, then walls
 pub fn find_and_set_attack<'bt,'ut,'rt,'dt>(attacker_ind: usize, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, 
 			bldgs: &Vec<Bldg>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, map_data: &mut MapData,
-			owners: &Vec<Owner>, map_sz: MapSz) -> Option<ActionType<'bt,'ut,'rt,'dt>> {
+			players: &Vec<Player>, map_sz: MapSz) -> Option<ActionType<'bt,'ut,'rt,'dt>> {
 	#[cfg(feature="profile")]
 	let _g = Guard::new("find_and_set_attack");
 	
@@ -28,16 +29,16 @@ pub fn find_and_set_attack<'bt,'ut,'rt,'dt>(attacker_ind: usize, units: &mut Vec
 	
 	// add to dists if player is not a barbarian and it is close enough
 	macro_rules! add_to_dists{($dists: expr, $attackee_coord: expr, $attackee_owner: expr) => {
-		if owners[$attackee_owner as usize].player_type != PlayerType::Barbarian {
+		if !players[$attackee_owner as usize].ptype.is_barbarian() {
 			let dist = manhattan_dist(Coord::frm_ind($attackee_coord, map_sz), attacker_c, map_sz);
 			if dist < MAX_BARBARIAN_SEARCH {
 				$dists.push(Dist {
-						action_type: ActionType::Attack {
-							attack_coord: Some($attackee_coord),
-							attackee: Some($attackee_owner),
-							ignore_own_walls: true
-						},
-						manhattan_dist: dist
+					action_type: ActionType::Attack {
+						attack_coord: Some($attackee_coord),
+						attackee: Some($attackee_owner),
+						ignore_own_walls: true
+					},
+					manhattan_dist: dist
 				});
 			}
 		}

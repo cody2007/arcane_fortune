@@ -11,6 +11,8 @@ use crate::gcore::{Log, Relations};
 use crate::ai::{BarbarianState, AIState};
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
+use crate::player::{Stats, Player, Nms};
+use crate::containers::Templates;
 
 pub const CITY_HALL_NM: &str = "City Hall";
 pub const BOOT_CAMP_NM: &str = "Boot Camp";
@@ -184,13 +186,13 @@ impl <'bt,'ut,'rt,'dt> Bldg <'bt,'ut,'rt,'dt> {
 			args}
 	}
 	
-	pub fn set_taxable_upkeep(&mut self, mut new_val: f32, stats: &mut Vec<Stats>) {
+	pub fn set_taxable_upkeep(&mut self, mut new_val: f32, pstats: &mut Stats) {
 		if let BldgType::Taxable(_) = self.template.bldg_type {
 			self.taxable_upkeep_pre_operating_frac = new_val;
 			
 			new_val *= self.operating_frac();
 			
-			stats[self.owner_id as usize].tax_income += new_val - self.taxable_upkeep;
+			pstats.tax_income += new_val - self.taxable_upkeep;
 			self.taxable_upkeep = new_val;
 		
 		}else{panicq!("cannot set taxable upkeep on bldg that pays no taxes");}
@@ -198,8 +200,8 @@ impl <'bt,'ut,'rt,'dt> Bldg <'bt,'ut,'rt,'dt> {
 	
 	// update when n_residents() changes
 	#[inline]
-	fn population_update_taxable_upkeep(&mut self, stats: &mut Vec<Stats>) {
-		self.set_taxable_upkeep(self.taxable_upkeep_pre_operating_frac, stats);
+	fn population_update_taxable_upkeep(&mut self, pstats: &mut Stats) {
+		self.set_taxable_upkeep(self.taxable_upkeep_pre_operating_frac, pstats);
 	}
 	
 	#[inline]
@@ -316,11 +318,11 @@ impl <'bt,'ut,'rt,'dt> Bldg <'bt,'ut,'rt,'dt> {
 }
 
 // building produced unit
+// cur_player is from iface_settings, not the player building the unit
 pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, 
 		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
-		stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, relations: &mut Relations, logs: &mut Vec<Log>, barbarian_state_opt: &mut Option<BarbarianState>,
-		ai_state_opt: &mut Option<AIState<'bt,'ut,'rt,'dt>>, unit_templates: &Vec<UnitTemplate>,
-		owners: &'o Vec<Owner>, nms: &Nms, turn: usize, rng: &mut XorState) {
+		player: &mut Player<'bt,'ut,'rt,'dt>, relations: &mut Relations, logs: &mut Vec<Log>,
+		temps: &Templates<'bt,'ut,'rt,'dt,'_>, turn: usize, rng: &mut XorState) {
 	
 	enum ProdAction<'ut,'rt> {IncProg, DecProg, FinProd {coord_add: u64, unit_template: &'ut UnitTemplate<'rt>}};
 	
@@ -391,8 +393,7 @@ pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, uni
 			let b = &mut bldgs[bldg_ind];
 			match b.args {
 			  BldgArgs::CityHall {ref mut production, ..} | BldgArgs::GenericProducable {ref mut production} => {
-	                  let pstats = &stats[b.owner_id as usize];
-				production.last_mut().unwrap().progress += unit_production_rate * pstats.bonuses.production_factor;
+				production.last_mut().unwrap().progress += unit_production_rate * player.stats.bonuses.production_factor;
 			  } _ => {
 				  panicq!("bldg args in undefined state");
 			  }
@@ -405,8 +406,7 @@ pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, uni
 				 panicq!("bldg args in undefined state");
 			  }}
 			let owner_id = bldgs[bldg_ind].owner_id;
-			//printlnq!("building produces {} bldg nm {}, player_type {}", unit_template.nm, bldgs[bldg_ind].template.nm, owners[owner_id as usize].player_type);
-			add_unit(coord_add, owner_id, owner_id == cur_player, unit_template, units, map_data, exs, bldgs, stats, relations, logs, barbarian_state_opt, ai_state_opt, unit_templates, owners, nms, turn, rng);
+			add_unit(coord_add, owner_id == cur_player, unit_template, units, map_data, exs, bldgs, player, relations, logs, temps.units, &temps.nms, turn, rng);
 		}
 	}
 }
@@ -422,7 +422,7 @@ fn find_commute_ind(bldg_ind_find: usize, commutes: &Vec<Commute>) -> Option<usi
 	None
 }
 
-pub fn trim_cons(bldg_ind_recv: usize, bldgs: &mut Vec<Bldg>, stats: &mut Vec<Stats>, owners: &Vec<Owner>){	
+pub fn trim_cons(bldg_ind_recv: usize, bldgs: &mut Vec<Bldg>, pstats: &mut Stats){	
 	while bldgs[bldg_ind_recv].cons() > bldgs[bldg_ind_recv].cons_capac(){
 		let b_recv = &bldgs[bldg_ind_recv];
 		
@@ -438,11 +438,11 @@ pub fn trim_cons(bldg_ind_recv: usize, bldgs: &mut Vec<Bldg>, stats: &mut Vec<St
 		// rm commute frm sender
 		let bldg_ind_send = bldg_ind_send.unwrap();
 		let commute_rm = find_commute_ind(bldg_ind_recv, &bldgs[bldg_ind_send].bldgs_send_to);
-		rm_commute_to(bldg_ind_send, commute_rm.unwrap(), bldgs, stats, owners);
+		rm_commute_to(bldg_ind_send, commute_rm.unwrap(), bldgs, pstats);
 	}
 }
 
-pub fn add_commute_to(bldg_ind_send: usize, bldg_ind_recv: usize, bldgs: &mut Vec<Bldg>, stats: &mut Vec<Stats>) {
+pub fn add_commute_to(bldg_ind_send: usize, bldg_ind_recv: usize, bldgs: &mut Vec<Bldg>, pstats: &mut Stats) {
 	if let BldgType::Taxable(zone_send) = bldgs[bldg_ind_send].template.bldg_type {
 	if let BldgType::Taxable(zone_recv) = bldgs[bldg_ind_recv].template.bldg_type {
 		debug_assertq!(zone_send != ZoneType::Residential && (bldgs[bldg_ind_send].prod_capac() > bldgs[bldg_ind_send].n_sold()) ||
@@ -461,16 +461,14 @@ pub fn add_commute_to(bldg_ind_send: usize, bldg_ind_recv: usize, bldgs: &mut Ve
 		// record keeping
 		if zone_send == ZoneType::Residential {
 			let id = bldgs[bldg_ind_send].owner_id as usize;
-			stats[id].employed += 1;
-			bldgs[bldg_ind_recv].population_update_taxable_upkeep(stats);
+			pstats.employed += 1;
+			bldgs[bldg_ind_recv].population_update_taxable_upkeep(pstats);
 		}
 	}else {panicq!("no zone for recv");}
 	}else {panicq!("no zone for send");}
 }
 
-pub fn rm_commute_to(bldg_ind_send: usize, commute_ind: usize, bldgs: &mut Vec<Bldg>,
-		stats: &mut Vec<Stats>, owners: &Vec<Owner>) {
-	
+pub fn rm_commute_to(bldg_ind_send: usize, commute_ind: usize, bldgs: &mut Vec<Bldg>, pstats: &mut Stats) {
 	// rm frm sender
 	let bldg_ind_recv = bldgs[bldg_ind_send].bldgs_send_to.swap_remove(commute_ind).bldg_ind.unwrap();
 	debug_assertq!(bldgs[bldg_ind_send].owner_id == bldgs[bldg_ind_recv].owner_id);
@@ -486,17 +484,16 @@ pub fn rm_commute_to(bldg_ind_send: usize, commute_ind: usize, bldgs: &mut Vec<B
 	while bldgs[bldg_ind_recv].prod_capac() < bldgs[bldg_ind_recv].prod() {
 		let b_recv = &bldgs[bldg_ind_recv];
 		debug_assertq!(b_recv.template.bldg_type != BldgType::Taxable(ZoneType::Residential));
-		rm_commute_to(bldg_ind_recv, b_recv.bldgs_send_to.len()-1, bldgs, stats, owners);
+		rm_commute_to(bldg_ind_recv, b_recv.bldgs_send_to.len()-1, bldgs, pstats);
 	}
 	
-	trim_cons(bldg_ind_recv, bldgs, stats, owners);
+	trim_cons(bldg_ind_recv, bldgs, pstats);
 	
 	// record keeping
 	if let BldgType::Taxable(zone_send) = bldgs[bldg_ind_send].template.bldg_type {
 		if zone_send == ZoneType::Residential {
-			let id = bldgs[bldg_ind_send].owner_id as usize;
-			stats[id].employed -= 1;
-			bldgs[bldg_ind_recv].population_update_taxable_upkeep(stats);
+			pstats.employed -= 1;
+			bldgs[bldg_ind_recv].population_update_taxable_upkeep(pstats);
 		}
 	}else{panicq!("bldg not taxable");}
 }
@@ -526,8 +523,7 @@ pub fn update_commute_bldg_inds(bldg_ind: usize, bldg_ind_old: usize, bldgs: &mu
 	}
 }
 
-pub fn rm_all_commutes(bldg_ind: usize, bldgs: &mut Vec<Bldg>, stats: &mut Vec<Stats>,
-		zone_exs: &HashedMapZoneEx, owners: &Vec<Owner>, map_sz: MapSz){
+pub fn rm_all_commutes(bldg_ind: usize, bldgs: &mut Vec<Bldg>, player: &mut Player, map_sz: MapSz){
 	// remove commutes where this bldg is receiving products
 	
 	// (go in reverse order to avoid unnecessary 
@@ -547,14 +543,14 @@ pub fn rm_all_commutes(bldg_ind: usize, bldgs: &mut Vec<Bldg>, stats: &mut Vec<S
 			
 			let commutes_sender = &bldgs[bldg_ind_sender].bldgs_send_to;
 			let commute_ind = find_commute_ind(bldg_ind, &commutes_sender);
-			rm_commute_to(bldg_ind_sender, commute_ind.unwrap(), bldgs, stats, owners);
+			rm_commute_to(bldg_ind_sender, commute_ind.unwrap(), bldgs, &mut player.stats);
 		
 		// remove resident
 		}else{
 			debug_assertq!(b.template.bldg_type == BldgType::Taxable(ZoneType::Residential) &&
 				      commute_last.zone_type == ZoneType::Residential);
 			
-			rm_resident(bldg_ind, bldgs, stats, zone_exs, owners, map_sz);
+			rm_resident(bldg_ind, bldgs, player, map_sz);
 		}
 	}
 	
@@ -563,7 +559,7 @@ pub fn rm_all_commutes(bldg_ind: usize, bldgs: &mut Vec<Bldg>, stats: &mut Vec<S
 }
 
 pub fn add_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>,
-		zone_exs: &HashedMapZoneEx, stats: &mut Vec<Stats>, map_sz: MapSz) {
+		zone_exs: &HashedMapZoneEx, pstats: &mut Stats, map_sz: MapSz) {
 	let b = &mut bldgs[bldg_ind];
 	debug_assertq!(b.template.bldg_type == BldgType::Taxable(ZoneType::Residential));
 	debug_assertq!(b.n_residents() < b.template.resident_max);
@@ -571,8 +567,8 @@ pub fn add_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>,
 	b.bldgs_recv_frm.push(Commute {bldg_ind: None, zone_type: ZoneType::Residential});
 	
 	let id = b.owner_id as usize;
-	stats[id].population += 1;
-	b.population_update_taxable_upkeep(stats);
+	pstats.population += 1;
+	b.population_update_taxable_upkeep(pstats);
 	
 	// update city hall population counters
 	if let Some(zone_ex) = zone_exs.get(&return_zone_coord(b.coord, map_sz)) {
@@ -588,8 +584,8 @@ pub fn add_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>,
 	}
 }
 
-pub fn rm_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>, stats: &mut Vec<Stats>, 
-		zone_exs: &HashedMapZoneEx, owners: &Vec<Owner>, map_sz: MapSz){
+// needs zone_exs
+pub fn rm_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>, player: &mut Player, map_sz: MapSz){
 	let b = &mut bldgs[bldg_ind];
 	debug_assertq!(b.template.bldg_type == BldgType::Taxable(ZoneType::Residential));
 	let n_residents = b.n_residents();
@@ -614,18 +610,18 @@ pub fn rm_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>, stats: &mut Vec<Stats
 		debug_assertq!(b.bldgs_send_to[n_employed-1].zone_type != ZoneType::Residential);
 		// ^ residential bldgs shouldn't recv anything from other residential bldgs
 		
-		rm_commute_to(bldg_ind, n_employed-1, bldgs, stats, owners);
+		rm_commute_to(bldg_ind, n_employed-1, bldgs, &mut player.stats);
 	}
 	
-	trim_cons(bldg_ind, bldgs, stats, owners);
+	trim_cons(bldg_ind, bldgs, &mut player.stats);
 	
 	/////// record keeping
 	let b = &mut bldgs[bldg_ind];
-	stats[b.owner_id as usize].population -= 1;
-	b.population_update_taxable_upkeep(stats);
+	player.stats.population -= 1;
+	b.population_update_taxable_upkeep(&mut player.stats);
 	
 	// rm from city hall
-	if let Some(zone_ex) = zone_exs.get(&return_zone_coord(b.coord, map_sz)) {
+	if let Some(zone_ex) = player.zone_exs.get(&return_zone_coord(b.coord, map_sz)) {
 		match zone_ex.ret_city_hall_dist() {
 			Dist::Is {bldg_ind: ch_bldg_ind, ..} |
 			Dist::ForceRecompute {bldg_ind: ch_bldg_ind, ..} => {

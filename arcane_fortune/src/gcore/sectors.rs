@@ -1,4 +1,5 @@
 use super::*;
+use crate::player::Nms;
 
 #[derive(Clone, PartialEq)]
 pub struct Rectangle {

@@ -71,6 +71,7 @@ Generic text
 	Loading_game: "Loading game...", "#Loading game..."
 	Battalion: "Battalion", "Bataillon" // @
 	Country: "Country", "Pays" // @
+	Nobility: "Nobility", "#Nobility"
 	Bnkrpt: "Bnkrpt", "Fllt" // @ (Bnkrpt = Bankrupt; Fllt = attempt at abbreviating "faillite")
 	Gold: "Gold", "Or" // @
 	Net: "Net", "#Net" // i.e. net income
@@ -308,6 +309,8 @@ Generic text
 	select: "select", "#select" // <arrows> select
 	How_do_you_respond: "How do you respond?", "#How do you respond?" // to embassy greating
 	Threaten: "Threaten", "Menacer" // @
+	Suggest_a_peace_treaty: "Suggest a peace treaty", "#Suggest a peace treaty"
+	Peace_treaty_expires_in: "(Peace treaty expires in [])", "#(Peace treaty expires in [])" // then the date is shown
 	Declare_war: "Declare war", "#Declare war"
 	You_have_threatened_country: "You have threatened [country]!", "#You have threatened [country]!"
 	Name_affinity_responds: "[name], [affinity] responds:", "#[name], [affinity] responds:" // ex: "John Smith, angrily responds:"

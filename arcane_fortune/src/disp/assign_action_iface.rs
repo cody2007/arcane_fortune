@@ -6,6 +6,8 @@ use crate::map::*;
 use crate::gcore::*;
 use crate::keyboard::KeyboardMap;
 use crate::disp::menus::{OptionsUI};
+use crate::containers::Templates;
+use crate::player::Player;
 use super::*;
 
 impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
@@ -15,17 +17,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	// in particular is being referred to
 	pub fn assign_action_iface_to_unit(&mut self, action_iface: ActionInterfaceMeta<'f,'bt,'ut,'rt,'dt>,
 			cur_mi: u64, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
-			bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
-			stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>,
-			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-			barbarian_states: &mut Vec<Option<BarbarianState>>,
-			relations: &mut Relations, owners: &Vec<Owner>, bldg_config: &BldgConfig,
-			unit_templates: &'ut Vec<UnitTemplate<'rt>>,
-			bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>,
-			tech_templates: &Vec<TechTemplate>,
-			doctrine_templates: &'dt Vec<DoctrineTemplate>,
-			zone_exs_owners: &mut Vec<HashedMapZoneEx>,
+			bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
+			relations: &mut Relations, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 			map_data: &mut MapData<'rt>, map_sz: MapSz,
 			disp_settings: &DispSettings, disp_chars: &DispChars, menu_options: &mut OptionsUI,
 			logs: &mut Vec<Log>, turn: usize, rng: &mut XorState, frame_stats: &mut FrameStats,
@@ -140,7 +133,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				// convert original unit's action to a standard Mv
 				// 	(GroupMv should not be used aside from UI selection of units)
 				action.action_type = ActionType::Mv;
-				mv_unit(unit_ind, true, units, map_data, exs, bldgs, stats, relations, owners, map_sz, DelAction::Delete {barbarian_states, ai_states}, logs, turn);
+				mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, relations, map_sz, DelAction::Delete, logs, turn);
 				
 				// mv group
 				{
@@ -179,14 +172,17 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 													ActionType::Mv, *group_unit_ind, units);
 								
 								action_iface.update_move_search(mv_dest, map_data, exs,
-										MvVars::NonCivil{units, start_owner: u.owner_id, blind_undiscov: Some(&stats[u.owner_id as usize].land_discov)}, bldgs);
+										MvVars::NonCivil{units,
+											start_owner: u.owner_id,
+											blind_undiscov: Some(&players[u.owner_id as usize].stats.land_discov)
+										}, bldgs);
 								
 								if action_iface.action.path_coords.len() > 0 {
 									let u = &mut units[*group_unit_ind];
 									u.action.pop();
 									u.action.push(action_iface.action);
 									
-									mv_unit(*group_unit_ind, true, units, map_data, exs, bldgs, stats, relations, owners, map_sz, DelAction::Delete {barbarian_states, ai_states}, logs, turn);
+									mv_unit(*group_unit_ind, true, units, map_data, exs, bldgs, players, relations, map_sz, DelAction::Delete, logs, turn);
 								}
 							}
 						}}
@@ -228,14 +224,13 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		if action.path_coords.len() > 0 {
 			match action.action_type {
 				ActionType::WorkerBuildStructure {..} => {},
-				_ => {mv_unit(unit_ind, true, units, map_data, exs, bldgs, stats, relations, owners, map_sz, DelAction::Record(&mut disband_unit_inds), logs, turn);}
+				_ => {mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, relations, map_sz, DelAction::Record(&mut disband_unit_inds), logs, turn);}
 			}
 		}
 		
 		// attacks (if relevant and not disbanded (ex. boarding boat))
-		do_attack_action(unit_ind, &mut disband_unit_inds, units, bldg_config, bldgs, tech_templates, unit_templates, bldg_templates, 
-			doctrine_templates, stats, relations, ai_states, barbarian_states,
-			map_data, exs, zone_exs_owners, owners, logs, self, disp_chars, disp_settings, menu_options, self.cur_player_paused(ai_states),
+		do_attack_action(unit_ind, &mut disband_unit_inds, units, bldgs, temps, players, relations,
+			map_data, exs, logs, self, disp_chars, disp_settings, menu_options, self.cur_player_paused(players),
 			map_sz, frame_stats, turn, rng, kbd, l, buttons, txt_list, d);
 		
 		// do not allow repeat attacking
@@ -249,7 +244,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		}
 		
 		// could occur even when not attacking due to boarding boat
-		disband_units(disband_unit_inds, self.cur_player, units, map_data, exs, stats, relations, barbarian_states, ai_states, owners, map_sz, logs, turn);
+		disband_units(disband_unit_inds, self.cur_player, units, map_data, exs, players, relations, map_sz, logs, turn);
 		
 		return true;
 	}

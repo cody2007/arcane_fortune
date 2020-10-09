@@ -8,14 +8,13 @@ use crate::units::ActionType;
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
 use crate::disp::menus::ArgOptionUI;
+use crate::player::Player;
+use crate::containers::Templates;
 
 impl <'f,'bt,'ut,'rt,'st>IfaceSettings<'f,'bt,'ut,'rt,'st> {
 	pub fn print_map(&mut self, menu_options: &mut OptionsUI, disp_chars: &DispChars,
-			map_data: &mut MapData<'rt>, units: &Vec<Unit>, 
-			bldg_config: &BldgConfig, bldgs: &Vec<Bldg>,
-			owners: &Vec<Owner>, ai_states: &Vec<Option<AIState>>, stats: &Vec<Stats>,
-			tech_templates: &Vec<TechTemplate>, doctrine_templates: &Vec<DoctrineTemplate>,
-			zone_exs_owners: &Vec<HashedMapZoneEx>,
+			map_data: &mut MapData<'rt>, units: &Vec<Unit>, bldgs: &Vec<Bldg>,
+			players: &Vec<Player>, temps: &Templates,
 			exs: &Vec<HashedMapEx>,	relations: &Relations, logs: &Vec<Log>,
 			frame_stats: &mut FrameStats, alt_ind: usize, turn: usize, kbd: &KeyboardMap,
 			l: &Localization, buttons: &mut Buttons, txt_list: &mut TxtList, d: &mut DispState) {
@@ -27,7 +26,8 @@ impl <'f,'bt,'ut,'rt,'st>IfaceSettings<'f,'bt,'ut,'rt,'st> {
 		let map_sz = map_data.map_szs[zoom_ind];
 		let map_loc = self.map_loc;
 		let cursor_map_ind = self.cursor_to_map_ind(&map_data);
-		let pstats = &stats[self.cur_player as usize];
+		let player = &players[self.cur_player as usize];
+		let pstats = &player.stats;
 		
 		// if the unit mv dist is far and the full path hasn't been computed, infer it from
 		// the last full path coord computed
@@ -112,8 +112,7 @@ impl <'f,'bt,'ut,'rt,'st>IfaceSettings<'f,'bt,'ut,'rt,'st> {
 						map_coord / map_data.map_szs[zoom_ind].w as u64, map_coord % map_data.map_szs[zoom_ind].w as u64,
 						map_data.map_szs[zoom_ind].h, map_data.map_szs[zoom_ind].w, zoom_ind, map_data.max_zoom_ind());
 					
-					self.plot_land(zoom_ind, map_coord, map_data, &units, &bldgs, 
-						&exs, &zone_exs_owners, pstats, &owners, &disp_chars, false, alt_ind, d);
+					self.plot_land(zoom_ind, map_coord, map_data, units, bldgs, exs, players, disp_chars, false, alt_ind, d);
 				}
 			
 			} // screen_loc_x
@@ -212,22 +211,24 @@ impl <'f,'bt,'ut,'rt,'st>IfaceSettings<'f,'bt,'ut,'rt,'st> {
 		
 		txt_list.clear();
 		
-		self.print_menus(disp_chars, menu_options, ai_states[self.cur_player as usize] != None, kbd, buttons, l, d);
+		self.print_menus(disp_chars, menu_options, players[self.cur_player as usize].ptype.is_ai(), kbd, buttons, l, d);
 		
 		///////////// show most recent log entry
 		// (should come after print_menus() as that clears the first line
+		//  and before rside_stats because this is added to the right side text list
+		//  and should preferrably be at the of the list)
 		{
 			for log in logs.iter().rev() {
 				// only show if somewhat recent
 				if (log.turn + 30*12*5) <= turn {break;}
 				
 				// only show if civ discovered
-				if !log.visible(self.cur_player as usize, &relations) {continue;}
+				if !log.visible(self.cur_player as usize, relations) {continue;}
 				
 				let date_txt = l.date_str(log.turn);
 				const DELIM_TXT: &str = ": ";
 				
-				let log_len = print_log(&log.val, false, &owners, doctrine_templates, l, d);
+				let log_len = print_log(&log.val, false, players, temps.doctrines, l, d);
 				let txt_len = date_txt.len() + log_len + DELIM_TXT.len();
 				
 				if txt_len < self.screen_sz.w { // only show if enough space
@@ -239,16 +240,16 @@ impl <'f,'bt,'ut,'rt,'st>IfaceSettings<'f,'bt,'ut,'rt,'st> {
 					d.addstr(&date_txt);
 					d.attroff(COLOR_PAIR(CYELLOW));
 					d.addstr(DELIM_TXT);
-					print_log(&log.val, true, &owners, doctrine_templates, l, d);
+					print_log(&log.val, true, players, temps.doctrines, l, d);
 				}
 				break;
 			}
 		}
 		
 		//////////////
-		self.print_bottom_stats(map_data, exs, zone_exs_owners, units, bldg_config, bldgs, pstats, relations, owners, logs, kbd, l, buttons, txt_list, disp_chars, d);
-		self.print_rside_stats(frame_stats, turn, bldgs, stats, tech_templates, doctrine_templates, disp_chars, l, exf, map_data, &zone_exs_owners[self.cur_player as usize], map_sz, kbd, buttons, txt_list, d);
-		self.print_submap(disp_chars, map_data, units, bldgs, exs, zone_exs_owners, pstats, owners, alt_ind, kbd, l, buttons, d);
+		self.print_bottom_stats(map_data, exs, player, players, units, &temps.bldg_config, bldgs, relations, logs, kbd, l, buttons, txt_list, disp_chars, d);
+		self.print_rside_stats(frame_stats, turn, bldgs, players, temps, disp_chars, l, exf, map_data, map_sz, kbd, buttons, txt_list, d);
+		self.print_submap(disp_chars, map_data, units, bldgs, exs, &player.stats, players, alt_ind, kbd, l, buttons, d);
 	}
 }
 

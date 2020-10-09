@@ -4,9 +4,9 @@ use crate::units::UnitTemplate;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::config_load::{read_file, config_parse, find_key, find_req_key_parse};
-use crate::map::{Stats, Owner};
+use crate::player::Player;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Copy)]
 pub struct Bonuses {
 	pub combat_factor: f32, // 1. = equality w/ human players
 	pub production_factor: SmSvType,
@@ -63,12 +63,12 @@ pub fn load_game_difficulties() -> GameDifficulties {
 }
 
 impl GameDifficulties {
-	pub fn cur_difficulty_ind(&self, stats: &Vec<Stats>, owners: &Vec<Owner>) -> usize {
-		for (pstats, owner) in stats.iter().zip(owners.iter()) {
-			if owner.player_type.is_human() {continue;}
+	pub fn cur_difficulty_ind(&self, players: &Vec<Player>) -> usize {
+		for player in players.iter() {
+			if player.ptype.is_human() {continue;}
 			
 			for (diff_ind, difficulty) in self.difficulties.iter().enumerate() {
-				if difficulty.ai_bonuses == pstats.bonuses {
+				if difficulty.ai_bonuses == player.stats.bonuses {
 					return diff_ind;
 				}
 			}

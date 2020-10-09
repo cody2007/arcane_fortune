@@ -1,19 +1,18 @@
 use crate::disp_lib::*;
 use crate::saving::*;
 use crate::config_load::*;
-use crate::map::{Stats, TechProg};
+use crate::map::{TechProg};
+use crate::player::{Stats, Player};
 use crate::buildings::BldgTemplate;
 use crate::disp::{IfaceSettings};
 use crate::disp::window::{init_bldg_prod_windows, ProdOptions};
 use crate::units::UnitTemplate;
 use crate::localization::Localization;
+use crate::containers::Templates;
 use std::process::exit;
 
-pub mod vars;
-pub mod disp;
-
-pub use vars::*;
-pub use disp::*;
+pub mod vars; pub use vars::*;
+pub mod disp; pub use disp::*;
 
 pub fn init_tech_templates(l: &Localization) -> Vec<TechTemplate> {
 	let key_sets = config_parse(read_file("config/tech.txt"));
@@ -73,19 +72,19 @@ fn find_index(key: SmSvType, vec: &Vec<SmSvType>) -> Option<usize> {
 
 // research techs for all players
 // update window production lists for bldgs & units, prompt player to select new tech
-pub fn research_techs<'f,'bt,'ut,'rt,'dt>(stats: &mut Vec<Stats>, tech_templates: &Vec<TechTemplate>, 
-		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, cur_player: usize,
+pub fn research_techs<'f,'bt,'ut,'rt,'dt>(players: &mut Vec<Player>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>,
 		iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>, l: &Localization, d: &mut DispState) {
 	
-	for (player, ps) in stats.iter_mut().enumerate() { // for all players
+	for player in players.iter_mut() { // for all players
+		let ps = &mut player.stats;
 		if let Some(t_researching) = ps.techs_scheduled.last() { // if currently researching
 			let t_researching = *t_researching as usize;
 			
 			// if progress is logged for this tech (should be)
 			if let TechProg::Prog(ref mut prog) = ps.techs_progress[t_researching] {
 				// increment research progress
-				if (ps.research_per_turn + *prog) <= tech_templates[t_researching].research_req {
+				if (ps.research_per_turn + *prog) <= temps.techs[t_researching].research_req {
 					*prog += ps.research_per_turn;
 				
 				// finish research
@@ -95,8 +94,8 @@ pub fn research_techs<'f,'bt,'ut,'rt,'dt>(stats: &mut Vec<Stats>, tech_templates
 					
 					// update building unit production window options
 					// prompt player to select new tech if nothing else has been scheduled, or show tech discovered window
-					if player == cur_player {
-						*production_options = init_bldg_prod_windows(bldg_templates, ps, l);
+					if player.id == iface_settings.cur_player {
+						*production_options = init_bldg_prod_windows(temps.bldgs, ps, l);
 						
 						// prompt to select new tech for research
 						if ps.techs_scheduled.len() == 0 {
@@ -188,12 +187,11 @@ impl Stats<'_,'_,'_,'_> {
 
 	// recursively discover tech and all of its undiscovered research requirements
 	// ***** ASSUMES this is for the current player & updates `production_options`
-	pub fn force_discover_undiscov_tech<'bt,'ut,'rt,'dt>(&mut self, tech_req_ind: SmSvType, tech_templates: &Vec<TechTemplate>,
-			bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>,
-			l: &Localization) {
-		let mut techs_to_discover = Vec::with_capacity(tech_templates.len());
+	pub fn force_discover_undiscov_tech<'bt,'ut,'rt,'dt>(&mut self, tech_req_ind: SmSvType, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+			production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>, l: &Localization) {
+		let mut techs_to_discover = Vec::with_capacity(temps.techs.len());
 		techs_to_discover.push(tech_req_ind);
-		self.build_undiscov_tech_req_list(tech_req_ind, tech_templates, &mut techs_to_discover);
+		self.build_undiscov_tech_req_list(tech_req_ind, &temps.techs, &mut techs_to_discover);
 		
 		for tech in techs_to_discover.iter() {
 			self.techs_progress[*tech as usize] = TechProg::Finished;
@@ -207,7 +205,7 @@ impl Stats<'_,'_,'_,'_> {
 			}
 		}
 		
-		*production_options = init_bldg_prod_windows(bldg_templates, self, l);
+		*production_options = init_bldg_prod_windows(&temps.bldgs, self, l);
 	}
 	
 	// tech_sel is the index into tech_templates

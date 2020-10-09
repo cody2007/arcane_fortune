@@ -9,6 +9,7 @@ use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::disp_lib::endwin;
 use crate::ai::AIState;
+use crate::player::Player;
 
 pub mod disp; pub use disp::*;
 pub mod utils; pub use utils::*;
@@ -63,15 +64,15 @@ impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 	
 	// decrement ZoneEx map counter
 	// update pstats.zone_demand_sum_map[zt] if zone is no longer anywhere on map
-	pub fn rm_zone(&mut self, coord: u64, zone_exs_owners: &mut Vec<HashedMapZoneEx>, stats: &mut Vec<Stats>,
-			doctrine_templates: &Vec<DoctrineTemplate>, map_sz: MapSz) {
+	pub fn rm_zone(&mut self, coord: u64, players: &mut Vec<Player>, doctrine_templates: &Vec<DoctrineTemplate>, map_sz: MapSz) {
 		// we only have something todo if there is actually a zone placed
 		if let Some(zt) = self.zone_type {
 			let zt = zt as usize;
 			
 			let owner_id = self.owner_id.unwrap() as usize;
+			let player = &mut players[owner_id];
 			
-			if let Some(zone_ex) = zone_exs_owners[owner_id].get_mut(&return_zone_coord(coord, map_sz)) {
+			if let Some(zone_ex) = player.zone_exs.get_mut(&return_zone_coord(coord, map_sz)) {
 				// ^ should already be created from add_zone
 				
 				// update map counter:
@@ -81,11 +82,9 @@ impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 				
 				// no longer on map, update stats
 				if *map_counter == 0 {
-					let pstats = &mut stats[owner_id];
-					
 					if let Some(demand_weighted_sum) = zone_ex.demand_weighted_sum[zt] {
-						pstats.zone_demand_sum_map[zt].demand_weighted_sum -= demand_weighted_sum;
-						pstats.zone_demand_sum_map[zt].n_summed -= 1;
+						player.stats.zone_demand_sum_map[zt].demand_weighted_sum -= demand_weighted_sum;
+						player.stats.zone_demand_sum_map[zt].n_summed -= 1;
 					}
 					
 					// happiness, doctrinality, pacifism
@@ -93,7 +92,7 @@ impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 						let stats_old = &mut zone_ex.zone_agnostic_stats;
 						
 						// decrement from pstats
-						pstats.locally_logged = pstats.locally_logged.clone() - stats_old.locally_logged.clone();
+						player.stats.locally_logged = player.stats.locally_logged.clone() - stats_old.locally_logged.clone();
 						
 						// zero out in case the zone is ever added back
 						//	(return_happiness() would incorrectly update
@@ -118,20 +117,17 @@ impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 	
 	// increment ZoneEx map_counter
 	// update pstats.zone_demand_sum_map[zt] if zone is now on map
-	pub fn add_zone(&mut self, coord: u64, zone_type: ZoneType, owner_id: SmSvType, zone_exs_owners: &mut Vec<HashedMapZoneEx>, stats: &mut Vec<Stats>,
-			doctrine_templates: &Vec<DoctrineTemplate>, map_sz: MapSz) {
+	pub fn add_zone(&mut self, coord: u64, zone_type: ZoneType, player: &mut Player, doctrine_templates: &Vec<DoctrineTemplate>, map_sz: MapSz) {
 		//self.rm_zone(coord, zone_exs_owners, stats, doctrine_templates, map_sz); // needed to update zone counters ?
 		
-		self.owner_id = Some(owner_id);
+		self.owner_id = Some(player.id);
 		
-		let owner_id = owner_id as usize;
 		let zt = zone_type as usize;
 		
 		// load ZoneEx
 		let zn_coord = return_zone_coord(coord, map_sz);
-		let zone_exs = &mut zone_exs_owners[owner_id];
-		zone_exs.create_if_empty(zn_coord, doctrine_templates);
-		let zone_ex = zone_exs.get_mut(&return_zone_coord(coord, map_sz)).unwrap();
+		player.zone_exs.create_if_empty(zn_coord, doctrine_templates);
+		let zone_ex = player.zone_exs.get_mut(&return_zone_coord(coord, map_sz)).unwrap();
 		
 		// update ZoneEx map counter
 		let map_counter = &mut zone_ex.demand_weighted_sum_map_counter[zt];
@@ -140,9 +136,8 @@ impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 		// zone demand just added to map, update stats if zone demand has already been computed
 		if *map_counter == 1 { 
 			if let Some(demand_weighted_sum) = zone_ex.demand_weighted_sum[zt] {
-				let pstats = &mut stats[owner_id];
-				pstats.zone_demand_sum_map[zt].demand_weighted_sum += demand_weighted_sum;
-				pstats.zone_demand_sum_map[zt].n_summed += 1;
+				player.stats.zone_demand_sum_map[zt].demand_weighted_sum += demand_weighted_sum;
+				player.stats.zone_demand_sum_map[zt].n_summed += 1;
 			}
 		}
 		
@@ -210,12 +205,10 @@ impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 		});
 	}
 	
-	pub fn rm_structure(&mut self, coord: u64, ai_states: &mut Vec<Option<AIState>>, map_sz: MapSz) {
+	pub fn rm_structure(&mut self, coord: u64, players: &mut Vec<Player>, map_sz: MapSz) {
 		if let Some(_) = self.structure {
 			// record wall as being damaged
-			if let Some(ai_state) = &mut ai_states[self.owner_id.unwrap() as usize] {
-				ai_state.log_damaged_wall(Coord::frm_ind(coord, map_sz));
-			}
+			players[self.owner_id.unwrap() as usize].log_damaged_wall(Coord::frm_ind(coord, map_sz));
 			
 			self.structure = None;
 			// if no zone is present, remove the owner
@@ -648,8 +641,7 @@ pub const N_TURNS_RECOMP_ZONE_DEMAND: usize = 30*12*5; //30*12 * 1;//75;
 
 // return potential demand for zone type, recomputes raw demands (return_raw_demands()), if needed
 pub fn return_potential_demand(mut coord: u64, map_data: &mut MapData, 
-		exs: &mut Vec<HashedMapEx>, zone_exs: &mut HashedMapZoneEx, bldgs: &Vec<Bldg>, stats: &mut Vec<Stats>, 
-		map_sz: MapSz, turn: usize) -> f32 {
+		exs: &mut Vec<HashedMapEx>, player: &mut Player, bldgs: &Vec<Bldg>, map_sz: MapSz, turn: usize) -> f32 {
 	
 	let exf = exs.last().unwrap();
 	let ex = exf.get(&coord).unwrap();
@@ -657,9 +649,10 @@ pub fn return_potential_demand(mut coord: u64, map_data: &mut MapData,
 	
 	//////////// compute zone demands on a spaced grid, unless zone doesn't match the grid
 	coord = return_zone_coord(coord, map_sz);
-	let zone_ex = zone_exs.get_mut(&coord).unwrap(); // should be created by add_zone() method in FogVars
+	let zone_ex = player.zone_exs.get_mut(&coord).unwrap(); // should be created by add_zone() method in FogVars
 	
 	let owner_id = ex.actual.owner_id.unwrap();
+	debug_assertq!(owner_id == player.id);
 	
 	// during the early game, give the payer a bonus
 	if let Some(beginning_boost) = return_beginning_boost(zone_type, bldgs, owner_id) {return beginning_boost};
@@ -797,7 +790,7 @@ pub fn return_potential_demand(mut coord: u64, map_data: &mut MapData,
 	let demand_weighted_sum = &mut zone_ex.demand_weighted_sum[zt]; 
 	// ^ specific demand value for map location
 	
-	let stats_zone_sum_map = &mut stats[owner_id as usize].zone_demand_sum_map[zt];
+	let stats_zone_sum_map = &mut player.stats.zone_demand_sum_map[zt];
 	// ^ demand across full map for this zone type:
 	
 	// we have already set a value for this land plot

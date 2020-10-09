@@ -2,6 +2,7 @@ use std::cmp::max;
 use crate::disp_lib::{DispState, COLOR_PAIR};
 use crate::disp::{Buttons, ScreenSz, CGREEN, DispChars, crop_txt};
 use crate::localization::Localization;
+use crate::player::Personalization;
 use super::*;
 
 const BOX_WIDTH: usize = 20;
@@ -97,8 +98,8 @@ impl NoblePair {
 	}	
 }
 
-impl House {
-	pub fn print_pedigree(&self, buttons: &mut Buttons, screen_sz: ScreenSz,
+impl House<'_,'_,'_,'_> {
+	pub fn print_pedigree(&self, personalization: &Personalization, buttons: &mut Buttons, screen_sz: ScreenSz,
 			disp_chars: &DispChars,	l: &Localization, d: &mut DispState, turn: usize) {
 		d.clear();
 		
@@ -116,7 +117,7 @@ impl House {
 		};};
 		
 		let w = screen_sz.w as i32;
-		center_txt!(l.House_of.replace("[]", &self.name), w);
+		center_txt!(l.House_of.replace("[]", &personalization.nm), w);
 		
 		if let Some(head_pair) = self.noble_pairs.first() {
 			let head_branch_w = self.branch_disp_width(head_pair) as i32;

@@ -10,6 +10,8 @@ use crate::doctrine::DoctrineTemplate;
 use crate::gcore::Log;
 use crate::disp_lib::endwin;
 use crate::ai::AIState;
+use crate::containers::Templates;
+use crate::player::{Player, Nms, Stats};
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 //use std::cmp::min;
@@ -17,7 +19,7 @@ use crate::gcore::profiling::*;
 //const ZONE_DEMAND_SEARCH_DEPTH: usize = 1200;
 
 pub fn sell_prod(bldg_ind_sell: usize, bldgs: &mut Vec<Bldg>, map_data: &mut MapData, exs: &Vec <HashedMapEx>, 
-		map_sz: MapSz, stats: &mut Vec<Stats>, rng: &mut XorState){
+		map_sz: MapSz, pstats: &mut Stats, rng: &mut XorState){
 	
 	const CHANCE_SKIP_BLDG: f32 = 0.5;
 	
@@ -128,7 +130,7 @@ pub fn sell_prod(bldg_ind_sell: usize, bldgs: &mut Vec<Bldg>, map_data: &mut Map
 	
 	debug_assertq!(bldg_ind_sell != bldg_ind_buy);
 	
-	add_commute_to(bldg_ind_sell, bldg_ind_buy, bldgs, stats);
+	add_commute_to(bldg_ind_sell, bldg_ind_buy, bldgs, pstats);
 	debug_assertq!( (zone_seller == ZoneType::Residential && bldgs[bldg_ind_sell].n_sold() <= bldgs[bldg_ind_sell].n_residents()) || // everyone's employed
 		       (zone_seller != ZoneType::Residential && bldgs[bldg_ind_sell].n_sold() <= bldgs[bldg_ind_sell].prod_capac())); // bldg has production to sell
 }
@@ -164,9 +166,7 @@ pub fn uninit_city_hall_dists(owner_id: SmSvType, zone_exs: &mut HashedMapZoneEx
 // it has b.template.bldg_type set to BldgType::Taxable(_)
 
 pub fn set_city_hall_dist(start_coord: u64, map_data: &mut MapData, exs: &mut Vec<HashedMapEx>,
-		zone_exs: &mut HashedMapZoneEx,
-		bldgs: &mut Vec<Bldg>, stats: &mut Vec<Stats>,
-		doctrine_templates: &Vec<DoctrineTemplate>, map_sz: MapSz, turn: usize){
+		player: &mut Player, bldgs: &mut Vec<Bldg>, doctrine_templates: &Vec<DoctrineTemplate>, map_sz: MapSz, turn: usize){
 	
 	let exf = exs.last().unwrap();
 	let ex = exf.get(&start_coord).unwrap();
@@ -180,9 +180,8 @@ pub fn set_city_hall_dist(start_coord: u64, map_data: &mut MapData, exs: &mut Ve
 		if let Some(bldg_ind) = exs.last().unwrap().get(&start_coord).unwrap().bldg_ind {
 			let b_start = &bldgs[bldg_ind];
 			if b_start.coord == start_coord {
-				let bt = b_start.template;
-				if let BldgType::Taxable(_) = bt.bldg_type {
-					bldgs[bldg_ind].set_taxable_upkeep($val, stats);
+				if let BldgType::Taxable(_) = b_start.template.bldg_type {
+					bldgs[bldg_ind].set_taxable_upkeep($val, &mut player.stats);
 				}
 			}
 		}
@@ -190,87 +189,86 @@ pub fn set_city_hall_dist(start_coord: u64, map_data: &mut MapData, exs: &mut Ve
 	
 	let zone_coord = return_zone_coord(start_coord, map_sz);
 	
-	// no roads around
-	if action_iface.is_none() {
-		let zone_ex = zone_exs.get_mut(&zone_coord).unwrap();
+	// roads around
+	if let Some(action_iface) = &mut action_iface {
+		///////// find closest city hall
+		let mut closest_dist: Option<usize> = None;
+		let mut closest_city_hall_ind: Option<usize> = None;
 		
-		zone_ex.set_city_hall_dist(zone_coord, Dist::NotPossible {turn_computed: turn}, bldgs, map_sz);
-		set_taxable_upkeep!(0.);
-		return;
-	}
-	
-	///////// find closest city hall
-	let mut closest_dist: Option<usize> = None;
-	let mut closest_city_hall_ind: Option<usize> = None;
-	
-	for (bldg_ind, b) in bldgs.iter().enumerate() {
-		// skip if it's not the current player's city hall
-		if b.owner_id != owner_id || b.template.nm[0] != CITY_HALL_NM || !b.construction_done.is_none() {
-			continue;
+		for (bldg_ind, b) in bldgs.iter().enumerate() {
+			// skip if it's not the current player's city hall
+			if b.owner_id != owner_id || b.template.nm[0] != CITY_HALL_NM || !b.construction_done.is_none() {
+				continue;
+			}
+			
+			if let Some(start_coord) = find_closest_road(b.coord, map_data, exs.last().unwrap(), map_sz) {
+				let c = Coord::frm_ind(start_coord, map_sz);
+				action_iface.update_move_search(c, map_data, exs, MvVars::None, bldgs);
+				
+				let path_len = action_iface.action.path_coords.len(); // ??
+				if path_len == 0 {continue;} // no path found
+				
+				// update
+				if closest_dist.is_none() || path_len < closest_dist.unwrap() {
+					closest_dist = Some(path_len);
+					closest_city_hall_ind = Some(bldg_ind);
+				}
+			}
+		} // find closest
+		
+		let zone_ex = player.zone_exs.get_mut(&zone_coord).unwrap();
+		
+		if closest_dist.is_none() || closest_dist.unwrap() > MAX_TAXABLE_DIST {
+			zone_ex.set_city_hall_dist(zone_coord, Dist::NotPossible {turn_computed: turn}, bldgs, map_sz);
+			set_taxable_upkeep!(0.);
+			return;
 		}
 		
-		let start_coord = find_closest_road(b.coord, map_data, exs.last().unwrap(), map_sz);
-		if start_coord.is_none() {continue;}
+		zone_ex.set_city_hall_dist(zone_coord, Dist::Is {  dist: closest_dist.unwrap(), 
+						bldg_ind: closest_city_hall_ind.unwrap() }, bldgs, map_sz);
 		
-		let c = Coord::frm_ind(start_coord.unwrap(), map_sz);
-		action_iface.as_mut().unwrap().update_move_search(c, map_data, exs, MvVars::None, bldgs);
-		
-		let path_len = action_iface.as_ref().unwrap().action.path_coords.len();
-		if path_len == 0 {continue;} // no path found
-		
-		// update
-		if closest_dist.is_none() || path_len < closest_dist.unwrap() {
-			closest_dist = Some(path_len);
-			closest_city_hall_ind = Some(bldg_ind);
-		}
-	} // find closest
-	
-	let zone_ex = zone_exs.get_mut(&zone_coord).unwrap();
-	
-	if closest_dist.is_none() || closest_dist.unwrap() > MAX_TAXABLE_DIST {
-		zone_ex.set_city_hall_dist(zone_coord, Dist::NotPossible {turn_computed: turn}, bldgs, map_sz);
-		set_taxable_upkeep!(0.);
-		return;
-	}
-	
-	zone_ex.set_city_hall_dist(zone_coord, Dist::Is {  dist: closest_dist.unwrap(), 
-					bldg_ind: closest_city_hall_ind.unwrap() }, bldgs, map_sz);
-	
-	// update tax counter 
-	if let Some(bldg_ind) = ex.bldg_ind {
-		let b_start = &bldgs[bldg_ind];
-		if b_start.coord == start_coord {
-			let bt = b_start.template;
-			if let BldgType::Taxable(_) = bt.bldg_type {
-				debug_assertq!(bt.upkeep < 0.);
-				let upkeep_new = -bt.upkeep * return_effective_tax_rate(start_coord, map_data, exs, zone_exs, bldgs, stats, doctrine_templates, map_sz, turn);
-				bldgs[bldg_ind].set_taxable_upkeep(upkeep_new, stats);
+		// update tax counter 
+		if let Some(bldg_ind) = ex.bldg_ind {
+			let b_start = &bldgs[bldg_ind];
+			if b_start.coord == start_coord {
+				let bt = b_start.template;
+				if let BldgType::Taxable(_) = bt.bldg_type {
+					debug_assertq!(bt.upkeep < 0.);
+					let upkeep_new = -bt.upkeep * return_effective_tax_rate(start_coord, map_data, exs, player, bldgs, doctrine_templates, map_sz, turn);
+					bldgs[bldg_ind].set_taxable_upkeep(upkeep_new, &mut player.stats);
+				}
 			}
 		}
+		
+	// no roads around
+	}else{
+		let zone_ex = player.zone_exs.get_mut(&zone_coord).unwrap();
+		
+		zone_ex.set_city_hall_dist(zone_coord, Dist::NotPossible {turn_computed: turn}, bldgs, map_sz);
+		set_taxable_upkeep!(0.);
 	}
 }
 
 // return potential tax income for zone type
 // does not recompute city_hall_dist if it's already initialized
 pub fn return_effective_tax_rate(coord: u64, map_data: &mut MapData, exs: &mut Vec<HashedMapEx>,
-		zone_exs: &mut HashedMapZoneEx, bldgs: &mut Vec<Bldg>, stats: &mut Vec<Stats>,
-		doctrine_templates: &Vec<DoctrineTemplate>, map_sz: MapSz, turn: usize) -> f32 {
+		player: &mut Player, bldgs: &mut Vec<Bldg>, doctrine_templates: &Vec<DoctrineTemplate>, map_sz: MapSz, turn: usize) -> f32 {
 	let zone_coord = return_zone_coord(coord, map_sz);
-	zone_exs.create_if_empty(zone_coord, doctrine_templates);
-	let zone_ex = zone_exs.get_mut(&zone_coord).unwrap();
+	player.zone_exs.create_if_empty(zone_coord, doctrine_templates);
+	let zone_ex = player.zone_exs.get_mut(&zone_coord).unwrap();
 	
 	// compute dist to city_hall?
 	match zone_ex.ret_city_hall_dist() {
 		Dist::NotInit | Dist::ForceRecompute {..} => {
-			set_city_hall_dist(coord, map_data, exs, zone_exs, bldgs, stats, doctrine_templates, map_sz, turn);
+			set_city_hall_dist(coord, map_data, exs, player, bldgs, doctrine_templates, map_sz, turn);
 		} Dist::NotPossible{turn_computed} => {
 			if (turn_computed + N_TURNS_RECOMP_ZONE_DEMAND) < turn {
-				set_city_hall_dist(coord, map_data, exs, zone_exs, bldgs, stats, doctrine_templates, map_sz, turn);
+				set_city_hall_dist(coord, map_data, exs, player, bldgs, doctrine_templates, map_sz, turn);
 			}
 		} Dist::Is {..} => {}
 	}
 	
-	let zone_ex = zone_exs.get(&zone_coord).unwrap();
+	let zone_ex = player.zone_exs.get(&zone_coord).unwrap();
 	
 	// compute tax income
 	match zone_ex.ret_city_hall_dist() {
@@ -296,11 +294,9 @@ pub fn return_effective_tax_rate(coord: u64, map_data: &mut MapData, exs: &mut V
 }
 
 // run at end of turn for new taxable constructions moving in for each zone type
-pub fn create_taxable_constructions<'bt,'ut,'rt,'dt>(bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, 
-		doctrine_templates: &'dt Vec<DoctrineTemplate>, map_data: &mut MapData<'rt>, 
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &mut Vec<HashedMapZoneEx>, 
-		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-		owners: &Vec<Owner>, logs: &mut Vec<Log>, nms: &Nms, map_sz: MapSz, turn: usize, rng: &mut XorState){
+pub fn create_taxable_constructions<'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
+		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, logs: &mut Vec<Log>, map_sz: MapSz, turn: usize, rng: &mut XorState){
 	#[cfg(feature="profile")]
 	let _g = Guard::new("create_taxable_constructions");
 	
@@ -308,7 +304,7 @@ pub fn create_taxable_constructions<'bt,'ut,'rt,'dt>(bldg_templates: &'bt Vec<Bl
 	
 	let exf = exs.last_mut().unwrap();
 	
-	if let Some(coord) = SampleType::ZoneDemand.coord_frm_turn_computed(zone_exs_owners, exf, map_sz, turn, rng) {
+	if let Some(coord) = SampleType::ZoneDemand.coord_frm_turn_computed(players, exf, map_sz, turn, rng) {
 		if let Some(ex) = exf.get(&coord) {
 			if !land_clear_ign_zone_ign_owner(coord, &map_data.get(ZoomInd::Full, coord), exf) {
 				return;
@@ -328,11 +324,11 @@ pub fn create_taxable_constructions<'bt,'ut,'rt,'dt>(bldg_templates: &'bt Vec<Bl
 				};
 				
 				let mut zone_demand: Option<f32> = None;
-				let bldg_template_inds = rng.inds(bldg_templates.len());
+				let bldg_template_inds = rng.inds(temps.bldgs.len());
 				
 				// loop over bldgs
 				'bldg_loop: for bldg_template_ind in bldg_template_inds.iter() {
-					let bt = &bldg_templates[*bldg_template_ind];
+					let bt = &temps.bldgs[*bldg_template_ind];
 					
 					let h = bt.sz.h as isize;
 					let w = bt.sz.w as isize;
@@ -355,19 +351,19 @@ pub fn create_taxable_constructions<'bt,'ut,'rt,'dt>(bldg_templates: &'bt Vec<Bl
 					}}
 					
 					///////////
-					let zone_exs = &mut zone_exs_owners[owner_id as usize];
-					let effective_tax = return_effective_tax_rate(coord, map_data, exs, zone_exs, bldgs, stats, doctrine_templates, map_sz, turn);
+					let player = &mut players[owner_id as usize];
+					let effective_tax = return_effective_tax_rate(coord, map_data, exs, player, bldgs, temps.doctrines, map_sz, turn);
 					assert!(effective_tax >= 0.);
 					
 					// prevent re-computing unnecessarily
 					if zone_demand.is_none() {
-						zone_demand = Some(return_potential_demand(coord, map_data, exs, zone_exs, bldgs, stats, map_sz, turn));
+						zone_demand = Some(return_potential_demand(coord, map_data, exs, player, bldgs, map_sz, turn));
 					}
 					
 					// add bldg
 					if ((rng.gen_f32b() < 2.*(4.*zone_demand.unwrap() - effective_tax)) || // add based on zone demand
 						(resource_present && (rng.gen_f32b() < 1.))) && // add based on a resource being present
-							add_bldg(coord, owner_id, bldgs, bt, None, bldg_templates, doctrine_templates, map_data, exs, zone_exs_owners, stats, &mut ai_states[owner_id as usize], owners, nms, turn, logs, rng) {
+							add_bldg(coord, owner_id, bldgs, bt, None, temps.bldgs, temps.doctrines, map_data, exs, players, &temps.nms, turn, logs, rng) {
 						
 						let ind = bldgs.len()-1;
 						bldgs[ind].construction_done = None;

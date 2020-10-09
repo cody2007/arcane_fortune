@@ -13,6 +13,7 @@ use crate::disp_lib::endwin;
 use crate::ai::{AIState, BarbarianState};
 use crate::localization::Localization;
 use crate::movement::manhattan_dist;
+use crate::player::{Player, Stats, Nms, PlayerType};
 
 mod vars; pub use vars::*;
 
@@ -201,7 +202,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 
 pub fn replace_map_bldg_ind<'bt,'ut,'rt,'dt>(cur_bldg_ind: usize, replace_bldg_ind: Option<usize>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, 
-		zone_exs_owners: &mut Vec<HashedMapZoneEx>, owners: &Vec<Owner>) {
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>) {
 	
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
@@ -230,7 +231,7 @@ pub fn replace_map_bldg_ind<'bt,'ut,'rt,'dt>(cur_bldg_ind: usize, replace_bldg_i
 	for i_off in 0..h {
 	for j_off in 0..w {
 		let map_coord = map_sz.coord_wrap(c.y + i_off, c.x + j_off).unwrap();
-		compute_zooms_coord(map_coord, RecompType::Bldgs(bldgs, bldg_templates, zone_exs_owners), map_data, exs, owners);
+		compute_zooms_coord(map_coord, bldgs, bldg_templates, map_data, exs, players);
 	}}
 	
 	let b = &bldgs[cur_bldg_ind];
@@ -238,12 +239,12 @@ pub fn replace_map_bldg_ind<'bt,'ut,'rt,'dt>(cur_bldg_ind: usize, replace_bldg_i
 	if b.template.nm[0] == CITY_HALL_NM {
 		// if bldg whose bldg_ind has been chgd is a city hall, update zones_info.city_hall_bldg_ind
 		if let Some(replace_bldg_ind_un) = replace_bldg_ind {
-			for (_, zi) in zone_exs_owners[b.owner_id as usize].iter_mut() {
+			for (_, zi) in players[b.owner_id as usize].zone_exs.iter_mut() {
 				zi.replace_city_hall_bldg_ind_after_swap_rm(replace_bldg_ind_un, cur_bldg_ind);
 			}
 		// deleting a city hall
 		}else{
-			for (_, zi) in zone_exs_owners[b.owner_id as usize].iter_mut() {
+			for (_, zi) in players[b.owner_id as usize].zone_exs.iter_mut() {
 				zi.city_hall_removed();
 			}
 		}
@@ -251,7 +252,7 @@ pub fn replace_map_bldg_ind<'bt,'ut,'rt,'dt>(cur_bldg_ind: usize, replace_bldg_i
 }
 
 #[derive(PartialEq)]
-pub enum UnitDelAction<'d,'u,'bt,'ut,'rt,'dt,'r,'bs,'l> {
+pub enum UnitDelAction<'d,'u,'bt,'ut,'rt,'dt,'r,'l> {
 	// store to-be-deleted units in disband_unit_inds
 	Record(&'d mut Vec<usize>),
 		
@@ -259,63 +260,60 @@ pub enum UnitDelAction<'d,'u,'bt,'ut,'rt,'dt,'r,'bs,'l> {
 	Delete {
 		units: &'u mut Vec<Unit<'bt,'ut,'rt,'dt>>,
 		relations: &'r mut Relations,
-		barbarian_states: &'bs mut Vec<Option<BarbarianState>>,
 		logs: &'l mut Vec<Log>,
 		turn: usize
 	}
 }
 
 pub fn rm_bldg<'bt,'ut,'rt,'dt>(bldg_ind: usize, is_cur_player: bool, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, 
-		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, map_data: &mut MapData<'rt>, 
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &mut Vec<HashedMapZoneEx>,
-		stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-		owners: &Vec<Owner>, del_action: UnitDelAction<'_,'_,'bt,'ut,'rt,'dt,'_,'_,'_>, map_sz: MapSz) {
+		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, del_action: UnitDelAction<'_,'_,'bt,'ut,'rt,'dt,'_,'_>, map_sz: MapSz) {
 	
 	let b = &mut bldgs[bldg_ind];
 	let orig_coord = b.coord;
 	let orig_bt = b.template;
 	let b_owner_id = b.owner_id as usize;
 	
+	let player = &mut players[b_owner_id];
+	
 	// accounting
-	if let Some(a_state) = &mut ai_states[b_owner_id] {
-		match del_action {
-			UnitDelAction::Record(disband_unit_inds) => {
-				a_state.rm_bldg(bldg_ind, orig_bt, &owners[b_owner_id], disband_unit_inds);
-			}
-			UnitDelAction::Delete {units, relations, barbarian_states, logs, turn} => {
-				let mut disband_unit_inds = Vec::new();
-				a_state.rm_bldg(bldg_ind, orig_bt, &owners[b_owner_id], &mut disband_unit_inds);
-				
-				for unit_ind in disband_unit_inds.iter() {
-					if !disband_unit_inds.contains(unit_ind) {
-						disband_unit(*unit_ind, is_cur_player, units, map_data, exs, stats, relations, barbarian_states, ai_states, owners, map_sz, logs, turn);
-					}
+	match del_action {
+		UnitDelAction::Record(disband_unit_inds) => {
+			player.rm_bldg(bldg_ind, orig_bt, disband_unit_inds);
+		}
+		UnitDelAction::Delete {units, relations, logs, turn} => {
+			let mut disband_unit_inds = Vec::new();
+			player.rm_bldg(bldg_ind, orig_bt, &mut disband_unit_inds);
+			
+			for unit_ind in disband_unit_inds.iter() {
+				if !disband_unit_inds.contains(unit_ind) {
+					disband_unit(*unit_ind, is_cur_player, units, map_data, exs, players, relations, map_sz, logs, turn);
 				}
 			}
 		}
 	}
 	
-	let pstats = &mut stats[b_owner_id];
+	let player = &mut players[b_owner_id];
 	
 	// only subtract research per turn if bldg had finished construction
 	if b.construction_done.is_none() {
-		pstats.research_per_turn -= b.template.research_prod;
+		player.stats.research_per_turn -= b.template.research_prod;
 	}
 	
 	if let Some(resource) = bldg_resource(orig_coord, orig_bt, map_data, map_sz) {
-		pstats.resources_avail[resource.id as usize] -= 1;
+		player.stats.resources_avail[resource.id as usize] -= 1;
 	}
 	
 	// update stats for removed building
 	if b.template.upkeep >= 0. { // bldg costs money to maintain
-		pstats.bldg_expenses -= b.return_taxable_upkeep();
+		player.stats.bldg_expenses -= b.return_taxable_upkeep();
 	}else{ // pays taxes
-		b.set_taxable_upkeep(0., stats); // updates stats
+		b.set_taxable_upkeep(0., &mut player.stats); // updates stats
 	}
-		
-	rm_all_commutes(bldg_ind, bldgs, stats, &zone_exs_owners[b_owner_id], owners, map_sz);
 	
-	replace_map_bldg_ind(bldg_ind, None, bldgs, bldg_templates, map_data, exs, zone_exs_owners, owners); 
+	rm_all_commutes(bldg_ind, bldgs, player, map_sz);
+	
+	replace_map_bldg_ind(bldg_ind, None, bldgs, bldg_templates, map_data, exs, players); 
 	// ^ call before removing entry in bldgs[]
 	
 	bldgs.swap_remove(bldg_ind);
@@ -324,31 +322,30 @@ pub fn rm_bldg<'bt,'ut,'rt,'dt>(bldg_ind: usize, is_cur_player: bool, bldgs: &mu
 	// maps and commutes need to be updated
 	if bldg_ind != bldgs.len() {
 		// swap remove should be already called before:
-		replace_map_bldg_ind(bldg_ind, Some(bldgs.len()), bldgs, bldg_templates, map_data, exs, zone_exs_owners, owners);
+		replace_map_bldg_ind(bldg_ind, Some(bldgs.len()), bldgs, bldg_templates, map_data, exs, players);
 				
 		// swap remove should be already called before:
 		update_commute_bldg_inds(bldg_ind, bldgs.len(), bldgs);
 		
 		let b = &bldgs[bldg_ind];
-		bldg_map_update(Coord::frm_ind(b.coord, map_sz), b.template, bldgs, bldg_templates, map_data, exs, zone_exs_owners, owners, map_sz);
+		bldg_map_update(Coord::frm_ind(b.coord, map_sz), b.template, bldgs, bldg_templates, map_data, exs, players, map_sz);
 		
 		// accounting
 		let b_owner_id = b.owner_id as usize;
-		if let Some(a_state) = &mut ai_states[b_owner_id] {a_state.chg_bldg_ind(bldgs.len(), bldg_ind, b.template, &owners[b_owner_id]);}
+		players[b_owner_id].chg_bldg_ind(bldgs.len(), bldg_ind, b.template);
 	}
 	
-	bldg_map_update(Coord::frm_ind(orig_coord, map_sz), orig_bt, bldgs, bldg_templates, map_data, exs, zone_exs_owners, owners, map_sz);
+	bldg_map_update(Coord::frm_ind(orig_coord, map_sz), orig_bt, bldgs, bldg_templates, map_data, exs, players, map_sz);
 }
 
 use crate::gcore::return_effective_tax_rate;
-use crate::ai::{CITY_HALL_OFFSET_HEIGHT, CITY_HALL_OFFSET_WIDTH};
+use crate::ai::{CITY_GRID_HEIGHT, CITY_GRID_WIDTH, city_hall_offset};
 
 pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, 
 		bt: &'bt BldgTemplate<'ut,'rt,'dt>, doctrine_dedication: Option<&'dt DoctrineTemplate>,
 		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, doctrine_templates: &'dt Vec<DoctrineTemplate>,
-		map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &mut Vec<HashedMapZoneEx>,
-		stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, ai_state_opt: &mut Option<AIState<'bt,'ut,'rt,'dt>>,
-		owners: &Vec<Owner>, nms: &Nms, turn: usize, 
+		map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, nms: &Nms, turn: usize, 
 		logs: &mut Vec<Log>, rng: &mut XorState) -> bool {
 	
 	let get_doctrine_dedication = || {
@@ -393,23 +390,22 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 	}}
 	////////
 	let owner_id = owner_id as usize;
-	let owner = &owners[owner_id];
+	let player = &mut players[owner_id];
 	
 	let args = if bt.nm[0] == CITY_HALL_NM {
 			// create new city plan if this is a human player (it would've already been created for the AI)
-			if owner.player_type.is_human() {
-				if let Some(ai_state) = ai_state_opt {
-					let city_coord = Coord {
-						y: c.y - CITY_HALL_OFFSET_HEIGHT,
-						x: c.x - CITY_HALL_OFFSET_WIDTH - 1
-					};
-					ai_state.create_city_plan(city_coord, rng, map_data, map_sz, bldg_templates);
-				}else{panicq!("player should have AI state but does not");}
+			if let PlayerType::Human {ai_state} = &mut player.ptype {
+				let offsets = city_hall_offset(CITY_GRID_HEIGHT as isize, CITY_GRID_WIDTH as isize);
+				let city_coord = Coord {
+					y: c.y - offsets.0,
+					x: c.x - offsets.1 - 1
+				};
+				ai_state.create_city_plan(city_coord, rng, map_data, map_sz, bldg_templates);
 			}
 			
 			// choose name of city, making sure to not choose one that's already been used
 			let mut unused_nm = || {
-				let city_nms_use = &nms.cities[owner.city_nm_theme];
+				let city_nms_use = &nms.cities[player.personalization.city_nm_theme];
 				let inds = rng.inds(city_nms_use.len());
 				
 				let mut prefix = String::new();
@@ -478,16 +474,15 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 	//	Note: update set_owner() [zones/set_owner.rs] if changed
 	let (taxable_upkeep, resource_opt) = {
 		// taxes
-		let pstats = &mut stats[owner_id];
 		let taxable_upkeep = if bt.upkeep > 0. {
-			pstats.bldg_expenses += bt.upkeep;
+			player.stats.bldg_expenses += bt.upkeep;
 			bt.upkeep
 		}else{
 			let taxable_upkeep = if let BldgType::Gov(_) = bt.bldg_type {
-				pstats.tax_income -= bt.upkeep; // bt.upkeep is negative so we are adding a positive value
+				player.stats.tax_income -= bt.upkeep; // bt.upkeep is negative so we are adding a positive value
 				-bt.upkeep // make positive then add to income
 			}else{
-				-bt.upkeep * return_effective_tax_rate(coord, map_data, exs, &mut zone_exs_owners[owner_id], bldgs, stats, doctrine_templates, map_sz, turn)
+				-bt.upkeep * return_effective_tax_rate(coord, map_data, exs, player, bldgs, doctrine_templates, map_sz, turn)
 				//           ^ may call set_city_hall_dist which will not update stats because the bldg hasn't been added yet
 			};
 			taxable_upkeep
@@ -497,11 +492,10 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 		// for taxable buildings (no construction time, these are updated immediately)
 		// for gov buildings (w/ a construction time) these are updated when the worker completes them
 		// counters for research, crime, happiness, doctrinality, health, pacifism
-		let pstats = &mut stats[owner_id];
 		match bt.bldg_type {
 			BldgType::Gov(_) => {}
 			BldgType::Taxable(_) => {
-				pstats.bldg_stats(StatsAction::Add, bt);
+				player.stats.bldg_stats(StatsAction::Add, bt);
 			}
 		}
 		
@@ -510,7 +504,7 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 		
 		// log resource
 		if let Some(resource) = resource_opt {
-			pstats.resources_avail[resource.id as usize] += 1;
+			player.stats.resources_avail[resource.id as usize] += 1;
 		}
 		
 		(taxable_upkeep, resource_opt)
@@ -542,22 +536,21 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 		ex.bldg_ind = Some(bldgs.len()-1);
 	}}
 	
-	bldg_map_update(c, bt, bldgs, bldg_templates, map_data, exs, zone_exs_owners, owners, map_sz);
+	bldg_map_update(c, bt, bldgs, bldg_templates, map_data, exs, players, map_sz);
 	
 	// log ai state
-	if let Some(a_state) = ai_state_opt {a_state.add_bldg(bldgs.len()-1, coord, bt, owner, map_sz);}
+	players[owner_id].add_bldg(bldgs.len()-1, coord, bt, map_sz);
 	
 	true
 }
 
 //// update zoom maps if bldg is added or rmd
 fn bldg_map_update<'bt,'ut,'rt,'dt>(c: Coord, bt: &BldgTemplate, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, 
-		map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &Vec<HashedMapZoneEx>,
-		owners: &Vec<Owner>, map_sz: MapSz) {
+		map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz) {
 	for i_off in 0..(bt.sz.h as isize) {
 	for j_off in 0..(bt.sz.w as isize) {
 		let coord = map_sz.coord_wrap(c.y + i_off, c.x + j_off).unwrap();
-		compute_zooms_coord(coord, RecompType::Bldgs(bldgs, bldg_templates, zone_exs_owners), map_data, exs, owners);
+		compute_zooms_coord(coord, bldgs, bldg_templates, map_data, exs, players);
 	}}
 }
 

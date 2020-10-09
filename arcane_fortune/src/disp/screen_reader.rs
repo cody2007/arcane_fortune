@@ -1,5 +1,5 @@
 use std::env;
-use crate::disp_lib::{DispState, endwin};
+use crate::disp_lib::{DispState};
 use super::cursor_pos;
 
 pub fn screen_reader_mode() -> bool {

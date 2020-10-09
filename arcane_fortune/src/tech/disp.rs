@@ -1,10 +1,11 @@
 use crate::disp_lib::*;
-use crate::map::Stats;
 use crate::resources::ResourceTemplate;
+use crate::player::Stats;
 use crate::saving::SmSvType;
 use crate::disp::*;
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
+use crate::containers::Templates;
 
 use super::*;
 
@@ -14,9 +15,7 @@ const C_UN_DISCOV: CInd = CCYAN;
 const C_DISCOV: CInd = CGRAY;
 const C_SCHEDULED: CInd = CYELLOW;
 
-pub fn print_tech_tree(unit_templates: &Vec<UnitTemplate>, bldg_templates: &Vec<BldgTemplate>,
-		tech_templates: &Vec<TechTemplate>, resource_templates: &Vec<ResourceTemplate>,
-		disp_chars: &DispChars, pstats: &Stats, 
+pub fn print_tech_tree(temps: &Templates, disp_chars: &DispChars, pstats: &Stats, 
 		tech_sel: &mut Option<SmSvType>, tech_sel_mv: &mut TreeSelMv,
 		tree_offsets: &mut Option<TreeOffsets>, screen_sz: ScreenSz, prompt_tech: bool,
 		kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, d: &mut DispState) {
@@ -26,12 +25,12 @@ pub fn print_tech_tree(unit_templates: &Vec<UnitTemplate>, bldg_templates: &Vec<
 		// tech is scheduled
 		if let Some(tech_scheduled) = pstats.techs_scheduled.last() {
 			*tech_sel = Some(*tech_scheduled);
-		}else if tech_templates.len() > 0 {
+		}else if temps.techs.len() > 0 {
 			*tech_sel = Some(0);//templates.len() as SmSvType - 1);
 		}else {panicq!("No techs present. Check configuration file.");}
 	}
 	
-	let disp_properties = print_tree(tech_templates, disp_chars, pstats, tech_sel, tech_sel_mv, tree_offsets, screen_sz, TECH_SZ_PRINT, l, buttons, d);
+	let disp_properties = print_tree(temps.techs, disp_chars, pstats, tech_sel, tech_sel_mv, tree_offsets, screen_sz, TECH_SZ_PRINT, l, buttons, d);
 	
 	let w = screen_sz.w as i32;
 	
@@ -115,8 +114,8 @@ pub fn print_tech_tree(unit_templates: &Vec<UnitTemplate>, bldg_templates: &Vec<
 		if row < 0 || col < 0 {return;}
 		
 		// if the tech isn't used to discover any units or bldgs, return
-		if !unit_templates.iter().any(|ut| if let Some(tech_req) = &ut.tech_req {tech_req.contains(&(t as usize))} else {false}) &&
-		   !bldg_templates.iter().any(|bt| if let Some(tech_req) = &bt.tech_req {tech_req.contains(&(t as usize))} else {false}) {
+		if !temps.units.iter().any(|ut| if let Some(tech_req) = &ut.tech_req {tech_req.contains(&(t as usize))} else {false}) &&
+		   !temps.bldgs.iter().any(|bt| if let Some(tech_req) = &bt.tech_req {tech_req.contains(&(t as usize))} else {false}) {
 			return;
 		}
 		
@@ -171,7 +170,7 @@ pub fn print_tech_tree(unit_templates: &Vec<UnitTemplate>, bldg_templates: &Vec<
 								// print txt
 								d.mv(row,col+2);
 								d.attron(COLOR_PAIR(CGREEN));
-								d.addstr("Req for:");
+								d.addstr(&l.Req_for);
 								d.attroff(COLOR_PAIR(CGREEN));
 								row += 1;
 								
@@ -183,13 +182,13 @@ pub fn print_tech_tree(unit_templates: &Vec<UnitTemplate>, bldg_templates: &Vec<
 				}
 			};};
 			
-			print_unit_bldg_discov!(unit_templates); // temp
-			print_unit_bldg_discov!(bldg_templates);
+			print_unit_bldg_discov!(temps.units); // temp
+			print_unit_bldg_discov!(temps.bldgs);
 			
-			// resources discovered (stored slightly differently in `resource_templates`)
+			// resources discovered (stored slightly differently in `temps.resources`)
 			{
 				let mut any_discov = false;
-				for template in resource_templates.iter() {
+				for template in temps.resources.iter() {
 					if template.tech_req.contains(&(t as usize)) {
 						// first entry
 						if !any_discov {

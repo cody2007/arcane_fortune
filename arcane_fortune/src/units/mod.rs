@@ -3,7 +3,8 @@ pub mod vars;
 pub mod attack;
 pub use vars::*;
 pub use attack::*;
-use crate::map::{MapType, MapData, MapSz, ZoomInd, Stats, Owner, compute_active_window, PresenceAction};
+use crate::map::{MapType, MapData, MapSz, ZoomInd, compute_active_window, PresenceAction};
+use crate::player::{Stats, Player};
 use crate::movement::*;
 use crate::disp::{Coord, ScreenSz, IfaceSettings};
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
@@ -209,22 +210,19 @@ pub fn worker_can_continue_bldg(chk_path: bool, bldgs: &Vec<Bldg>, map_data: &mu
 }
 
 #[derive(PartialEq)]
-pub enum DelAction<'d,'bs,'ast,'bt,'ut,'rt,'dt> {
+pub enum DelAction<'d> {
 	Record(&'d mut Vec<usize>),
-	Delete {
-		barbarian_states: &'bs mut Vec<Option<BarbarianState>>,
-		ai_states: &'ast mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>
-	}
+	Delete
 }
 // ^ Record: mv_unit() appends to vector of unit inds that should be deleted
 // (because they boarded a boat, and mv_unit() can be called over loops of all units)
 // Delete: delete the unit that boarded the boat (becomes stored in the boats Unit structure)
 
 // move unit based on the next steps along its path_coords
-pub fn mv_unit<'bt,'ut,'rt,'dt,'d,'bs,'ast>(unit_ind: usize, is_cur_player: bool, 
+pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool, 
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		bldgs: &Vec<Bldg>, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>,
-		relations: &mut Relations, owners: &Vec<Owner>, map_sz: MapSz, del_action: DelAction, logs: &mut Vec<Log>, turn: usize) {
+		bldgs: &Vec<Bldg>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
+		relations: &mut Relations, map_sz: MapSz, del_action: DelAction, logs: &mut Vec<Log>, turn: usize) {
 	
 	//printlnq!("mv_unit");
 	
@@ -242,7 +240,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d,'bs,'ast>(unit_ind: usize, is_cur_player: bool
 	debug_assertq!(u.action.len() != 0);
 	
 	let u_owner = u.owner_id as usize;
-	let pstats = &mut stats[u_owner];
+	let pstats = &mut players[u_owner].stats;
 	
 	let action = u.action.last().unwrap();
 	debug_assertq!(action.path_coords.len() > 0);
@@ -319,12 +317,12 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d,'bs,'ast>(unit_ind: usize, is_cur_player: bool
 				
 				// discover land
 				}else{
-					compute_active_window(*step, u_owner, is_cur_player, PresenceAction::DiscoverOnly, map_data, exs, pstats, owners, map_sz, relations, units, logs, turn);
+					compute_active_window(*step, is_cur_player, PresenceAction::DiscoverOnly, map_data, exs, &mut players[u_owner].stats, map_sz, relations, units, logs, turn);
 				}
 			}
 		}
 		
-		set_coord(dest_coord, unit_ind, is_cur_player, units, map_data, exs, pstats, owners, map_sz, relations, logs, turn); // mv to destination
+		set_coord(dest_coord, unit_ind, is_cur_player, units, map_data, exs, &mut players[u_owner].stats, map_sz, relations, logs, turn); // mv to destination
 		let u = &mut units[unit_ind];
 		let action = u.action.last().unwrap();
 		let actions_req = action.actions_req;
@@ -430,7 +428,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d,'bs,'ast>(unit_ind: usize, is_cur_player: bool
 				let next_c = Coord::frm_ind(*next_coord, map_sz);
 				let prev_c = Coord::frm_ind(prev_coord, map_sz);
 				debug_assertq!((next_c.y - prev_c.y).abs() <= 1, "unit_ind {} {} owner {} next: {} {}  prev: {} {}", unit_ind, 
-						units[unit_ind].nm, owners[units[unit_ind].owner_id as usize].nm,
+						units[unit_ind].nm, players[units[unit_ind].owner_id as usize].personalization.nm,
 						next_c.y, next_c.x, prev_c.y, prev_c.x);
 				
 				//debug_assertq!(((next_coord % map_sz.w) as isize - (prev_coord % map_sz.w) as isize).abs() <= 1); // doesn't need to be true (wrap)
@@ -452,7 +450,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d,'bs,'ast>(unit_ind: usize, is_cur_player: bool
 				if next_step_traversable && cost_sum == actions_remaining {
 					u.actions_used = None; // no more actions available
 					
-					set_coord(dest_coord, unit_ind, is_cur_player, units, map_data, exs, pstats, owners, map_sz, relations, logs, turn);
+					set_coord(dest_coord, unit_ind, is_cur_player, units, map_data, exs, &mut players[u_owner].stats, map_sz, relations, logs, turn);
 					
 					let act = units[unit_ind].action.last_mut().unwrap();
 					act.path_coords.truncate(step_ind);
@@ -462,7 +460,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d,'bs,'ast>(unit_ind: usize, is_cur_player: bool
 				}else{
 					u.actions_used = Some(u.actions_used.unwrap() + prev_cost.ceil());
 					
-					set_coord(prev_coord, unit_ind, is_cur_player, units, map_data, exs, pstats, owners, map_sz, relations, logs, turn);
+					set_coord(prev_coord, unit_ind, is_cur_player, units, map_data, exs, &mut players[u_owner].stats, map_sz, relations, logs, turn);
 					
 					let act = units[unit_ind].action.last_mut().unwrap();
 					act.path_coords.truncate(step_ind + 1);
@@ -475,7 +473,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d,'bs,'ast>(unit_ind: usize, is_cur_player: bool
 			
 			// movable, discover land
 			}else if next_step_traversable {
-				compute_active_window(*next_coord, u_owner, is_cur_player, PresenceAction::DiscoverOnly, map_data, exs, pstats, owners, map_sz, relations, units, logs, turn);
+				compute_active_window(*next_coord, is_cur_player, PresenceAction::DiscoverOnly, map_data, exs, &mut players[u_owner].stats, map_sz, relations, units, logs, turn);
 			}
 			
 			prev_coord = *next_coord;
@@ -506,7 +504,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d,'bs,'ast>(unit_ind: usize, is_cur_player: bool
 			// board boat
 			debug_assertq!(u.units_carried == None);
 			let u = u.clone();
-			pstats.unit_expenses += u.template.upkeep;
+			players[u.owner_id as usize].stats.unit_expenses += u.template.upkeep;
 			let bu = &mut units[*boat_unit_ind];
 			if bu.units_carried == None {
 				bu.units_carried = Some(Vec::with_capacity(bu.template.carry_capac));
@@ -516,8 +514,8 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d,'bs,'ast>(unit_ind: usize, is_cur_player: bool
 			}
 			
 			match del_action {
-				DelAction::Delete {barbarian_states, ai_states} => {
-					disband_unit(unit_ind, is_cur_player, units, map_data, exs, stats, relations, barbarian_states, ai_states, owners, map_sz, logs, turn);
+				DelAction::Delete => {
+					disband_unit(unit_ind, is_cur_player, units, map_data, exs, players, relations, map_sz, logs, turn);
 				} DelAction::Record(disband_unit_inds) => {
 					disband_unit_inds.push(unit_ind);
 				}
@@ -620,9 +618,8 @@ impl <'bt,'ut,'rt,'dt> Unit<'bt,'ut,'rt,'dt> {
 }
 
 pub fn disband_units<'bt,'ut,'rt,'dt>(mut disband_unit_inds: Vec<usize>, cur_ui_player: SmSvType, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData<'rt>, 
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
-		barbarian_states: &mut Vec<Option<BarbarianState>>, ai_states: &mut Vec<Option<AIState>>,
-		owners: &Vec<Owner>, map_sz: MapSz, logs: &mut Vec<Log>, turn: usize) {
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
+		map_sz: MapSz, logs: &mut Vec<Log>, turn: usize) {
 	#[cfg(any(feature="opt_debug", debug_assertions))]
 	{
 		// require each entry to only occur once
@@ -639,7 +636,7 @@ pub fn disband_units<'bt,'ut,'rt,'dt>(mut disband_unit_inds: Vec<usize>, cur_ui_
 	for unit_ind in disband_unit_inds.iter().rev() {
 		debug_assertq!(units.len() > *unit_ind, "units len {}, unit_ind {} turn {}", units.len(), *unit_ind, turn);
 		if let Some(u) = units.get(*unit_ind) {
-			disband_unit(*unit_ind, u.owner_id == cur_ui_player, units, map_data, exs, stats, relations, barbarian_states, ai_states, owners, map_sz, logs, turn);
+			disband_unit(*unit_ind, u.owner_id == cur_ui_player, units, map_data, exs, players, relations, map_sz, logs, turn);
 		}
 	}
 }

@@ -22,7 +22,7 @@ pub enum TxtCategory {
 	Negative = 2
 }
 
-use crate::map::AIPersonality;
+use crate::player::AIPersonality;
 impl From<&AIPersonality> for TxtCategory {
 	fn from(personality: &AIPersonality) -> Self {
 		const SPACE: f32 = 2./3.;
@@ -45,8 +45,8 @@ const MAX_SEQ_LEN: usize = 60;
 // returns characters or entire strings from the category
 pub struct TxtGenerator {
 	model: ModelCPU,
-	input_ind: usize,
-	pred_ind: usize,
+	input_ind: usize, // input layer of model
+	pred_ind: usize, // output layer of model
 	category: TxtCategory,
 	dict_sz: usize,
 	t: usize,

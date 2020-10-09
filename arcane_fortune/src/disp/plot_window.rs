@@ -1,4 +1,5 @@
-use crate::map::{Owner, Stats, LOG_TURNS, PlayerType, MapData};
+use crate::map::{MapData};
+use crate::player::{Player, Stats, LOG_TURNS, PlayerType};
 use crate::disp_lib::*;
 use crate::gcore::Relations;
 use super::{float_string, set_player_color, Buttons, addstr_c};
@@ -8,7 +9,7 @@ use super::window::{center_txt};
 use crate::localization::Localization;
 
 pub enum ColoringType<'o> {
-	Owners(&'o Vec<Owner>),
+	Players,
 	Supplied {
 		colors: &'o Vec<CInt>,
 		lbls: &'o Vec<String>,
@@ -21,7 +22,7 @@ pub enum ColoringType<'o> {
 // ColoringType::Owners will plot each line in the color of the owners and a legend with the owner nms
 // ColoringType::Supplied will plot each line in the color supplied and create a legend with `lbls`
 pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_txt: &str, 
-		data: &Vec<Vec<T>>, disp_chars: &DispChars, iface_settings: &IfaceSettings, stats: &Vec<Stats>,
+		data: &Vec<Vec<T>>, disp_chars: &DispChars, iface_settings: &IfaceSettings, players: &Vec<Player>,
 		relations: &Relations, map_data: &MapData, plot_first_player_only: bool, l: &Localization,
 		buttons: &mut Buttons, d: &mut DispState) {
 	d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
@@ -66,7 +67,7 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 		let mut max_val;
 		
 		match coloring_type {
-			ColoringType::Owners(_) => {
+			ColoringType::Players => {
 				min_val = data[0][0].into();
 				max_val = min_val;
 				
@@ -170,27 +171,30 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 			
 			// plot
 			match coloring_type {
-				ColoringType::Owners(owners) => {
-					for (player_data, (owner, pstats)) in data.iter().zip(owners.iter().zip(stats.iter())) {
+				ColoringType::Players => {
+					for (player_data, player) in data.iter().zip(players.iter()) {
 						// only plot if civ discovered
-						if !relations.discovered(cur_player, owner.id as usize) {continue;}
-						if owner.player_type == PlayerType::Barbarian {continue;}
+						if !relations.discovered(cur_player, player.id as usize) {continue;}
+						match player.ptype {
+							PlayerType::Barbarian {..} | PlayerType::Nobility {..} => {continue;}
+							PlayerType::Human {..} | PlayerType::AI {..} => {}
+						}
 						
-						set_player_color(owner, true, d);
+						set_player_color(player, true, d);
 						// loop over time
 						for (x_d, (y_d, _alive)) in player_data.iter()
-										.zip(pstats.alive_log.iter()).enumerate()
+										.zip(player.stats.alive_log.iter()).enumerate()
 										.filter(|(_, (_, &alive))| plot_first_player_only || alive) {
 							d.mv(y(*y_d), x(x_d));
 							d.addch(disp_chars.land_char as chtype);
 						}
-						set_player_color(owner, false, d);
+						set_player_color(player, false, d);
 						
 						if plot_first_player_only {break;}
 					}
 				}
 				ColoringType::Supplied {colors, ign_cur_player_alive, ..} => { // ex. zoning, world prevailing doctrines
-					let pstats = &stats[iface_settings.cur_player as usize];
+					let pstats = &players[iface_settings.cur_player as usize].stats;
 					// loop over time series
 					for (tseries, color) in data.iter().zip(colors) {
 						d.attron(COLOR_PAIR(*color));
@@ -214,24 +218,27 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 			let mut max_len = l.Legend.len();
 			
 			match coloring_type {
-				ColoringType::Owners(owners) => {
+				ColoringType::Players => {
 					let mut row_counter = 0;
 					
-					for ((owner_id, owner), pstats) in owners.iter().enumerate().zip(stats) {
+					for (owner_id, player) in players.iter().enumerate() {
 						// only plot if discov
 						if !relations.discovered(cur_player, owner_id) {continue;}
-						if owner.player_type == PlayerType::Barbarian {continue;}
+						match player.ptype {
+							PlayerType::Barbarian {..} | PlayerType::Nobility {..} => {continue;}
+							PlayerType::Human {..} | PlayerType::AI {..} => {}
+						}
 						
 						d.mv(row_counter + ROW_TOP_GAP + LEGEND_ROW_GAP + 2, COL_START + LEGEND_COL_GAP);
-						set_player_color(owner, true, d);
+						set_player_color(player, true, d);
 						d.addch(disp_chars.land_char as chtype);
-						set_player_color(owner, false, d);
-						d.addstr(&format!(" {}", owner.nm));
+						set_player_color(player, false, d);
+						d.addstr(&format!(" {}", player.personalization.nm));
 						
-						let owner_len = if !pstats.alive {
+						let owner_len = if !player.stats.alive {
 							d.addstr(" (Historic)");
 							" (Historic)".len()
-						}else {0} + owner.nm.len();
+						}else {0} + player.personalization.nm.len();
 						
 						if max_len < owner_len {max_len = owner_len;}
 						

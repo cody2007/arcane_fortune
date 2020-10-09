@@ -3,13 +3,15 @@ use crate::resources::N_RESOURCES_DISCOV_LOG;
 use crate::gcore::{GameDifficulties, Log, LogType};
 use crate::doctrine::available_doctrines;
 use crate::localization::Localization;
-use crate::nobility::Houses;
+use crate::player::{Stats, PlayerType, Player};
+use crate::nobility::House;
 
-pub fn noble_houses_list<'bt,'ut,'rt,'dt>(houses: &Houses) -> OptionsUI<'bt,'ut,'rt,'dt> {
-	let mut nms_string = Vec::with_capacity(houses.houses.len());
+pub fn noble_houses_list<'bt,'ut,'rt,'dt>(cur_player: usize, relations: &Relations,
+		players: &Vec<Player>, l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
+	let mut nms_string = Vec::with_capacity(players.len());
 	
-	for house in houses.houses.iter() {
-		nms_string.push(house.name.clone());
+	for house_ind in relations.noble_houses(cur_player) {
+		nms_string.push(l.House_of.replace("[]", &players[house_ind].personalization.nm));
 	}
 	
 	// register_shortcuts takes [&str]s, so take references of all the strings
@@ -817,26 +819,27 @@ pub fn owned_city_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, cur_
 }
 
 // for creating list to display of player's cities
-pub fn contacted_civilizations_list<'bt,'ut,'rt,'dt>(relations: &Relations, stats: &Vec<Stats>,
-		owners: &Vec<Owner>, cur_player: SmSvType, turn: usize) -> OptionsUI<'bt,'ut,'rt,'dt> {
+pub fn contacted_civilizations_list<'bt,'ut,'rt,'dt>(relations: &Relations, players: &Vec<Player>, cur_player: SmSvType, turn: usize) -> OptionsUI<'bt,'ut,'rt,'dt> {
 	let cur_player = cur_player as usize;
 	
 	// get all civs contacted by player
-	let mut nms_string = Vec::with_capacity(owners.len());
-	let mut owner_ids = Vec::with_capacity(owners.len());
+	let mut nms_string = Vec::with_capacity(players.len());
+	let mut owner_ids = Vec::with_capacity(players.len());
 	
-	for ((owner_id, o), pstats) in owners.iter().enumerate().zip(stats.iter()) {
-		if relations.discovered(cur_player, owner_id) && owner_id != cur_player 
-				&& o.player_type != PlayerType::Barbarian && pstats.alive {
-			
-			let nm_string = if let Some(_) = relations.peace_treaty_turns_remaining(cur_player as usize, owner_id, turn) {
-				format!("{} (Peace treaty)", o.nm)
-			}else if relations.at_war(cur_player as usize, owner_id) {
-				format!("{} (WAR)", o.nm)
-			}else {o.nm.clone()};
-			
-			nms_string.push(nm_string);
-			owner_ids.push(owner_id);
+	for (owner_id, player) in players.iter().enumerate() {
+		if relations.discovered(cur_player, owner_id) && owner_id != cur_player && player.stats.alive {
+			match player.ptype {
+				PlayerType::AI {..} | PlayerType::Human {..} => {
+					let nm_string = if let Some(_) = relations.peace_treaty_turns_remaining(cur_player as usize, owner_id, turn) {
+						format!("{} (Peace treaty)", player.personalization.nm)
+					}else if relations.at_war(cur_player as usize, owner_id) {
+						format!("{} (WAR)", player.personalization.nm)
+					}else {player.personalization.nm.clone()};
+					
+					nms_string.push(nm_string);
+					owner_ids.push(owner_id);
+				} PlayerType::Nobility {..} | PlayerType::Barbarian {..} => {}
+			}
 		}
 	}
 	
@@ -860,14 +863,17 @@ pub fn contacted_civilizations_list<'bt,'ut,'rt,'dt>(relations: &Relations, stat
 }
 
 // for creating list of all players
-pub fn all_civilizations_list<'bt,'ut,'rt,'dt>(owners: &Vec<Owner>) -> OptionsUI<'bt,'ut,'rt,'dt> {
-	let mut nms_string = Vec::with_capacity(owners.len());
-	let mut owner_ids = Vec::with_capacity(owners.len());
+pub fn all_civilizations_list<'bt,'ut,'rt,'dt>(players: &Vec<Player>) -> OptionsUI<'bt,'ut,'rt,'dt> {
+	let mut nms_string = Vec::with_capacity(players.len());
+	let mut owner_ids = Vec::with_capacity(players.len());
 	
-	for (owner_id, o) in owners.iter().enumerate() {
-		if o.player_type != PlayerType::Barbarian {
-			nms_string.push(o.nm.clone());
-			owner_ids.push(owner_id);
+	for (owner_id, player) in players.iter().enumerate() {
+		match player.ptype {
+			PlayerType::Barbarian {..} | PlayerType::Nobility {..} => {}
+			PlayerType::AI {..} | PlayerType::Human {..} => {
+				nms_string.push(player.personalization.nm.clone());
+				owner_ids.push(owner_id);
+			}
 		}
 	}
 	
@@ -1121,7 +1127,7 @@ pub fn explore_types_list<'bt,'ut,'rt,'dt>(l: &Localization) -> OptionsUI<'bt,'u
 pub fn print_list_window(mut mode: usize, top_txt: &str, mut options: OptionsUI,
 		iface_settings: &IfaceSettings, disp_chars: &DispChars,
 		w_opt: Option<usize>, label_txt: Option<String>, n_gap_lines: usize,
-		owners_opt: Option<&Vec<Owner>>, l: &Localization,
+		owners_opt: Option<&Vec<Player>>, l: &Localization,
 		buttons: &mut Buttons, d: &mut DispState) -> (Coord, Coord) {
 	let n_orig_options = options.options.len();
 	let mode_orig = mode;

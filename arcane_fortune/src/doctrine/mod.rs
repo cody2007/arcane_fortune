@@ -1,6 +1,6 @@
 use crate::saving::*;
 use crate::config_load::*;
-use crate::map::Stats;
+use crate::player::Stats;
 use crate::resources::ResourceTemplate;
 use crate::buildings::BldgTemplate;
 use crate::units::UnitTemplate;

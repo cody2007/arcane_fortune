@@ -1,15 +1,14 @@
 use std::time::Instant;
 use std::collections::VecDeque;
-use crate::map::{MapEx, Owner, Nms, ZoneType, Map, Stats, MapSz, AIPersonality,
-	ZoneDemandType, MapType, TechProg, PlayerType, ResourceCont,
-	StructureType, LandDiscov, PersonName
+use crate::map::{MapEx, ZoneType, Map, MapSz, ZoneDemandType, MapType, TechProg, ResourceCont,
+	StructureType, LandDiscov
 };
+use crate::player::{Nms, AIPersonality, Stats, PlayerType, PersonName, Personalization, Player};
 use crate::zones::{ZoneDemandRaw, StructureData,
 	ZoneAgnosticStats, ZoneAgnosticContribFracs, ZoneAgnosticLocallyLogged};
 use crate::disp::{Coord, ScreenSz, Fire, FireTile};
 use crate::doctrine::DoctrineTemplate;
 use crate::buildings::*;
-use crate::nobility::*;
 use crate::units::*;
 use crate::tech::*;
 use crate::ai::{AttackFront, AttackFronts, AttackFrontState, AIState,
@@ -17,7 +16,8 @@ use crate::ai::{AttackFront, AttackFronts, AttackFrontState, AIState,
 use crate::gcore::{LogType, Log, Relations, RelationsConfig,
 	Sector, Brigade, Rectangle, PerimCoords};
 use crate::resources::ResourceTemplate;
-use crate::gcore::{WarStatus, Bonuses};//, HashStruct64};
+use crate::gcore::{RelationStatus, Bonuses};//, HashStruct64};
+use crate::nobility::*;
 
 pub type SmSvType = u32; // ex, to cast down from usize
 
@@ -201,9 +201,9 @@ impl Default for PersonName {
 		PersonName {first: String::new(), last: String::new()}
 }}
 
-impl Default for Owner {
+impl Default for Personalization {
 	fn default() -> Self {
-		Owner {id: 0,
+		Self {
 			color: 0,
 			nm: String::new(),
 			gender_female: false,
@@ -215,7 +215,6 @@ impl Default for Owner {
 			unemployment_advisor_nm: PersonName::default(),
 			motto: String::new(),
 			city_nm_theme: 0,
-			player_type: PlayerType::Barbarian,
 }}}
 
 impl Default for TechTemplate {
@@ -253,6 +252,7 @@ impl Default for Bonuses {
 impl <'bt,'ut,'rt,'st>Stats<'bt,'ut,'rt,'st> {
 	pub fn default(doctrine_templates: &'st Vec<DoctrineTemplate>) -> Self {
 		Stats {
+			id: 0,
 			alive: true,
 			population: 0,
 			gold: 0.,
@@ -298,8 +298,6 @@ impl <'bt,'ut,'rt,'st>Stats<'bt,'ut,'rt,'st> {
 			
 			brigades: Vec::new(),
 			sectors: Vec::new(),
-			
-			houses: Default::default(),
 			
 			land_discov: Vec::new(),
 			fog: Vec::new()
@@ -380,16 +378,6 @@ impl Default for RelationsConfig {
 	}
 }
 
-impl Default for Relations {
-	fn default() -> Self {
-		Self {
-			war: Vec::new(),
-			discov: Vec::new(),
-			mood_toward: Vec::new(),
-			n_owners: 0,
-			config: Default::default()
-}}}
-	
 impl Default for AIPersonality {
 	fn default() -> Self {
 		AIPersonality {
@@ -399,8 +387,8 @@ impl Default for AIPersonality {
 	}
 }
 
-impl Default for WarStatus {
-	fn default() -> Self {WarStatus::Peace {turn_started: 0}}
+impl Default for RelationStatus {
+	fn default() -> Self {Self::Peace {turn_started: 0}}
 }
 
 impl Default for DoctrineTemplate {
@@ -489,6 +477,62 @@ impl Default for ZoneAgnosticLocallyLogged {
 impl Default for Rectangle {
 	fn default() -> Self {
 		Rectangle {start: Coord::default(), end: Coord::default()}
+	}
+}
+
+/*impl Default for Player<'_,'_,'_,'_> {
+	fn default() -> Self {
+		Self {
+			id: 0,
+			ptype: Default::default(),
+			personalization: Default::default(),
+			stats: Default::default(), // requires reference, does not have default
+			zone_exs: Default::default()
+		}
+	}
+}*/
+
+impl Default for House<'_,'_,'_,'_> {
+	fn default() -> Self {
+		Self {
+			head_noble_pair_ind: 0,
+			noble_pairs: Vec::new(),
+			
+			personality: Default::default(),
+			
+			city_state: Default::default(),
+			attack_fronts: Default::default(),
+			has_req_to_join: false
+		}
+	}
+}
+
+impl Default for Noble {
+	fn default() -> Self {
+		Self {
+			name: Default::default(),
+			personality: Default::default(),
+			born_turn: 0,
+			gender_female: false
+		}
+	}
+}
+
+impl Default for Marriage {
+	fn default() -> Self {
+		Self {
+			partner: Default::default(),
+			children: Vec::new()
+		}
+	}
+}
+
+impl Default for NoblePair {
+	fn default() -> Self {
+		Self {
+			noble: Default::default(),
+			marriage: None
+		}
 	}
 }
 

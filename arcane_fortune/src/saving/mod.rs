@@ -30,8 +30,9 @@ use crate::units::*;
 use crate::buildings::*;
 use crate::doctrine::*;
 use crate::disp::*;
+use crate::player::*;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx, HashedFogVars, HashedCoords, HashStruct64};
-use crate::gcore::{LogType, WarStatus};
+use crate::gcore::{LogType, RelationStatus};
 use crate::zones::*;
 use crate::ai::{AttackFrontState, Neighbors};
 use crate::resources::ResourceTemplate;
@@ -391,18 +392,21 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for AttackFrontState {
 	}
 }
 
-///////////// WarStatus
-impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for WarStatus {
+///////////// RelationStatus
+impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for RelationStatus {
 	fn sv(&self, res: &mut Vec<u8>){
 		match self {
-			WarStatus::Peace {turn_started} => {
+			RelationStatus::Peace {turn_started} => {
 				res.push(0);
 				turn_started.sv(res);
-			}
-			WarStatus::War {turn_started} => {
+			} RelationStatus::War {turn_started} => {
 				res.push(1);
 				turn_started.sv(res);
+			} RelationStatus::Fiefdom {turn_joined} => {
+				res.push(2);
+				turn_joined.sv(res);
 			}
+
 		}
 	}
 	
@@ -412,53 +416,81 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for WarStatus {
 		
 		*self = match res[*o-1] {
 			0 => {
-				let mut d = WarStatus::Peace {turn_started: 0};
-				if let WarStatus::Peace {ref mut turn_started} = d {
+				let mut d = RelationStatus::Peace {turn_started: 0};
+				if let RelationStatus::Peace {ref mut turn_started} = d {
 					ld_vals!(turn_started);
 				}
 				d
-			}
-			1 => {
-				let mut d = WarStatus::War {turn_started: 0};
-				if let WarStatus::War {ref mut turn_started} = d {
+			} 1 => {
+				let mut d = RelationStatus::War {turn_started: 0};
+				if let RelationStatus::War {ref mut turn_started} = d {
 					ld_vals!(turn_started);
 				}
 				d
+			} 2 => {
+				let mut d = RelationStatus::Fiefdom {turn_joined: 0};
+				if let RelationStatus::Fiefdom {ref mut turn_joined} = d {
+					ld_vals!(turn_joined);
+				}
+				d
 			}
-			_ => {panicq!("unknown warstatus type")}
+			_ => {panicq!("unknown relationstatus type")}
 		}
 	}
 }
 
 ///////// PlayerType
-impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for PlayerType {
+impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for PlayerType<'bt,'ut,'rt,'dt> {
 	fn sv(&self, res: &mut Vec<u8>){
 		match self {
-			PlayerType::Human => {
+			PlayerType::Human {ai_state} => {
 				res.push(0);
-			} PlayerType::AI(personality) => {
+				ai_state.sv(res);
+			} PlayerType::AI {ai_state, personality} => {
 				res.push(1);
+				ai_state.sv(res);
 				personality.sv(res);
-			} PlayerType::Barbarian => {
+			} PlayerType::Barbarian {barbarian_state} => {
 				res.push(2);
-			} PlayerType::Nobility => {
+				barbarian_state.sv(res);
+			} PlayerType::Nobility {house} => {
 				res.push(3);
+				house.sv(res);
 			}
 	}}
 	
-	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
+	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
 		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
 		
 		*self = match res[*o-1] {
-			0 => { PlayerType::Human
-			} 1 => {
-				let mut d = PlayerType::AI(AIPersonality::default());
-				if let PlayerType::AI(ref mut personality) = d {
-					ld_vals!(personality);
-				}
+			0 => {
+				let mut d = PlayerType::Human {ai_state: Default::default()};
+				if let PlayerType::Human {ref mut ai_state} = d {
+					ld_vals!(ai_state);
+				}else{panicq!("invalid value");}
 				d
-			} 2 => { PlayerType::Barbarian
+			
+			} 1 => {
+				let mut d = PlayerType::AI {ai_state: Default::default(), personality: AIPersonality::default()};
+				if let PlayerType::AI {ref mut ai_state, ref mut personality} = d {
+					ld_vals!(ai_state, personality);
+				}else{panicq!("invalid value");}
+				d
+			} 2 => {
+				let mut d = PlayerType::Barbarian {barbarian_state: Default::default()};
+				if let PlayerType::Barbarian {ref mut barbarian_state} = d {
+					ld_vals!(barbarian_state);
+				}else{panicq!("invalid value");}
+				d
+			
+			} 3 => {
+				let mut d = PlayerType::Nobility {house: Default::default()};
+				if let PlayerType::Nobility {ref mut house} = d {
+					ld_vals!(house);
+				}else{panicq!("invalid value");}
+				d
+			
 			} _ => {panicq!("invalid player type in file")}
 };}}
 
@@ -1556,39 +1588,28 @@ fn ld_exs<'bt,'ut,'rt,'dt>(exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, res: &Ve
 }
 
 ////////// ZoneEx
-fn sv_zone_exs(zone_exs_owners: &Vec<HashedMapZoneEx>, res: &mut Vec<u8>){
-	zone_exs_owners.len().sv(res);
-	for zone_exs in zone_exs_owners.iter() {
-		zone_exs.len().sv(res); // save length
-		
-		for (key, val) in zone_exs.iter() { // save vals
+impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for HashedMapZoneEx {
+	fn sv(&self, res: &mut Vec<u8>){
+		self.len().sv(res);
+		for (key, val) in self.iter() {
 			key.sv(res);
 			val.sv(res);
 		}
 	}
-}
-
-fn ld_zone_exs<'bt,'ut,'rt,'dt>(zone_exs_owners: &mut Vec<HashedMapZoneEx>, res: &Vec<u8>, o: &mut usize, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
-	let mut n_owners: usize = 0;
-	n_owners.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);
 	
-	*zone_exs_owners = Vec::with_capacity(n_owners);
-	
-	for _ in 0..n_owners {
-		let s: BuildHasherDefault<HashStruct64> = Default::default();
-		let mut n_hash_entries: usize = 0;
-		n_hash_entries.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);
-		let mut zone_exs = HashMap::with_capacity_and_hasher(n_hash_entries, s);
+	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
+		let mut sz: usize = 0;
+		sz.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);
 		
-		for _ in 0..n_hash_entries {
+		let s: BuildHasherDefault<HashStruct64> = Default::default();
+		*self = HashMap::with_capacity_and_hasher(sz, s);
+		for _ in 0..sz {
 			let mut key: u64 = 0;
 			key.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);
 			let mut val: ZoneEx = ZoneEx::default();
 			val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);
-			zone_exs.insert(key, val);
+			self.insert(key, val);
 		}
-		
-		zone_exs_owners.push(zone_exs);
 	}
 }
 

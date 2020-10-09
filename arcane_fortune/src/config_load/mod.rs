@@ -6,7 +6,7 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use crate::gcore::XorState;
-use crate::map::{PersonName, Nms};
+use crate::player::{PersonName, Nms};
 use crate::disp_lib::endwin;
 use crate::disp::{ScreenSz, DispChars};
 use crate::units::*;

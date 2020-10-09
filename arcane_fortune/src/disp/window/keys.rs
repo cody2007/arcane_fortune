@@ -8,13 +8,15 @@ use crate::units::{ActionType, add_unit, ActionMeta, DelAction, mv_unit, Explore
 use crate::tech::{TechTemplate, TECH_SZ_PRINT};
 use crate::saving::{GameState};
 use crate::gcore::{Log, Relations, XorState, worker_inds};
-use crate::saving::save_game::{SaveType, SAVE_DIR, save_game};
+use crate::saving::save_game::{SaveType, SAVE_DIR};//, save_game};
 use crate::ai::{AIState, BarbarianState, AIConfig};
 use crate::resources::ResourceTemplate;
 use crate::doctrine::{DoctrineTemplate, DOCTRINE_SZ_PRINT};
 use crate::nn::{TxtPrinter, TxtCategory};
 use crate::keyboard::KeyboardMap;
+use crate::player::Player;
 use crate::localization::Localization;
+use crate::containers::Templates;
 use crate::nobility::House;
 
 use super::*;
@@ -97,18 +99,11 @@ fn tree_window_movement(k: i32, sel_mv: &mut TreeSelMv, tree_offsets: &mut Optio
 
 // returns true if window active, false if not active or no longer active
 pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option<MEVENT>, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, 
-		bldg_config: &BldgConfig, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
+		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 		production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>,
-		stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>, unaffiliated_houses: &mut Vec<House>,
-		relations: &mut Relations, owners: &Vec<Owner>, doctrine_templates: &'dt Vec<DoctrineTemplate>,
-		unit_templates: &'ut Vec<UnitTemplate<'rt>>,
-		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, resource_templates: &'rt Vec<ResourceTemplate>,
-		tech_templates: &Vec<TechTemplate>, logs: &mut Vec<Log>, 
-		zone_exs_owners: &mut Vec<HashedMapZoneEx>, disp_settings: &mut DispSettings,
-		disp_chars: &DispChars, ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-		ai_config: &AIConfig, barbarian_states: &mut Vec<Option<BarbarianState>>, 
-		nms: &Nms, menu_options: &mut OptionsUI, frame_stats: &FrameStats,
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, relations: &mut Relations, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+		logs: &mut Vec<Log>, disp_settings: &mut DispSettings, disp_chars: &DispChars,
+		menu_options: &mut OptionsUI, frame_stats: &FrameStats,
 		turn: usize, game_state: &mut GameState, game_difficulties: &GameDifficulties,
 		rng: &mut XorState, kbd: &KeyboardMap, l: &Localization, 
 		buttons: &mut Buttons, d: &mut DispState) -> UIRet {
@@ -126,7 +121,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				EncyclopediaState::ExemplarSelection {
 					category: EncyclopediaCategory::Bldg,
 					ref mut mode, ..}} => {
-				let options = encyclopedia_bldg_list(bldg_templates, l);
+				let options = encyclopedia_bldg_list(temps.bldgs, l);
 				if let ArgOptionUI::Ind(None) = options.options[ind].arg {
 					return UIRet::Active;
 				}
@@ -200,7 +195,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 	}
 	
 	let exf = exs.last().unwrap();
-	let pstats = &mut stats[iface_settings.cur_player as usize];
+	let pstats = &mut players[iface_settings.cur_player as usize].stats;
 	
 	/////////////// tech window
 	// (should be checked first as the remaining if statements are first checking the cursor location, then
@@ -216,11 +211,11 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			if let Some(sel) = sel {
 				// not already scheduled
 				if !pstats.techs_scheduled.contains(&sel) {
-					pstats.start_researching(sel, tech_templates);
+					pstats.start_researching(sel, temps.techs);
 					
 				// unschedule
 				}else{
-					pstats.stop_researching(sel, tech_templates);
+					pstats.stop_researching(sel, temps.techs);
 				}
 			}
 		}
@@ -228,7 +223,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		return UIRet::Active;
 	
 	}else if let UIMode::NoblePedigree {ref mut mode, ref mut house_nm, ..} = iface_settings.ui_mode {
-		let list = noble_houses_list(&pstats.houses);
+		/*let list = noble_houses_list(&pstats.houses);
 		
 		macro_rules! enter_action{($mode: expr) => {
 			if let Some(house) = pstats.houses.houses.get(*mode) {
@@ -261,7 +256,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			} k if k == '\n' as i32 => {
 				enter_action!(*mode);
 			} _ => {}
-		}
+		}*/
 		return UIRet::Active;
 		
 	}else if let UIMode::DoctrineWindow {ref mut sel_mv, ref mut tree_offsets, ..} = iface_settings.ui_mode {
@@ -430,7 +425,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		if buttons.Save.activated(key_pressed, mouse_event) && save_nm.len() > 0 {
 			iface_settings.save_nm = save_nm.clone();
 			iface_settings.reset_auto_turn(d); // save_game will clear iface_settings.ui_mode which contains the prior value of the auto turn setting
-			save_game(SaveType::Manual, turn, map_data, exs, zone_exs_owners, bldg_config, bldgs, units, stats, unaffiliated_houses, relations, iface_settings, doctrine_templates, bldg_templates, unit_templates, resource_templates, owners, nms, disp_settings, disp_chars, tech_templates, ai_states, ai_config, barbarian_states, logs, l, frame_stats, rng, d);
+			//save_game(SaveType::Manual, turn, map_data, exs, zone_exs_owners, bldg_config, bldgs, units, stats, unaffiliated_houses, relations, iface_settings, temps.doctrines, temps.bldgs, temps.units, temps.resources, owners, nms, disp_settings, disp_chars, temps.techs, ai_states, ai_config, barbarian_states, logs, l, frame_stats, rng, d);
 			end_window(iface_settings, d);
 		}else{
 			do_txt_entry_keys!(key_pressed, curs_col, save_nm, Printable::FileNm, iface_settings, d);
@@ -446,7 +441,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				if let Result::Ok(x) = coordinates[1].trim().parse() {
 					let map_sz = map_data.map_szs[iface_settings.zoom_ind];
 					if y < map_sz.h as isize {
-						iface_settings.center_on_next_unmoved_menu_item(true, FindType::Coord(Coord {y, x}.to_ind(map_sz) as u64), map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, turn, d);
+						iface_settings.center_on_next_unmoved_menu_item(true, FindType::Coord(Coord {y, x}.to_ind(map_sz) as u64), map_data, exs, units, bldgs, relations, players, logs, turn, d);
 						iface_settings.reset_auto_turn(d);
 						end_window(iface_settings, d);
 					}
@@ -615,7 +610,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			} UIMode::CitiesWindow {..} => {
 				owned_city_list(bldgs, iface_settings.cur_player, cursor_coord, &mut w, &mut label_txt_opt, map_sz, logs, l)
 			} UIMode::ImprovementBldgsWindow {..} => {
-				owned_improvement_bldgs_list(bldgs, doctrine_templates, iface_settings.cur_player, cursor_coord, &mut w, &mut label_txt_opt, map_sz, l)
+				owned_improvement_bldgs_list(bldgs, &temps.doctrines, iface_settings.cur_player, cursor_coord, &mut w, &mut label_txt_opt, map_sz, l)
 			} UIMode::MilitaryBldgsWindow {..} => {
 				owned_military_bldgs_list(bldgs, iface_settings.cur_player, cursor_coord, &mut w, &mut label_txt_opt, map_sz, l)
 			} UIMode::BrigadesWindow {brigade_action, ..} => {
@@ -695,7 +690,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					ArgOptionUI::BldgInd(bldg_ind) => {bldgs[bldg_ind].coord}
 					ArgOptionUI::CityInd(city_ind) => {bldgs[city_ind].coord}
 					ArgOptionUI::SectorInd(sector_ind) => {
-						let pstats = &mut stats[iface_settings.cur_player as usize];
+						let pstats = &mut players[iface_settings.cur_player as usize].stats;
 						let mode = $mode;
 						if let Some(sector) = pstats.sectors.get_mut(sector_ind) {
 							if let UIMode::SectorsWindow {sector_action, ..} = &iface_settings.ui_mode {
@@ -735,7 +730,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 					ArgOptionUI::BrigadeInd(brigade_ind) => {
 						// make sure the brigade exists and is non-empty
-						if let Some(brigade) = stats[iface_settings.cur_player as usize].brigades.get_mut(brigade_ind) {
+						if let Some(brigade) = players[iface_settings.cur_player as usize].stats.brigades.get_mut(brigade_ind) {
 							*mode = 0;
 							if let UIMode::BrigadesWindow {ref mut brigade_action, ..} = iface_settings.ui_mode {
 								match brigade_action {
@@ -754,7 +749,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					_ => {panicq!("unit inventory list argument option not properly set");}
 				};
 				
-				iface_settings.center_on_next_unmoved_menu_item(true, FindType::Coord(coord), map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, turn, d);
+				iface_settings.center_on_next_unmoved_menu_item(true, FindType::Coord(coord), map_data, exs, units, bldgs, relations, players, logs, turn, d);
 				end_window(iface_settings, d);
 				
 				return UIRet::Active;
@@ -789,14 +784,14 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 	}else if let UIMode::ContactEmbassyWindow {ref mut state} = iface_settings.ui_mode {
 		match state {
 			EmbassyState::CivSelection {ref mut mode} => {
-				let list = contacted_civilizations_list(relations, stats, owners, iface_settings.cur_player, turn);
+				let list = contacted_civilizations_list(relations, players, iface_settings.cur_player, turn);
 				
 				macro_rules! enter_action{($mode: expr) => {
 					let owner_id = if let ArgOptionUI::OwnerInd(owner_ind) = list.options[$mode].arg {
 						owner_ind
 					}else{panicq!("list argument option not properly set");};
 					
-					let quote_category = TxtCategory::from_relations(relations, owner_id, iface_settings.cur_player as usize, owners);
+					let quote_category = TxtCategory::from_relations(relations, owner_id, iface_settings.cur_player as usize, players);
 					
 					*state = EmbassyState::DialogSelection {
 						mode: 0,
@@ -847,7 +842,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 							// threaten
 							0 => {
 								relations.threaten(cur_player, *owner_id);
-								let quote_category = TxtCategory::from_relations(relations, *owner_id, cur_player, owners);
+								let quote_category = TxtCategory::from_relations(relations, *owner_id, cur_player, players);
 								
 								*state = EmbassyState::Threaten {
 											owner_id: *owner_id,
@@ -857,7 +852,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 							} 1 => {
 								// declare peace (move to treaty proposal page)
 								if relations.at_war(*owner_id, cur_player) {
-									let quote_category = TxtCategory::from_relations(relations, *owner_id, cur_player, owners);
+									let quote_category = TxtCategory::from_relations(relations, *owner_id, cur_player, players);
 									d.curs_set(CURSOR_VISIBILITY::CURSOR_VISIBLE);
 									
 									const DEFAULT_GOLD: &str = "0";
@@ -872,9 +867,9 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 								// declare war
 								}else{
 									let owner_id = *owner_id;
-									relations.declare_war(cur_player, owner_id, logs, owners, turn, iface_settings, iface_settings.cur_player_paused(ai_states),
+									relations.declare_war(cur_player, owner_id, logs, players, turn, iface_settings, iface_settings.cur_player_paused(players),
 											disp_settings, menu_options, rng, d);
-									let quote_category = TxtCategory::from_relations(relations, owner_id, cur_player, owners);
+									let quote_category = TxtCategory::from_relations(relations, owner_id, cur_player, players);
 									
 									// if let statement needed to satisfy the borrow checker
 									if let UIMode::ContactEmbassyWindow {ref mut state} = iface_settings.ui_mode {
@@ -898,19 +893,19 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				// enter key pressed
 				if key_pressed == '\n' as i32 && gold_offering.len() > 0 {
 					if let Result::Ok(gold_offering) = gold_offering.parse() {
-						if let Some(a_state) = &ai_states[*owner_id] {
+						if let Some(a_state) = players[*owner_id].ptype.ai_state() {
 							// the relevant player has sufficient gold for the treaty
-							let gold_sufficient = (gold_offering >= 0. && stats[iface_settings.cur_player as usize].gold >= gold_offering) ||
-										    (gold_offering < 0. && stats[*owner_id].gold >= (-gold_offering));
+							let gold_sufficient = (gold_offering >= 0. && players[iface_settings.cur_player as usize].stats.gold >= gold_offering) ||
+										    (gold_offering < 0. && players[*owner_id].stats.gold >= (-gold_offering));
 							
 							// ai accepts the treaty
-							if gold_sufficient && a_state.accept_peace_treaty(*owner_id, iface_settings.cur_player as usize, gold_offering, relations, stats, owners, turn) {
+							if gold_sufficient && a_state.accept_peace_treaty(*owner_id, iface_settings.cur_player as usize, gold_offering, relations, players, turn) {
 								relations.declare_peace(iface_settings.cur_player as usize, *owner_id, logs, turn);
 								
-								stats[iface_settings.cur_player as usize].gold -= gold_offering;
-								stats[*owner_id].gold += gold_offering;
+								players[iface_settings.cur_player as usize].stats.gold -= gold_offering;
+								players[*owner_id].stats.gold += gold_offering;
 								
-								let quote_category = TxtCategory::from_relations(relations, *owner_id, iface_settings.cur_player as usize, owners);
+								let quote_category = TxtCategory::from_relations(relations, *owner_id, iface_settings.cur_player as usize, players);
 								
 								*state = EmbassyState::DeclarePeace {
 											owner_id: *owner_id,
@@ -936,7 +931,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 	}else if let UIMode::CivilizationIntelWindow {ref mut mode, ref mut selection_phase} = iface_settings.ui_mode {
 		// civilization selection window
 		if *selection_phase {
-			let list = contacted_civilizations_list(relations, stats, owners, iface_settings.cur_player, turn);
+			let list = contacted_civilizations_list(relations, players, iface_settings.cur_player, turn);
 			if let Some(ind) = buttons.list_item_clicked(mouse_event) {	
 				*mode = ind;
 				*selection_phase = false;
@@ -976,7 +971,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 
 	//////////////////// switch to player
 	}else if let UIMode::SwitchToPlayerWindow {ref mut mode} = iface_settings.ui_mode {
-		let list = all_civilizations_list(owners);
+		let list = all_civilizations_list(players);
 		macro_rules! enter_action{($mode: expr) => {
 			if let ArgOptionUI::OwnerInd(owner_ind) = list.options[$mode].arg {
 				iface_settings.cur_player = owner_ind as SmSvType;
@@ -986,10 +981,10 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			iface_settings.unit_subsel = 0;
 			iface_settings.add_action_to = AddActionTo::None;
 			
-			let pstats = &mut stats[iface_settings.cur_player as usize];
-			*production_options = init_bldg_prod_windows(bldg_templates, pstats, l);
-			update_menu_indicators(menu_options, iface_settings, iface_settings.cur_player_paused(ai_states), disp_settings);
-			compute_zoomed_out_discoveries(map_data, exs, pstats, owners);
+			let pstats = &mut players[iface_settings.cur_player as usize].stats;
+			*production_options = init_bldg_prod_windows(temps.bldgs, pstats, l);
+			update_menu_indicators(menu_options, iface_settings, iface_settings.cur_player_paused(players), disp_settings);
+			compute_zoomed_out_discoveries(map_data, exs, &mut players[iface_settings.cur_player as usize].stats);
 			
 			end_window(iface_settings, d);
 			return UIRet::Active;
@@ -1022,10 +1017,10 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 	
 	//////////////////// discover technology
 	}else if let UIMode::DiscoverTechWindow {ref mut mode} = iface_settings.ui_mode {
-		let list = undiscovered_tech_list(&pstats, tech_templates, l);
+		let list = undiscovered_tech_list(&pstats, temps.techs, l);
 		macro_rules! enter_action{($mode: expr) => {
 			if let ArgOptionUI::TechInd(tech_ind) = list.options[$mode].arg {
-				pstats.force_discover_undiscov_tech(tech_ind as SmSvType, tech_templates, bldg_templates, production_options, l);
+				pstats.force_discover_undiscov_tech(tech_ind as SmSvType, temps, production_options, l);
 			}else{panicq!("invalid UI setting");}
 			
 			end_window(iface_settings, d);
@@ -1059,15 +1054,15 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 	
 	//////////////////// obtain resource
 	}else if let UIMode::ObtainResourceWindow {ref mut mode} = iface_settings.ui_mode {
-		let list = all_resources_list(resource_templates, l);
+		let list = all_resources_list(temps.resources, l);
 		macro_rules! enter_action{($mode:expr) => {
 			if let ArgOptionUI::ResourceInd(resource_ind) = list.options[$mode].arg {
-				for tech_req in resource_templates[resource_ind].tech_req.iter() {
-					pstats.force_discover_undiscov_tech((*tech_req) as SmSvType, tech_templates, bldg_templates, production_options, l);
+				for tech_req in temps.resources[resource_ind].tech_req.iter() {
+					pstats.force_discover_undiscov_tech((*tech_req) as SmSvType, temps, production_options, l);
 				}
 				
 				pstats.resources_avail[resource_ind] += 1;
-				*production_options = init_bldg_prod_windows(bldg_templates, pstats, l);
+				*production_options = init_bldg_prod_windows(temps.bldgs, pstats, l);
 			}else{panicq!("invalid UI setting");}
 			
 			end_window(iface_settings, d);
@@ -1104,10 +1099,10 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		let list = game_difficulty_list(game_difficulties);
 		macro_rules! enter_action{($mode:expr) => {
 			let new_difficulty = &game_difficulties.difficulties[$mode];
-			for (pstats, owner) in stats.iter_mut().zip(owners.iter()) {
-				if owner.player_type.is_human() {continue;}
+			for player in players.iter_mut() {
+				if player.ptype.is_human() {continue;}
 				
-				pstats.bonuses = new_difficulty.ai_bonuses.clone();
+				player.stats.bonuses = new_difficulty.ai_bonuses.clone();
 			}
 			
 			end_window(iface_settings, d);
@@ -1141,14 +1136,13 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 
 	//////////////////// place unit
 	}else if let UIMode::PlaceUnitWindow {ref mut mode} = iface_settings.ui_mode {
-		let list = discovered_units_list(&pstats, unit_templates, l);
+		let list = discovered_units_list(&pstats, temps.units, l);
 		macro_rules! enter_action{($mode:expr) => {
 			if let ArgOptionUI::UnitTemplate(Some(ut)) = list.options[$mode].arg {
 				if iface_settings.zoom_ind == map_data.max_zoom_ind() {
 					let c = iface_settings.cursor_to_map_ind(map_data);
 					let owner_id = iface_settings.cur_player as usize;
-					add_unit(c, iface_settings.cur_player, true, ut, units, map_data, exs, bldgs, stats, relations, logs, &mut barbarian_states[owner_id], 
-						&mut ai_states[owner_id], unit_templates, owners, nms, turn, rng);
+					add_unit(c, true, ut, units, map_data, exs, bldgs, &mut players[owner_id], relations, logs, temps.units, &temps.nms, turn, rng);
 				}
 			}else{panicq!("invalid UI setting");}
 			
@@ -1200,11 +1194,11 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		let cursor_coord = iface_settings.cursor_to_map_coord(map_data);
 		
 		if let UIMode::ResourcesDiscoveredWindow {ref mut mode} = iface_settings.ui_mode {
-			let list = discovered_resources_list(&pstats, cursor_coord,	resource_templates, *map_data.map_szs.last().unwrap());
+			let list = discovered_resources_list(&pstats, cursor_coord,	temps.resources, *map_data.map_szs.last().unwrap());
 			
 			macro_rules! enter_action{($mode: expr) => {
 				if let ArgOptionUI::ResourceWCoord {coord, ..} = list.options[$mode].arg {
-					iface_settings.center_on_next_unmoved_menu_item(true, FindType::Coord(coord), map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, turn, d);
+					iface_settings.center_on_next_unmoved_menu_item(true, FindType::Coord(coord), map_data, exs, units, bldgs, relations, players, logs, turn, d);
 				}else{panicq!("invalid UI setting");}
 				
 				end_window(iface_settings, d);
@@ -1262,11 +1256,11 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		
 		let n_options = |category| {
 			match category {
-				EncyclopediaCategory::Unit => {unit_templates.len()}
-				EncyclopediaCategory::Bldg => {bldg_templates.len()}
-				EncyclopediaCategory::Tech => {tech_templates.len()}
-				EncyclopediaCategory::Doctrine => {doctrine_templates.len()}
-				EncyclopediaCategory::Resource => {resource_templates.len()}
+				EncyclopediaCategory::Unit => {temps.units.len()}
+				EncyclopediaCategory::Bldg => {temps.bldgs.len()}
+				EncyclopediaCategory::Tech => {temps.techs.len()}
+				EncyclopediaCategory::Doctrine => {temps.doctrines.len()}
+				EncyclopediaCategory::Resource => {temps.resources.len()}
 			}
 		};
 		
@@ -1323,7 +1317,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			// make sure an inactive menu item wasn't clicked
 			if let EncyclopediaState::ExemplarSelection {selection_mode: true, 
 					category: EncyclopediaCategory::Bldg, ..} = &state {
-				let options = encyclopedia_bldg_list(bldg_templates, l);
+				let options = encyclopedia_bldg_list(temps.bldgs, l);
 				if let ArgOptionUI::Ind(None) = options.options[ind].arg {
 					return UIRet::Active;
 				}
@@ -1359,7 +1353,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					} EncyclopediaState::ExemplarSelection {selection_mode: true, category, ref mut mode} => {
 						// skip empty entries
 						if *category == EncyclopediaCategory::Bldg {
-							let options = encyclopedia_bldg_list(bldg_templates, l);
+							let options = encyclopedia_bldg_list(temps.bldgs, l);
 							*mode += 1;
 							// wrap
 							if *mode >= options.options.len() {
@@ -1385,7 +1379,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					} EncyclopediaState::ExemplarSelection {selection_mode: true, category, ref mut mode} => {
 						// skip empty entries
 						if *category == EncyclopediaCategory::Bldg {
-							let options = encyclopedia_bldg_list(bldg_templates, l);
+							let options = encyclopedia_bldg_list(temps.bldgs, l);
 							if *mode > 0 {
 								*mode -= 1;
 								// skip empty entry
@@ -1424,7 +1418,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			debug_assertq!(iface_settings.zoom_ind == map_data.max_zoom_ind());
 			//debug_assertq!(units[unit_ind].template.nm[0] == WORKER_NM);
 			
-			*production_options = init_bldg_prod_windows(&bldg_templates, pstats, l);
+			*production_options = init_bldg_prod_windows(&temps.bldgs, pstats, l);
 			
 			let opt = &production_options.worker; // get production options for worker
 			
@@ -1490,7 +1484,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			return UIRet::Active;
 		////////////////// select doctrine of building to be built
 		}else if let UIMode::SelectBldgDoctrine {ref mut mode, bldg_template} = iface_settings.ui_mode {
-			let list = doctrines_available_list(pstats, doctrine_templates, l);
+			let list = doctrines_available_list(pstats, temps.doctrines, l);
 			macro_rules! enter_action{($mode:expr) => {
 				if let ArgOptionUI::DoctrineTemplate(Some(doc)) = list.options[$mode].arg {
 					let act = ActionType::WorkerBuildBldg {
@@ -1541,11 +1535,11 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				for unit_ind in unit_inds {
 					let u = &mut units[unit_ind];
 					u.action.pop();
-					let land_discov = &stats[iface_settings.cur_player as usize].land_discov.last().unwrap();
+					let land_discov = &players[iface_settings.cur_player as usize].stats.land_discov.last().unwrap();
 					
 					if let Some(new_action) = explore_type.find_square_unexplored(unit_ind, u.return_coord(), map_data, exs, units, bldgs, land_discov, map_sz, true, rng) {
 						units[unit_ind].action.push(new_action);
-						mv_unit(unit_ind, true, units, map_data, exs, bldgs, stats, relations, owners, map_sz, DelAction::Delete {barbarian_states, ai_states}, logs, turn);
+						mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, relations, map_sz, DelAction::Delete, logs, turn);
 						iface_settings.reset_unit_subsel();
 						iface_settings.update_all_player_pieces_mvd_flag(units);
 					}
@@ -1823,7 +1817,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		if let UIMode::ProdListWindow {ref mut mode} = iface_settings.ui_mode {
 			debug_assertq!(iface_settings.zoom_ind == map_data.max_zoom_ind());
 			
-			*production_options = init_bldg_prod_windows(&bldg_templates, pstats, l);
+			*production_options = init_bldg_prod_windows(&temps.bldgs, pstats, l);
 			
 			if let Some(opt) = &production_options.bldgs[b.template.id as usize] { // get production options for current bldg
 				macro_rules! set_production {($ind: expr) => (

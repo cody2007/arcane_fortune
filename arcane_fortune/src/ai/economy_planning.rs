@@ -1,5 +1,5 @@
 use crate::buildings::BldgTemplate;
-use crate::map::{Stats, AIPersonality};
+use crate::player::{Stats, AIPersonality};
 use super::*;
 
 struct BonusBldg<'bt,'ut,'rt,'dt> {

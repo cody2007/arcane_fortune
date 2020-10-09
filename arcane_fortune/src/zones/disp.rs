@@ -1,6 +1,7 @@
 use crate::disp_lib::*;
 use crate::disp::*;
 use crate::gcore::hashing::HashedMapEx;
+use crate::player::Stats;
 use super::*;
 
 const MAX_ROAD_DIST: usize = 9;
@@ -107,10 +108,10 @@ pub fn new_zone_w_roads(coord_start: u64, coord_end: u64, map_sz: MapSz, exf: &H
 	roads
 }
 
-pub enum ZonePlotType<'s,'b,'bt,'ut,'rt,'st> {
+pub enum ZonePlotType<'s,'b,'bt,'ut,'rt,'dt> {
 	All {
-		pstats: &'s Stats<'bt,'ut,'rt,'st>,
-		bldgs: &'b Vec<Bldg<'bt,'ut,'rt,'st>>,
+		pstats: &'s Stats<'bt,'ut,'rt,'dt>,
+		bldgs: &'b Vec<Bldg<'bt,'ut,'rt,'dt>>,
 		owner_id: SmSvType
 	},
 	Single(f32, ZoneType) // plot single value (val, zone_type)

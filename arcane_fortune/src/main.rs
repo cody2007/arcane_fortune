@@ -1,3 +1,4 @@
+#![allow(warnings)]
 use std::time::*;
 //use std::time::{SystemTime, UNIX_EPOCH};
 //use std::process::exit;
@@ -26,6 +27,7 @@ mod nn;
 mod keyboard;
 mod localization;
 mod nobility;
+mod player;
 mod containers;
 
 use disp_lib::*;
@@ -45,7 +47,8 @@ use resources::init_resource_templates;
 use doctrine::init_doctrine_templates;
 use keyboard::KeyboardMap;
 use localization::Localization;
-use nobility::*;
+use player::*;
+//use nobility::*;
 use containers::*;
 
 fn main(){
@@ -79,24 +82,19 @@ fn main(){
 		let mut bldg_templates = Vec::new();
 		
 		let mut iface_settings = IfaceSettings::default("".to_string(), 0);
-		let mut menu_options = init_menus(&mut iface_settings, &vec![None; 1], &disp_settings);
+		let mut menu_options = init_menus(&mut iface_settings, &Vec::new(), &disp_settings);
 		let mut map_data = MapData::default(Vec::new(), 0, 0, 7, 0, &resource_templates_junk);
-		let mut owners = Vec::new();
 		let mut relations = Relations::default();
 		let mut nms = Nms::default(); // city names
 		let mut exs = Vec::new(); // vec indexed by zoom
-		let mut zone_exs_owners = Vec::new(); // vec indexed by owner
 		let mut bldg_config = BldgConfig::default();
 		let mut bldgs = Vec::new();
 		let mut units = Vec::new();
-		let mut stats = Vec::new();
-		let mut unaffiliated_houses = Vec::new();
 		let mut doctrine_templates = Vec::new();
 		let mut tech_templates = Vec::new();
 		let mut resource_templates = Vec::new();
-		let mut ai_states = Vec::new();
 		let mut ai_config = AIConfig::default();
-		let mut barbarian_states = Vec::new();
+		let mut players = Vec::new();
 		let mut logs = Vec::new();
 		let mut frame_stats = disp::FrameStats::init();
 		let mut turn = 0;
@@ -116,8 +114,9 @@ fn main(){
 				unit_templates = init_unit_templates(&tech_templates, &resource_templates, &lang);
 				bldg_templates = init_bldg_templates(&tech_templates, &unit_templates, &doctrine_templates, &disp_chars, &lang);
 				
-				new_game(&mut menu_options, &mut disp_settings, &mut turn, &mut map_data, &mut exs, &mut zone_exs_owners, &mut bldg_config, &mut bldgs, &mut units, &mut stats, &mut unaffiliated_houses, &mut relations, &mut iface_settings, &doctrine_templates, &bldg_templates,
-						&unit_templates, &resource_templates, &mut owners, &mut nms, &mut disp_chars, &tech_templates, &mut ai_states, &mut ai_config, &mut barbarian_states, &mut logs, &lang, &game_opts, &mut rng, &mut d);
+				new_game(&mut menu_options, &mut disp_settings, &mut turn, &mut map_data, &mut exs, &mut players, &mut bldg_config, &mut bldgs, &mut units, &mut relations,
+						&mut iface_settings, &doctrine_templates, &bldg_templates,
+						&unit_templates, &resource_templates, &mut nms, &mut disp_chars, &tech_templates, &mut ai_config, &mut logs, &lang, &game_opts, &mut rng, &mut d);
 			} GameState::Load(file_nm) => {
 				print_clear_centered_logo_txt(&lang.Loading_game, &disp_chars, &mut d);
 				
@@ -129,9 +128,26 @@ fn main(){
 				resource_templates.ld(&buf, &mut offset, &bldg_templates_junk, &unit_templates_junk, &resource_templates_junk, &doctrine_templates);
 				unit_templates.ld(&buf, &mut offset, &bldg_templates_junk, &unit_templates_junk, &resource_templates, &doctrine_templates);
 				bldg_templates.ld(&buf, &mut offset, &bldg_templates_junk, &unit_templates, &resource_templates, &doctrine_templates);
+				tech_templates.ld(&buf, &mut offset, &bldg_templates, &unit_templates, &resource_templates, &doctrine_templates);
+				ai_config.ld(&buf, &mut offset, &bldg_templates, &unit_templates, &resource_templates, &doctrine_templates);
+				bldg_config.ld(&buf, &mut offset, &bldg_templates, &unit_templates, &resource_templates, &doctrine_templates);
+				nms.ld(&buf, &mut offset, &bldg_templates, &unit_templates, &resource_templates, &doctrine_templates);
 				
-				load_game(buf, offset, &mut menu_options, &mut disp_settings, &mut turn, &mut map_data, &mut exs, &mut zone_exs_owners, &mut bldg_config, &mut bldgs, &mut units, &mut stats, &mut unaffiliated_houses, &mut relations, &mut iface_settings, &doctrine_templates, &bldg_templates,
-						&unit_templates, &resource_templates, &mut owners, &mut nms, &mut disp_chars, &mut tech_templates, &mut ai_states, &mut ai_config, &mut barbarian_states, &mut logs, &mut frame_stats, &mut rng, &mut d);
+				let temps = Templates {
+					bldgs: &bldg_templates,
+					units: &unit_templates,
+					doctrines: &doctrine_templates,
+					resources: &resource_templates,
+					techs: &tech_templates,
+					ai_config: ai_config.clone(),
+					bldg_config: bldg_config.clone(),
+					kbd: kbd.clone(),
+					nms: nms.clone(),
+					l: lang.clone(),
+				};
+				
+				load_game(buf, offset, &mut menu_options, &mut disp_settings, &mut turn, &mut map_data, &mut exs, &temps, &mut bldgs, &mut units, 
+						&mut relations, &mut iface_settings, &mut players, &mut disp_chars, &mut logs, &mut frame_stats, &mut rng, &mut d);
 				
 			} GameState::TitleScreen => {
 				game_state = show_title_screen(&disp_chars, &kbd, &mut buttons, &mut lang, &mut d);
@@ -139,7 +155,7 @@ fn main(){
 			}
 		}
 		
-		let mut production_options = init_bldg_prod_windows(&bldg_templates, &stats[iface_settings.cur_player as usize], &lang);
+		let mut production_options = init_bldg_prod_windows(&bldg_templates, &players[iface_settings.cur_player as usize].stats, &lang);
 		
 		const KEY_PRESSED_PAUSE: u32 = 450;
 		let mut t_last_key_pressed = Instant::now(); // temporarily pause game if key pressed within KEY_PRESS_PAUSE
@@ -166,7 +182,6 @@ fn main(){
 			kbd: kbd.clone(),
 			nms: nms.clone(),
 			l: lang.clone(),
-			owners: &owners
 		};
 		
 		match &iface_settings.ui_mode {
@@ -197,10 +212,12 @@ fn main(){
 			let last_alt_time_updated = if last_alt_time.elapsed().as_millis() as u32 > ALT_DELAY {
 				last_alt_time = Instant::now();
 				
-				if alt_ind < ALT_RESET {
-					alt_ind += 1;
-				}else{
-					alt_ind = 0;
+				if !screen_reader_mode() {
+					if alt_ind < ALT_RESET {
+						alt_ind += 1;
+					}else{
+						alt_ind = 0;
+					}
 				}
 				
 				true
@@ -242,15 +259,15 @@ fn main(){
 				#[cfg(feature="profile")]
 				let _g = Guard::new("main frame loop -> all key actions");
 				
-				match do_window_keys(key_pressed, &mouse_event, &mut map_data, &mut exs, &mut units, &bldg_config, &mut bldgs, &mut production_options, &mut iface_settings, &mut stats, &mut unaffiliated_houses, &mut relations, &owners, &doctrine_templates, &unit_templates, &bldg_templates, &resource_templates, &tech_templates, &mut logs, &mut zone_exs_owners, &mut disp_settings, &disp_chars, &mut ai_states, &ai_config, &mut barbarian_states, &nms, &mut menu_options, &frame_stats, turn, &mut game_state, &game_difficulties, &mut rng, &kbd, &lang, &mut buttons, &mut d) {
+				match do_window_keys(key_pressed, &mouse_event, &mut map_data, &mut exs, &mut units, &mut bldgs, &mut production_options, &mut iface_settings, &mut players, &mut relations, &temps, &mut logs, &mut disp_settings, &disp_chars, &mut menu_options, &frame_stats, turn, &mut game_state, &game_difficulties, &mut rng, &kbd, &lang, &mut buttons, &mut d) {
 					UIRet::Active => {}
 					UIRet::ChgGameState => {break;}
 					UIRet::Inactive => {
-						match do_menu_shortcut(key_pressed, &mouse_event, &mut menu_options, &mut map_data, &mut exs, &mut zone_exs_owners, &mut iface_settings, &mut disp_settings, &lang, &mut disp_chars, &mut units, &bldg_config, &mut bldgs, &owners, &mut nms, &doctrine_templates, &bldg_templates, &unit_templates, &mut turn, &mut stats, &mut unaffiliated_houses, &mut relations, &tech_templates, &resource_templates, &mut ai_states, &ai_config, &mut barbarian_states, &mut logs, &mut production_options, &frame_stats, &mut game_state, &mut game_opts, &game_difficulties, &lang, &mut buttons, &mut rng, &mut d) {
+						match do_menu_shortcut(key_pressed, &mouse_event, &mut menu_options, &mut map_data, &mut exs, &mut players, &mut iface_settings, &mut disp_settings, &lang, &mut disp_chars, &mut units, &mut bldgs, &temps, &mut turn, &mut relations, &mut logs, &mut production_options, &frame_stats, &mut game_state, &mut game_opts, &game_difficulties, &lang, &mut buttons, &mut rng, &mut d) {
 							UIRet::Active => {}
 							UIRet::ChgGameState => {break;}
 							UIRet::Inactive => {
-								non_menu_keys(key_pressed, &mouse_event, &mut turn, &mut map_data, &mut exs, &mut zone_exs_owners, &mut units, &mut bldgs, &temps, &disp_chars, &disp_settings, &mut stats, &mut unaffiliated_houses, &mut relations, &mut iface_settings, &mut production_options, &mut ai_states, &mut barbarian_states, &mut logs, &mut menu_options, &mut frame_stats, &mut buttons, &mut txt_list, &mut rng, &mut d);
+								non_menu_keys(key_pressed, &mouse_event, &mut turn, &mut map_data, &mut exs, &mut units, &mut bldgs, &temps, &disp_chars, &disp_settings, &mut players, &mut relations, &mut iface_settings, &mut production_options, &mut logs, &mut menu_options, &mut frame_stats, &mut buttons, &mut txt_list, &mut rng, &mut d);
 							}
 						}
 					}
@@ -398,8 +415,8 @@ fn main(){
 				#[cfg(feature="profile")]
 				let _g = Guard::new("main frame loop -> map/screen printing");
 				
-				iface_settings.print_map(&mut menu_options, &disp_chars, &mut map_data, &units, &bldg_config, &bldgs, &owners, &ai_states, &stats, &tech_templates, &doctrine_templates, &zone_exs_owners, &exs, &relations, &logs, &mut frame_stats, alt_ind, turn, &kbd, &lang, &mut buttons, &mut txt_list, &mut d);
-				iface_settings.print_windows(&mut map_data, exs.last().unwrap(), &units, &bldgs, &production_options, &disp_chars, &unit_templates, &bldg_templates, &tech_templates, &resource_templates, &doctrine_templates, &owners, &stats, &relations, &game_difficulties, &logs, turn, &kbd, &lang, &mut buttons, &mut d);
+				iface_settings.print_map(&mut menu_options, &disp_chars, &mut map_data, &units, &bldgs, &players, &temps, &exs, &relations, &logs, &mut frame_stats, alt_ind, turn, &kbd, &lang, &mut buttons, &mut txt_list, &mut d);
+				iface_settings.print_windows(&mut map_data, exs.last().unwrap(), &units, &bldgs, &production_options, &disp_chars, &temps, &players, &relations, &game_difficulties, &logs, turn, &kbd, &lang, &mut buttons, &mut d);
 				
 				// dbg, show cursor coordinates
 				/*{
@@ -420,7 +437,7 @@ fn main(){
 					d.set_mouse_to_arrow();
 				}
 				
-				iface_settings.update_cursor(&stats[iface_settings.cur_player as usize], &mut map_data, &disp_chars, &txt_list, &mut d);
+				iface_settings.update_cursor(&players[iface_settings.cur_player as usize].stats, &mut map_data, &disp_chars, &txt_list, &mut d);
 			}
 			
 			/////////////// auto turn increment (if key hasn't been pressed)
@@ -428,7 +445,7 @@ fn main(){
 				match iface_settings.auto_turn {
 					AutoTurn::On | AutoTurn::FinishAllActions => {
 						for _ in 0..frame_stats.days_per_frame() {
-							end_turn(&mut turn, &mut units, &mut bldgs, &temps, &disp_chars, &disp_settings, &mut map_data, &mut exs, &mut zone_exs_owners, &mut stats, &mut unaffiliated_houses, &mut relations, &mut iface_settings, &mut production_options, &mut ai_states, &mut barbarian_states, &mut logs, &mut menu_options, &mut frame_stats, &mut rng, &mut buttons, &mut txt_list, &mut d);
+							end_turn(&mut turn, &mut units, &mut bldgs, &temps, &disp_chars, &disp_settings, &mut map_data, &mut exs, &mut players, &mut relations, &mut iface_settings, &mut production_options, &mut logs, &mut menu_options, &mut frame_stats, &mut rng, &mut buttons, &mut txt_list, &mut d);
 							
 							// ex if the the game has ended or we now show the tech tree from discovering tech, then
 							// stop progressing turns (also end_turn() will clear any open windows)
@@ -438,7 +455,7 @@ fn main(){
 							if !iface_settings.all_player_pieces_mvd &&
 							   iface_settings.auto_turn == AutoTurn::FinishAllActions {
 								iface_settings.auto_turn = AutoTurn::Off;
-								iface_settings.center_on_next_unmoved_menu_item(false, FindType::Units, &mut map_data, &mut exs, &mut units, &mut bldgs, &mut relations, &owners, &mut barbarian_states, &mut ai_states, &mut stats, &mut logs, turn, &mut d);
+								iface_settings.center_on_next_unmoved_menu_item(false, FindType::Units, &mut map_data, &mut exs, &mut units, &mut bldgs, &mut relations, &mut players, &mut logs, turn, &mut d);
 								break;
 							}
 						}

@@ -6,10 +6,12 @@ use crate::tech::TechTemplate;
 use crate::units::{UnitTemplate, MovementType, WORKER_NM, Unit};
 use crate::buildings::{BldgTemplate, BldgType};
 use crate::doctrine::DoctrineTemplate;
-use crate::map::{Stats, METERS_PER_TILE, ZoneType, ArabilityType};
+use crate::map::{METERS_PER_TILE, ZoneType, ArabilityType};
+use crate::player::Stats;
 use crate::resources::ResourceTemplate;
 use super::{EncyclopediaCategory, print_window};
 use crate::localization::Localization;
+use crate::containers::Templates;
 
 pub enum OffsetOrPos {
 	Offset(usize),
@@ -40,12 +42,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	pub fn show_exemplar_info(&self, mode: usize, category: EncyclopediaCategory,
 			w_offset_or_pos: OffsetOrPos, window_w: Option<i32>,
 			h_offset_or_pos: OffsetOrPos, mut info_level: InfoLevel<'_>,
-			unit_templates: &Vec<UnitTemplate>,
-			bldg_templates: &Vec<BldgTemplate>,
-			tech_templates: &Vec<TechTemplate>,
-			resource_templates: &Vec<ResourceTemplate>,
-			doctrine_templates: &Vec<DoctrineTemplate>,
-			pstats: &Stats, disp_chars: &DispChars, l: &Localization,
+			temps: &Templates, pstats: &Stats, disp_chars: &DispChars, l: &Localization,
 			d: &mut DispState) {
 		
 		let w = self.screen_sz.w as i32;
@@ -69,14 +66,14 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			// get number of rows of window for centering on screen
 			let window_h = match category {
 				EncyclopediaCategory::Unit => {
-					let ut = &unit_templates[mode];
+					let ut = &temps.units[mode];
 					let mut n = 5 + 2 + 4;
 					if info_level.is_not_full() {n -= 3;}
 					if ut.carry_capac != 0 {n += 1;}
 					if let Some(_) = ut.attack_per_turn {n += 2;}
 					n
 				} EncyclopediaCategory::Bldg => {
-					let bt = &bldg_templates[mode];
+					let bt = &temps.bldgs[mode];
 					let mut n = 3 + 2;
 					if info_level.is_not_full() {n -= 3;}
 					if bt.research_prod != 0 {n += 1;}
@@ -86,7 +83,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					let mut n = 3;
 					
 					// if tech discovers any units, add a line
-					for ut in unit_templates.iter() {
+					for ut in temps.units.iter() {
 						if let Some(tech_req) = &ut.tech_req {
 							if tech_req.contains(&mode) {
 								n += 1;
@@ -96,7 +93,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					}
 					
 					// if tech discovers any bldgs, add a line
-					for bt in bldg_templates.iter() {
+					for bt in temps.bldgs.iter() {
 						if let Some(tech_req) = &bt.tech_req {
 							if tech_req.contains(&mode) {
 								n += 1;
@@ -107,7 +104,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					n
 				} EncyclopediaCategory::Doctrine => {
 					let mut n = 3;
-					let d = &doctrine_templates[mode];
+					let d = &temps.doctrines[mode];
 					if !d.pre_req_ind.is_none() {n += 1;}
 					if d.bldg_req != 0. {n += 1;}
 					if d.health_bonus != 0. {n += 1;}
@@ -115,7 +112,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					if d.pacifism_bonus != 0. {n += 1;}
 					if d.happiness_bonus != 0. {n += 1;}
 					if d.tax_aversion != 0. {n += 1;}
-					n += d.bldgs_unlocks(bldg_templates).len() as i32;
+					n += d.bldgs_unlocks(temps.bldgs).len() as i32;
 					n
 				} EncyclopediaCategory::Resource => {
 					let n = 3 + 2;
@@ -192,7 +189,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			if let Some(tech_req) = $tech_req_opt {
 				for (i, tech) in tech_req.iter().enumerate() {
 					lr_txt!(if i != 0 {""} else {&l.Required_technology},
-							&tech_templates[*tech as usize].nm[l.lang_ind], *$row);
+							&temps.techs[*tech as usize].nm[l.lang_ind], *$row);
 				}
 			}else {lr_txt!(&l.Required_technology, &l.None, *$row);}
 		};};
@@ -229,7 +226,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		//////////////// print text of window
 		match category {
 			EncyclopediaCategory::Unit => {
-				let ut = &unit_templates[mode];
+				let ut = &temps.units[mode];
 				
 				if let InfoLevel::Full {..} = info_level {
 					ctr_txt!(&ut.nm[l.lang_ind]);
@@ -238,7 +235,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					print_tech_req!(&ut.tech_req, &mut row);
 					print_resources_req!(&ut.resources_req, &mut row);
 					
-					for bt in bldg_templates.iter() {
+					for bt in temps.bldgs.iter() {
 						if let Some(units_producable) = &bt.units_producable {
 							if units_producable.contains(&ut) {
 								lr_txt!(&format!("{}:", l.Produced_by), &format!("{}", bt.nm[l.lang_ind]));
@@ -290,7 +287,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					ctr_txt!(&format!("(Note: 1 tile = {} m)", METERS_PER_TILE));
 				}
 			} EncyclopediaCategory::Bldg => {
-				let bt = &bldg_templates[mode];
+				let bt = &temps.bldgs[mode];
 				
 				if let InfoLevel::Full {..} = info_level {
 					ctr_txt!(&bt.nm[l.lang_ind]);
@@ -319,7 +316,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					}
 					
 					if bt.construction_req != 0. {
-						let worker = UnitTemplate::frm_str(WORKER_NM, unit_templates);
+						let worker = UnitTemplate::frm_str(WORKER_NM, temps.units);
 						//lr_txt!("Construction required:", &format!("{} days", bt.construction_req / worker.actions_per_turn));
 						lr_txt!(&format!("{}:", l.Time_required_to_construct), &l.date_interval_str(bt.construction_req / worker.actions_per_turn));
 					}
@@ -384,7 +381,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					lr_txt!(&l.Max_production, &format!("{}", bt.prod_max));
 				}
 			} EncyclopediaCategory::Tech => {
-				let t = &tech_templates[mode];
+				let t = &temps.techs[mode];
 				
 				ctr_txt!(&t.nm[l.lang_ind]);
 				ctr_txt!("");
@@ -393,7 +390,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				if let Some(tech_req) = &t.tech_req {
 					for (i, tech) in tech_req.iter().enumerate() {
 						lr_txt!(if i != 0 {""} else {&l.Required_technology},
-							&tech_templates[*tech as usize].nm[l.lang_ind]);
+							&temps.techs[*tech as usize].nm[l.lang_ind]);
 					}
 				}else {lr_txt!(&l.Required_technology, &l.None);}
 				
@@ -406,7 +403,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				// find units that require this technology
 				{
 					let mut units_discov = false;
-					for ut in unit_templates.iter() {
+					for ut in temps.units.iter() {
 						if let Some(tech_req) = &ut.tech_req {
 							if tech_req.contains(&mode) {
 								lr_txt!(if units_discov {""} else {&l.Req_for_creating}, &ut.nm[l.lang_ind]);
@@ -419,7 +416,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				// find buildings that require this technology
 				{
 					let mut bldgs_discov = false;
-					for bt in bldg_templates.iter() {
+					for bt in temps.bldgs.iter() {
 						if let Some(tech_req) = &bt.tech_req {
 							if tech_req.contains(&mode) {
 								lr_txt!(if bldgs_discov {""} else {&l.Req_for_building}, &bt.nm[l.lang_ind]);
@@ -432,7 +429,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				// find buildings that require this technology
 				{
 					let mut resources_discov = false;
-					for rt in resource_templates.iter() {
+					for rt in temps.resources.iter() {
 						if rt.tech_req.contains(&mode) {
 							lr_txt!(if resources_discov {""} else {&l.Req_for_discovering}, &rt.nm[l.lang_ind]);
 							resources_discov = true;
@@ -440,7 +437,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					}
 				}
 			} EncyclopediaCategory::Doctrine => {
-				let d = &doctrine_templates[mode];
+				let d = &temps.doctrines[mode];
 				
 				if let InfoLevel::Full {..} = info_level {
 					ctr_txt!(&d.nm[l.lang_ind]);
@@ -448,7 +445,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					
 					// req. doctrine
 					if let Some(pre_req_ind) = &d.pre_req_ind {
-						lr_txt!(&l.Pre_req, &doctrine_templates[*pre_req_ind].nm[l.lang_ind]);
+						lr_txt!(&l.Pre_req, &temps.doctrines[*pre_req_ind].nm[l.lang_ind]);
 					}
 				}
 				
@@ -480,7 +477,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						lr_txt!(&l.Tax_aversion, &format!("{}", d.tax_aversion));
 					}
 					
-					let bldgs_unlocks = d.bldgs_unlocks(bldg_templates);
+					let bldgs_unlocks = d.bldgs_unlocks(temps.bldgs);
 					if let Some(bldg_unlocked) = bldgs_unlocks.first() {
 						lr_txt!(&l.Discovers, &bldg_unlocked.nm[l.lang_ind]);
 						for bldg_unlocked in bldgs_unlocks.iter().skip(1) {
@@ -489,7 +486,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					}
 				}
 			} EncyclopediaCategory::Resource => {
-				let rt = &resource_templates[mode];
+				let rt = &temps.resources[mode];
 				
 				if let InfoLevel::Full {..} = &info_level {
 					ctr_txt!(&rt.nm[l.lang_ind]);
@@ -513,7 +510,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				// units requiring this resource
 				{
 					let mut found = false;
-					for ut in unit_templates.iter() {
+					for ut in temps.units.iter() {
 						for resource_req in ut.resources_req.iter() {
 							if *resource_req == rt {
 								if found {
@@ -573,15 +570,14 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	}
 	
 	// show when tech is discovered
-	pub fn show_tech_discovered(&self, tech_discov: &TechTemplate, unit_templates: &Vec<UnitTemplate>,
-			bldg_templates: &Vec<BldgTemplate>, resource_templates: &Vec<ResourceTemplate>,
+	pub fn show_tech_discovered(&self, tech_discov: &TechTemplate, temps: &Templates,
 			disp_chars: &DispChars, l: &Localization, buttons: &mut Buttons, d: &mut DispState) {
 		let tech_id = tech_discov.id as usize;
 		
 		// find units that require this technology
 		let units_discov = {
-			let mut units_discov = Vec::with_capacity(unit_templates.len());
-			for ut in unit_templates.iter() {
+			let mut units_discov = Vec::with_capacity(temps.units.len());
+			for ut in temps.units.iter() {
 				if let Some(tech_req) = &ut.tech_req {
 					if tech_req.contains(&tech_id) {
 						units_discov.push(ut.nm[l.lang_ind].clone());
@@ -593,8 +589,8 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		// find buildings that require this technology
 		let bldgs_discov = {
-			let mut bldgs_discov = Vec::with_capacity(bldg_templates.len());
-			for bt in bldg_templates.iter() {
+			let mut bldgs_discov = Vec::with_capacity(temps.bldgs.len());
+			for bt in temps.bldgs.iter() {
 				if let Some(tech_req) = &bt.tech_req {
 					if tech_req.contains(&tech_id) {
 						bldgs_discov.push(bt.nm[l.lang_ind].clone());
@@ -606,8 +602,8 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		// find buildings that require this technology
 		let resources_discov = {
-			let mut resources_discov = Vec::with_capacity(resource_templates.len());
-			for rt in resource_templates.iter() {
+			let mut resources_discov = Vec::with_capacity(temps.resources.len());
+			for rt in temps.resources.iter() {
 				if rt.tech_req.contains(&tech_id) {
 					resources_discov.push(rt.nm[l.lang_ind].clone());
 				}

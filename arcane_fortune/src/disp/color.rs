@@ -1,5 +1,5 @@
 use crate::disp_lib::*;
-use crate::map::vars::Owner;
+use crate::player::Player;
 use crate::buildings::BldgTemplate;
 use crate::units::UnitTemplate;
 use crate::resources::ResourceTemplate;
@@ -80,6 +80,8 @@ pub const ESC_COLOR: CInd = CSAND4;
 
 pub const PLAYER_COLORS: &[i32] = &[CLOGO, 1, 2, 3, CREDGREEN4, 5, 6, CREDBLUE, CREDSAND1, CGREEN4, 38];
 // ^ zeroth entry are unaffiliated nobility, first entry is the human player
+
+pub const NOBILITY_COLOR: CInd = CREDBLUE;
 
 #[derive(PartialEq, Clone)]
 pub struct DispSettings {
@@ -323,8 +325,8 @@ pub fn init_color_pairs(disp_settings: &DispSettings, d: &mut DispState) -> Disp
 	disp_chars
 }
 
-pub fn set_player_color(owner: &Owner, on: bool, d: &mut DispState){
-	if on { d.attron(COLOR_PAIR(owner.color)); }else{
-		d.attroff(COLOR_PAIR(owner.color)); }
+pub fn set_player_color(player: &Player, on: bool, d: &mut DispState){
+	if on { d.attron(COLOR_PAIR(player.personalization.color)); }else{
+		d.attroff(COLOR_PAIR(player.personalization.color)); }
 }
 

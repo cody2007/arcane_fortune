@@ -22,7 +22,9 @@ use crate::gcore::{Log, print_log, Relations};
 use crate::resources::ResourceTemplate;
 //use crate::nn::{TxtPrinter, TxtCategory};
 use crate::gcore::{GameDifficulties, LogType};
+use crate::player::{Player, Stats, PlayerType, PersonName};
 use crate::keyboard::KeyboardMap;
+use crate::containers::Templates;
 use crate::localization::Localization;
 
 // row bounds to show log
@@ -164,9 +166,8 @@ fn print_window(window_sz: ScreenSz, screen_sz: ScreenSz, disp_chars: &DispChars
 // prints windows
 impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	pub fn print_windows(&mut self, map_data: &mut MapData, exf: &HashedMapEx, units: &Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, production_options: &ProdOptions, 
-			disp_chars: &DispChars, unit_templates: &'ut Vec<UnitTemplate<'rt>>, bldg_templates: &'bt Vec<BldgTemplate>,
-			tech_templates: &Vec<TechTemplate>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &Vec<DoctrineTemplate>,
-			owners: &Vec<Owner>, stats: &Vec<Stats>, relations: &Relations, game_difficulties: &GameDifficulties, 
+			disp_chars: &DispChars, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+			players: &Vec<Player>, relations: &Relations, game_difficulties: &GameDifficulties, 
 			logs: &Vec<Log>, turn: usize, kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, d: &mut DispState) {
 		let h = self.screen_sz.h as i32;
 		let w = self.screen_sz.w as i32;
@@ -179,7 +180,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			debug_assertq!(self.zoom_ind == map_data.max_zoom_ind());
 			
 			let w = 29;
-			let pstats = &stats[self.cur_player as usize];
+			let pstats = &players[self.cur_player as usize].stats;
 			
 			////////////////////// worker producing bldg
 			if self.unit_inds_frm_sel(pstats, units, map_data, exf) != None {
@@ -187,8 +188,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				
 				// print details for selected bldg
 				if let ArgOptionUI::BldgTemplate(Some(bt)) = production_options.worker.options[mode].arg {
-					let template_ind = bldg_templates.iter().position(|r| r == bt).unwrap();
-					self.show_exemplar_info(template_ind, EncyclopediaCategory::Bldg, OffsetOrPos::Offset(w), None, OffsetOrPos::Offset(mode-4), InfoLevel::Abbrev, unit_templates, bldg_templates, tech_templates, resource_templates, doctrine_templates, pstats, disp_chars, l, d);
+					let template_ind = temps.bldgs.iter().position(|r| r == bt).unwrap();
+					self.show_exemplar_info(template_ind, EncyclopediaCategory::Bldg, OffsetOrPos::Offset(w), None, OffsetOrPos::Offset(mode-4), InfoLevel::Abbrev, temps, pstats, disp_chars, l, d);
 				// zeroth entry only should be none
 				}else if mode != 0 {
 					panicq!("could not find building template {}", mode);
@@ -204,8 +205,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					
 					// print details for selected bldg
 					if let ArgOptionUI::UnitTemplate(Some(ut)) = options.options[mode].arg {
-						let template_ind = unit_templates.iter().position(|r| r == ut).unwrap();
-						self.show_exemplar_info(template_ind, EncyclopediaCategory::Unit, OffsetOrPos::Offset(w), None, OffsetOrPos::Offset(mode+4), InfoLevel::Abbrev, unit_templates, bldg_templates, tech_templates, resource_templates, doctrine_templates, pstats, disp_chars, l, d);
+						let template_ind = temps.units.iter().position(|r| r == ut).unwrap();
+						self.show_exemplar_info(template_ind, EncyclopediaCategory::Unit, OffsetOrPos::Offset(w), None, OffsetOrPos::Offset(mode+4), InfoLevel::Abbrev, temps, pstats, disp_chars, l, d);
 					// zeroth entry only should be none
 					}else if mode != 0 {
 						panicq!("could not find unit template {}", mode);
@@ -223,7 +224,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			debug_assertq!(self.zoom_ind == map_data.max_zoom_ind());
 			
 			let w = 29;
-			let pstats = &stats[self.cur_player as usize];
+			let pstats = &players[self.cur_player as usize].stats;
 			
 			if let Some(bldg_ind) = self.bldg_ind_frm_cursor(bldgs, map_data, exf) {
 				let options = bldg_prod_list(&bldgs[bldg_ind], l); 
@@ -232,8 +233,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				// print details for selected bldg
 				if let Some(option) = options.options.get(mode) {
 					if let ArgOptionUI::UnitTemplate(Some(ut)) = option.arg {
-						let template_ind = unit_templates.iter().position(|r| r == ut).unwrap();
-						self.show_exemplar_info(template_ind, EncyclopediaCategory::Unit, OffsetOrPos::Offset(w+3), None, OffsetOrPos::Offset(mode+4), InfoLevel::Abbrev, unit_templates, bldg_templates, tech_templates, resource_templates, doctrine_templates, pstats, disp_chars, l, d);
+						let template_ind = temps.units.iter().position(|r| r == ut).unwrap();
+						self.show_exemplar_info(template_ind, EncyclopediaCategory::Unit, OffsetOrPos::Offset(w+3), None, OffsetOrPos::Offset(mode+4), InfoLevel::Abbrev, temps, pstats, disp_chars, l, d);
 					// zeroth entry only should be none
 					}else if mode != 0 {
 						panicq!("could not find unit template {}", mode);
@@ -246,12 +247,11 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		
 		//////////// tech window
 		}else if let UIMode::TechWindow {sel, sel_mv, tree_offsets, prompt_tech, ..} = &mut self.ui_mode {
-			let pstats = &stats[self.cur_player as usize];
-			print_tech_tree(unit_templates, bldg_templates, tech_templates, resource_templates,
-					disp_chars, pstats, sel, sel_mv, tree_offsets, self.screen_sz, *prompt_tech, kbd, l, buttons, d);
+			let pstats = &players[self.cur_player as usize].stats;
+			print_tech_tree(temps, disp_chars, pstats, sel, sel_mv, tree_offsets, self.screen_sz, *prompt_tech, kbd, l, buttons, d);
 		///////////// noble pedigree
 		}else if let UIMode::NoblePedigree {mode, house_nm, ..} = &mut self.ui_mode {
-			let houses = &stats[self.cur_player as usize].houses;
+			/*let houses = &stats[self.cur_player as usize].houses;
 			
 			if house_nm.is_none() {
 				// no houses to show
@@ -279,30 +279,30 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				}else{
 					end_window(self, d);
 				}
-			}
+			}*/
 			
 		//////////// doctrine tree window
 		}else if let UIMode::DoctrineWindow {sel, sel_mv, tree_offsets, ..} = &mut self.ui_mode {
-			let pstats = &stats[self.cur_player as usize];
-			print_doctrine_tree(doctrine_templates, bldg_templates, disp_chars, pstats, sel, sel_mv, tree_offsets, self.screen_sz, kbd, l, buttons, d);
+			let pstats = &players[self.cur_player as usize].stats;
+			print_doctrine_tree(temps.doctrines, temps.bldgs, disp_chars, pstats, sel, sel_mv, tree_offsets, self.screen_sz, kbd, l, buttons, d);
 
 		////////////// tech discovered window (when new tech discovered)
 		}else if let UIMode::TechDiscoveredWindow {tech_ind, ..} = self.ui_mode {
-			self.show_tech_discovered(&tech_templates[tech_ind], unit_templates, bldg_templates, resource_templates, disp_chars, l, buttons, d);
+			self.show_tech_discovered(&temps.techs[tech_ind], temps, disp_chars, l, buttons, d);
 			
 		/////////// plotting (full screen)
 		}else if let UIMode::PlotWindow {data} = &self.ui_mode {
 			macro_rules! plot_data{($data: ident, $title: expr, $plot_first_player_only: expr) => {
 				// collate and convert data to be plotted
-				let mut data = Vec::with_capacity(owners.len());
-				for pstats in stats.iter() {
-					let mut d = Vec::with_capacity(pstats.$data.len());
-					for x in pstats.$data.iter() {
+				let mut data = Vec::with_capacity(players.len());
+				for player in players.iter() {
+					let mut d = Vec::with_capacity(player.stats.$data.len());
+					for x in player.stats.$data.iter() {
 						d.push(*x as f32);
 					}
 					data.push(d);
 				}
-				plot_window_data(ColoringType::Owners(owners), $title, &data, disp_chars, self, stats, relations, map_data, $plot_first_player_only, l, buttons, d);
+				plot_window_data(ColoringType::Players, $title, &data, disp_chars, self, players, relations, map_data, $plot_first_player_only, l, buttons, d);
 			};};
 			
 			match data {
@@ -321,16 +321,16 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				PlotData::MPD => {plot_data!(mpd_log, &l.Milliseconds_runtime_per_game_day, true);}
 				PlotData::DoctrineScienceAxis => {
 					// collate and convert data to be plotted
-					let mut data = Vec::with_capacity(owners.len());
-					for pstats in stats.iter() {
-						let mut d = Vec::with_capacity(pstats.doctrinality_log.len());
+					let mut data = Vec::with_capacity(players.len());
+					for player in players.iter() {
+						let mut d = Vec::with_capacity(player.stats.doctrinality_log.len());
 						// sum across doctrine types
-						for x in pstats.doctrinality_log.iter() {
+						for x in player.stats.doctrinality_log.iter() {
 							d.push(x.iter().sum::<f32>());
 						}
 						data.push(d);
 					}
-					plot_window_data(ColoringType::Owners(owners), &l.Doctrinality_Methodicalism, &data, disp_chars, self, stats, relations, map_data, false, l, buttons, d);
+					plot_window_data(ColoringType::Players, &l.Doctrinality_Methodicalism, &data, disp_chars, self, players, relations, map_data, false, l, buttons, d);
 					
 				/*PlotData::DoctrineScienceAxis => {
 					// collate and convert data to be plotted
@@ -344,7 +344,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					}
 					plot_window_data(ColoringType::Owners(owners), &l.Doctrinality_Methodicalism, &data, disp_chars, self, stats, relations, map_data, false, l);*/
 				} PlotData::YourPrevailingDoctrines => {
-					let pstats = &stats[self.cur_player as usize];
+					let pstats = &players[self.cur_player as usize].stats;
 					let mut lbls = Vec::with_capacity(PLAYER_COLORS.len());
 					let mut data: Vec<Vec<f32>> = Vec::with_capacity(PLAYER_COLORS.len());
 					
@@ -358,8 +358,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 							}
 							
 							// last_ts: entry for each doctrine type
-							let mut last_ts = Vec::with_capacity(doctrine_templates.len());
-							for (val, template) in last_t.iter().zip(doctrine_templates.iter()) {
+							let mut last_ts = Vec::with_capacity(temps.doctrines.len());
+							for (val, template) in last_t.iter().zip(temps.doctrines.iter()) {
 								last_ts.push(LastTDoctrine {template, val: *val});
 							}
 							
@@ -390,12 +390,12 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 						}
 					}
 					
-					plot_window_data(ColoringType::Supplied {colors: &PLAYER_COLORS.to_vec(), lbls: &lbls, ign_cur_player_alive: false}, &l.Your_empires_prevailing_doctrines, &data, disp_chars, self, stats, relations, map_data, false, l, buttons, d);
+					plot_window_data(ColoringType::Supplied {colors: &PLAYER_COLORS.to_vec(), lbls: &lbls, ign_cur_player_alive: false}, &l.Your_empires_prevailing_doctrines, &data, disp_chars, self, players, relations, map_data, false, l, buttons, d);
 					
 				} PlotData::WorldPrevailingDoctrines => {
 					let mut lbls = Vec::with_capacity(PLAYER_COLORS.len());
 					let mut data: Vec<Vec<f32>> = Vec::with_capacity(PLAYER_COLORS.len());
-					let n_t_points = stats[0].doctrinality_log.len();
+					let n_t_points = players[0].stats.doctrinality_log.len();
 					
 					// only bother if we have any logged data
 					if n_t_points != 0 {
@@ -406,16 +406,16 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 								val: f32
 							}
 							
-							let mut sum_last_ts = Vec::with_capacity(doctrine_templates.len());
+							let mut sum_last_ts = Vec::with_capacity(temps.doctrines.len());
 							// init
-							for d in doctrine_templates.iter() {
+							for d in temps.doctrines.iter() {
 								sum_last_ts.push(LastTDoctrine {template: d, val: 0.});
 							}
 							
 							// loop over players
-							for pstats in stats.iter() {
-								// player_last_ts: Vec<f32>, indexed by doctrine_templates
-								if let Some(player_last_ts) = pstats.doctrinality_log.last() {
+							for player in players.iter() {
+								// player_last_ts: Vec<f32>, indexed by temps.doctrines
+								if let Some(player_last_ts) = player.stats.doctrinality_log.last() {
 									// loop over doctrines
 									for (player_last_t, sum_last_t) in player_last_ts.iter()
 												.zip(sum_last_ts.iter_mut()) {
@@ -439,9 +439,9 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 								data.push(vec![0.; n_t_points]);
 							}
 							
-							for pstats in stats.iter() {
+							for player in players.iter() {
 								// loop over time
-								for (t_ind, ys) in pstats.doctrinality_log.iter().enumerate() {
+								for (t_ind, ys) in player.stats.doctrinality_log.iter().enumerate() {
 									// loop over doctrinality
 									for (data_val, sum_last_t) in data.iter_mut().zip(sum_last_ts.iter())
 														.take(PLAYER_COLORS.len()) {
@@ -461,10 +461,10 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 						//printlnq!("{:#?}", data[0]);
 					}
 					
-					plot_window_data(ColoringType::Supplied {colors: &PLAYER_COLORS.to_vec(), lbls: &lbls, ign_cur_player_alive: true}, &l.World_prevailing_doctrines, &data, disp_chars, self, stats, relations, map_data, false, l, buttons, d);
+					plot_window_data(ColoringType::Supplied {colors: &PLAYER_COLORS.to_vec(), lbls: &lbls, ign_cur_player_alive: true}, &l.World_prevailing_doctrines, &data, disp_chars, self, players, relations, map_data, false, l, buttons, d);
 					
 				} PlotData::ZoneDemands => {
-					let pstats = &stats[self.cur_player as usize];
+					let pstats = &players[self.cur_player as usize].stats;
 					let mut colors = Vec::with_capacity(4);
 					let mut lbls = Vec::with_capacity(4);
 					let mut data: Vec<Vec<f32>> = Vec::with_capacity(4);
@@ -482,7 +482,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					
 					//printlnq!("{:#?}", pstats.zone_demand_log);
 					
-					plot_window_data(ColoringType::Supplied {colors: &colors, lbls: &lbls, ign_cur_player_alive: false}, &l.Zone_Demands, &data, disp_chars, self, stats, relations, map_data, false, l, buttons, d);
+					plot_window_data(ColoringType::Supplied {colors: &colors, lbls: &lbls, ign_cur_player_alive: false}, &l.Zone_Demands, &data, disp_chars, self, players, relations, map_data, false, l, buttons, d);
 				} PlotData::N => {panicq!("invalid plot data setting");}
 			}
 		
@@ -803,7 +803,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 						
 						d.mv(LOG_START_ROW + row_counter, 0);
 						l.print_date_log(log.turn, d);
-						print_log(&log.val, true, owners, doctrine_templates, l, d);
+						print_log(&log.val, true, players, temps.doctrines, l, d);
 						
 						row_counter += 1;
 					}
@@ -875,7 +875,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					//////////////////////////////////////////////////// show names of unit templates etc
 					if *selection_mode {
 						// set exemplar names
-						macro_rules! set_exemplar_nms{($templates: ident, $txt: expr) => {
+						macro_rules! set_exemplar_nms{($templates: expr, $txt: expr) => {
 							let mut exemplar_nms = Vec::with_capacity($templates.len());
 							for template in $templates.iter() {exemplar_nms.push(template.nm[l.lang_ind].as_str());}
 							
@@ -886,34 +886,34 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 						};};
 						
 						match category {
-							EncyclopediaCategory::Unit => {set_exemplar_nms!(unit_templates, "unit");}
+							EncyclopediaCategory::Unit => {set_exemplar_nms!(temps.units, "unit");}
 							EncyclopediaCategory::Bldg => {
-								let exemplar_options = encyclopedia_bldg_list(bldg_templates, l);
+								let exemplar_options = encyclopedia_bldg_list(temps.bldgs, l);
 								print_list_window(*mode, &l.Select_a_building, exemplar_options, self, disp_chars, Some(30), None, 0, None, l, buttons, d);
 							}
-							EncyclopediaCategory::Tech => {set_exemplar_nms!(tech_templates, "technology");}
-							EncyclopediaCategory::Doctrine => {set_exemplar_nms!(doctrine_templates, "doctrine");}
-							EncyclopediaCategory::Resource => {set_exemplar_nms!(resource_templates, "resource");}
+							EncyclopediaCategory::Tech => {set_exemplar_nms!(temps.techs, "technology");}
+							EncyclopediaCategory::Doctrine => {set_exemplar_nms!(temps.doctrines, "doctrine");}
+							EncyclopediaCategory::Resource => {set_exemplar_nms!(temps.resources, "resource");}
 						}
 						
 					///////////////////////////////////// show info for the selected unit
 					}else{
 						let exemplar_ind = if *category == EncyclopediaCategory::Bldg {
-							let exemplar_options = encyclopedia_bldg_list(bldg_templates, l);
+							let exemplar_options = encyclopedia_bldg_list(temps.bldgs, l);
 							if let ArgOptionUI::Ind(Some(ind)) = exemplar_options.options[*mode].arg {
 								ind
 							}else{panicq!("invalid option argument");}
 						}else{
 							*mode
 						};
-						self.show_exemplar_info(exemplar_ind, *category, OffsetOrPos::Offset(0), None, OffsetOrPos::Offset(0), InfoLevel::Full {buttons}, unit_templates, bldg_templates, tech_templates, resource_templates, doctrine_templates, &stats[self.cur_player as usize], disp_chars, l, d);
+						self.show_exemplar_info(exemplar_ind, *category, OffsetOrPos::Offset(0), None, OffsetOrPos::Offset(0), InfoLevel::Full {buttons}, temps, &players[self.cur_player as usize].stats, disp_chars, l, d);
 					}
 				} // either showing exemplar selection (unit, bldg, tech) or showing specific unit information
 			} // match state (EncyclopediaState)
 		
 		/////////// prevailing doctrine changed
 		}else if let UIMode::PrevailingDoctrineChangedWindow = &self.ui_mode {
-			let doc = stats[self.cur_player as usize].doctrine_template;
+			let doc = players[self.cur_player as usize].stats.doctrine_template;
 			let title = l.Adopted_doctrine.replace("[]", &doc.nm[l.lang_ind]);
 			let lens = vec![title.len(), l.doctrine_changed_line1.len(), l.doctrine_changed_line2.len()];
 			let max_len = *lens.iter().max().unwrap();
@@ -948,16 +948,16 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			let map_sz = *map_data.map_szs.last().unwrap();
 			let cursor_coord = self.cursor_to_map_coord_zoomed_in(map_data);
 			
-			let pstats = &stats[self.cur_player as usize];
+			let pstats = &players[self.cur_player as usize].stats;
 			let owned_units = owned_unit_list(units, self.cur_player, cursor_coord, pstats, &mut w, &mut label_txt_opt, map_sz, l);
 			
 			let top_right = print_list_window(mode, &l.Select_battalion, owned_units.clone(), self, disp_chars, Some(w), label_txt_opt, 0, None, l, buttons, d).1;
 			
 			// show info box
 			if owned_units.options.len() > 0 {
-				let pstats = &stats[self.cur_player as usize];
+				let pstats = &players[self.cur_player as usize].stats;
 				if let ArgOptionUI::UnitInd(unit_ind) = owned_units.options[mode].arg {
-					self.show_exemplar_info(units[unit_ind].template.id as usize, EncyclopediaCategory::Unit, OffsetOrPos::Pos(top_right.x as usize - 1), None, OffsetOrPos::Pos(top_right.y as usize + mode + 4), InfoLevel::AbbrevNoCostNoProdTime, unit_templates, bldg_templates, tech_templates, resource_templates, doctrine_templates, pstats, disp_chars, l, d);
+					self.show_exemplar_info(units[unit_ind].template.id as usize, EncyclopediaCategory::Unit, OffsetOrPos::Pos(top_right.x as usize - 1), None, OffsetOrPos::Pos(top_right.y as usize + mode + 4), InfoLevel::AbbrevNoCostNoProdTime, temps, pstats, disp_chars, l, d);
 				}else{panicq!("invalid UI setting");}
 			}
 		
@@ -966,7 +966,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			let mut w = 0;
 			let mut label_txt_opt = None;
 			
-			let pstats = &stats[self.cur_player as usize];
+			let pstats = &players[self.cur_player as usize].stats;
 			
 			let (entries, txt, n_gap_lines, has_buildable_actions) = match brigade_action {
 				BrigadeAction::Join {..} | BrigadeAction::ViewBrigades => {
@@ -1072,7 +1072,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 						}
 						
 						// print infobox
-						self.show_exemplar_info(units[unit_ind].template.id as usize, EncyclopediaCategory::Unit, OffsetOrPos::Pos(top_right.x as usize - 1), None, OffsetOrPos::Pos(n_gap_lines + top_right.y as usize + mode + 4), InfoLevel::AbbrevNoCostNoProdTime, unit_templates, bldg_templates, tech_templates, resource_templates, doctrine_templates, pstats, disp_chars, l, d);
+						self.show_exemplar_info(units[unit_ind].template.id as usize, EncyclopediaCategory::Unit, OffsetOrPos::Pos(top_right.x as usize - 1), None, OffsetOrPos::Pos(n_gap_lines + top_right.y as usize + mode + 4), InfoLevel::AbbrevNoCostNoProdTime, temps, pstats, disp_chars, l, d);
 					} _ => {panicq!("invalid UI setting");}
 				}
 			}
@@ -1081,7 +1081,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		}else if let UIMode::BrigadeBuildList {mode, brigade_nm} = &self.ui_mode {
 			let w = 1 + l.Or_select_an_action_and_press.len() + 5 + l.to_remove.len() + 1 + 4 + 4;
 			let label_txt_opt = None;
-			let pstats = &stats[self.cur_player as usize];
+			let pstats = &players[self.cur_player as usize].stats;
 			let entries = brigade_build_list(brigade_nm, pstats, l);
 			
 			let n_gap_lines = 1;
@@ -1109,13 +1109,13 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			let map_sz = *map_data.map_szs.last().unwrap();
 			let cursor_coord = self.cursor_to_map_coord_zoomed_in(map_data);
 			
-			let sectors = sector_list(&stats[self.cur_player as usize], cursor_coord, &mut w, &mut label_txt_opt, map_sz, l);
+			let sectors = sector_list(&players[self.cur_player as usize].stats, cursor_coord, &mut w, &mut label_txt_opt, map_sz, l);
 			
 			print_list_window(mode, &l.Select_map_sector, sectors, self, disp_chars, Some(w), label_txt_opt, 0, None, l, buttons, d);
 		
 		///////////// sector automation: get sector name (step 1)
 		}else if let UIMode::CreateSectorAutomation {sector_nm: None, mode, ..} = self.ui_mode {
-			let pstats = &stats[self.cur_player as usize];
+			let pstats = &players[self.cur_player as usize].stats;
 			
 			// alert player that sector should be created
 			if pstats.sectors.len() == 0 {
@@ -1208,7 +1208,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			let cursor_coord = self.cursor_to_map_coord_zoomed_in(map_data);
 			
 			let owned_bldgs = match self.ui_mode {
-				UIMode::ImprovementBldgsWindow {..} => {owned_improvement_bldgs_list(bldgs, doctrine_templates, self.cur_player, cursor_coord, &mut w, &mut label_txt_opt, map_sz, l)}
+				UIMode::ImprovementBldgsWindow {..} => {owned_improvement_bldgs_list(bldgs, temps.doctrines, self.cur_player, cursor_coord, &mut w, &mut label_txt_opt, map_sz, l)}
 				UIMode::MilitaryBldgsWindow {..} => {owned_military_bldgs_list(bldgs, self.cur_player, cursor_coord, &mut w, &mut label_txt_opt, map_sz, l)}
 				_ => {panicq!("ui mode match condition not met");}
 			};
@@ -1217,16 +1217,16 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			
 			// show info box
 			if owned_bldgs.options.len() > 0 {
-				let pstats = &stats[self.cur_player as usize];
+				let pstats = &players[self.cur_player as usize].stats;
 				if let ArgOptionUI::BldgInd(bldg_ind) = owned_bldgs.options[mode].arg {
-					self.show_exemplar_info(bldgs[bldg_ind].template.id as usize, EncyclopediaCategory::Bldg, OffsetOrPos::Pos(top_right.x as usize - 1), None, OffsetOrPos::Pos(top_right.y as usize + mode + 4), InfoLevel::AbbrevNoCostNoProdTime, unit_templates, bldg_templates, tech_templates, resource_templates, doctrine_templates, pstats, disp_chars, l, d);
+					self.show_exemplar_info(bldgs[bldg_ind].template.id as usize, EncyclopediaCategory::Bldg, OffsetOrPos::Pos(top_right.x as usize - 1), None, OffsetOrPos::Pos(top_right.y as usize + mode + 4), InfoLevel::AbbrevNoCostNoProdTime, temps, pstats, disp_chars, l, d);
 				}else{panicq!("invalid UI setting");}
 			}
 		
 		/////////////// end game
 		}else if let UIMode::EndGameWindow  = self.ui_mode {
-			let owner = &owners[self.cur_player as usize];
-			let window_w = (max(format!("Watch as {} becomes an arcane footnote", owner.nm).len(),
+			let owner = &players[self.cur_player as usize];
+			let window_w = (max(format!("Watch as {} becomes an arcane footnote", owner.personalization.nm).len(),
 						 "civilizations, you can now explore the remaining world.".len())
 						+ 2 + 2) as i32; // 2 for the |, 2 for the spaces
 			let window_h = 9;
@@ -1270,7 +1270,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			//////// print title: {} has been destroyed!
 			{
 				pl!();
-				let txt_len = format!("{} has been destroyed!", owner.nm).len() as i32;
+				let txt_len = format!("{} has been destroyed!", owner.personalization.nm).len() as i32;
 				for _ in 0..((window_w - txt_len)/2) {d.addch(' ');}
 				print_civ_nm(owner, d);
 				d.attron(COLOR_PAIR(CYELLOW));
@@ -1336,8 +1336,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			"So, you have taken it upon yourself to lead this movement. What you make of it is",
 			"entirely up to you."];
 			
-			let owner = &owners[self.cur_player as usize];
-			let mut window_w = format!("{} has been founded!", owner.nm).len() as i32;
+			let owner = &players[self.cur_player as usize];
+			let mut window_w = format!("{} has been founded!", owner.personalization.nm).len() as i32;
 			
 			// determine max width of window
 			{
@@ -1389,7 +1389,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			//////// print title: {} has been founded!
 			{
 				pl!();
-				let txt_len = format!("{} has been founded!", owner.nm).len() as i32;
+				let txt_len = format!("{} has been founded!", owner.personalization.nm).len() as i32;
 				for _ in 0..((window_w - txt_len)/2) {d.addch(' ');}
 				print_civ_nm(owner, d);
 				d.attron(COLOR_PAIR(CYELLOW));
@@ -1428,7 +1428,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		
 		//////////// war status window
 		}else if let UIMode::WarStatusWindow = self.ui_mode {
-			self.show_war_status_window(relations, stats, owners, title_c, disp_chars, l, buttons, d);
+			self.show_war_status_window(relations, players, title_c, disp_chars, l, buttons, d);
 			
 		/////////////// about
 		}else if let UIMode::AboutWindow = self.ui_mode {
@@ -1449,10 +1449,10 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		}else if let UIMode::ContactEmbassyWindow {state} = &mut self.ui_mode {
 			match state {
 				EmbassyState::CivSelection{mode} => {
-					let contacted_civs = contacted_civilizations_list(relations, stats, owners, self.cur_player, turn);
-					print_list_window(*mode, &l.Select_civilization, contacted_civs, self, disp_chars, None, None, 0, Some(owners), l, buttons, d);
+					let contacted_civs = contacted_civilizations_list(relations, players, self.cur_player, turn);
+					print_list_window(*mode, &l.Select_civilization, contacted_civs, self, disp_chars, None, None, 0, Some(players), l, buttons, d);
 				} EmbassyState::DialogSelection{mode, owner_id, ref mut quote_printer} => {
-					let o = &owners[*owner_id];
+					let o = &players[*owner_id];
 					let w = 70;
 					let w_pos = print_window(ScreenSz{w, h: 5+2+3+2+2, sz:0}, self.screen_sz, disp_chars, d);
 					
@@ -1467,7 +1467,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					///////////// title -- country name
 					{
 						mvl!();
-						let txt_len = format!("The {} Embassy", o.nm).len();
+						let txt_len = format!("The {} Embassy", o.personalization.nm).len();
 						let g = (w as usize - txt_len) / 2;
 						let mut sp = String::with_capacity(g);
 						for _ in 0..g {sp.push(' ');}
@@ -1476,7 +1476,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 						d.addstr("The ");
 						
 						set_player_color(o, true, d);
-						d.addstr(&o.nm);
+						d.addstr(&o.personalization.nm);
 						set_player_color(o, false, d);
 						
 						d.addstr(" Embassy");
@@ -1487,8 +1487,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					//////////// ruler
 					{
 						mvl!();
-						d.addstr(&format!("Their leader, {} {}, ", o.ruler_nm.first, o.ruler_nm.last));
-						relations.print_mood_action(*owner_id, self.cur_player as usize, owners, d);
+						d.addstr(&format!("Their leader, {} {}, ", o.personalization.ruler_nm.first, o.personalization.ruler_nm.last));
+						relations.print_mood_action(*owner_id, self.cur_player as usize, players, d);
 						d.addstr(" says:");
 						
 						mvl!();
@@ -1502,20 +1502,23 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					{
 						mvl!();mvl!();
 						// todo: add Trade technology
-						center_txt(if *mode == 0 {"* Threaten *"} else {"Threaten"}, w, None, d);
+						if *mode == 0 {
+							center_txt(&format!("* {} *", l.Threaten), w, None, d);
+						}else{center_txt(&l.Threaten, w, None, d);}
+						
 						mvl!();
 						//center_txt("Demand tribute", w, None);
 						//mvl!();
 						
 						// at war
 						if relations.at_war(*owner_id, self.cur_player as usize) {
-							center_txt(if *mode == 1 {"* Suggest a peace treaty *"} else {"Suggest a peace treaty"}, w, None, d);
+							center_txt(&if *mode == 1 {format!("* {} *", l.Suggest_a_peace_treaty)} else {l.Suggest_a_peace_treaty.clone()}, w, None, d);
 						// peace treaty in effect
 						}else if let Some(expiry) = relations.peace_treaty_turns_remaining(*owner_id, self.cur_player as usize, turn) {
-							center_txt(&format!("(Peace treaty expires in {})", l.date_interval_str(expiry as f32)), w, Some(COLOR_PAIR(CGREEN3)), d);
+							center_txt(&l.Peace_treaty_expires_in.replace("[]", &l.date_interval_str(expiry as f32)), w, Some(COLOR_PAIR(CGREEN3)), d);
 						// at peace but no peace treaty in effect
 						}else{
-							center_txt(if *mode == 1 {"* Declare war *"} else {"Declare war"}, w, None, d);
+							center_txt(&if *mode == 1 {format!("* {} *", l.Declare_war)} else {l.Declare_war.clone()}, w, None, d);
 						}
 						
 						mvl!();
@@ -1560,7 +1563,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					let quote_txt = quote_printer.gen();
 					let owner_id = *owner_id;
 				  	
-					let o = &owners[owner_id];
+					let o = &players[owner_id];
 					let w = 70;
 					let w_pos = print_window(ScreenSz{w, h: 5+4, sz:0}, self.screen_sz, disp_chars, d);
 					
@@ -1577,7 +1580,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					{
 						// AI declares war on the human player
 						if let EmbassyState::DeclaredWarOn {..} = state {
-							let txt_len = format!("The {} civilization has declared war on you!", o.nm).len();
+							let txt_len = format!("The {} civilization has declared war on you!", o.personalization.nm).len();
 							let g = (w as usize - txt_len) / 2;
 							let mut sp = String::with_capacity(g);
 							for _ in 0..g {sp.push(' ');}
@@ -1587,7 +1590,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 							d.addstr("The ");
 							
 							set_player_color(o, true, d);
-							d.addstr(&o.nm);
+							d.addstr(&o.personalization.nm);
 							set_player_color(o, false, d);
 							
 							d.addstr(" civilization has declared war on you!");
@@ -1599,7 +1602,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 								_ => {panicq!{"match condition shouldn't be possible"}}
 							};
 							
-							let txt_len = format!("{}{}!", title_txt, o.nm).len();
+							let txt_len = format!("{}{}!", title_txt, o.personalization.nm).len();
 							let g = (w as usize - txt_len) / 2;
 							let mut sp = String::with_capacity(g);
 							for _ in 0..g {sp.push(' ');}
@@ -1609,7 +1612,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 							d.addstr(title_txt);
 							
 							set_player_color(o, true, d);
-							d.addstr(&o.nm);
+							d.addstr(&o.personalization.nm);
 							set_player_color(o, false, d);
 						}
 						
@@ -1620,8 +1623,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					//////////// ruler
 					{
 						mvl!();
-						d.addstr(&format!("{} {}, ", o.ruler_nm.first, o.ruler_nm.last));
-						relations.print_mood_action(owner_id, self.cur_player as usize, owners, d);
+						d.addstr(&format!("{} {}, ", o.personalization.ruler_nm.first, o.personalization.ruler_nm.last));
+						relations.print_mood_action(owner_id, self.cur_player as usize, players, d);
 						d.addstr(if let EmbassyState::DeclaredWarOn {..} = state {" says:"} else {" responds:"});
 						
 						mvl!();
@@ -1642,7 +1645,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 						buttons.Esc_to_close.print(None, l, d);
 					}
 				} EmbassyState::DeclarePeaceTreaty {owner_id, ref mut quote_printer, gold_offering, curs_col, treaty_rejected} => {
-					let o = &owners[*owner_id];
+					let o = &players[*owner_id];
 					let w = 80;
 					let mut h = 5+5+4;
 					if *treaty_rejected {h += 2};
@@ -1660,7 +1663,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					{
 						const TITLE_TXT: &str = "Peace treaty with ";
 						
-						let txt_len = format!("{}{}!", TITLE_TXT, o.nm).len();
+						let txt_len = format!("{}{}!", TITLE_TXT, o.personalization.nm).len();
 						let g = (w as usize - txt_len) / 2;
 						let mut sp = String::with_capacity(g);
 						for _ in 0..g {sp.push(' ');}
@@ -1670,7 +1673,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 						d.addstr(TITLE_TXT);
 						
 						set_player_color(o, true, d);
-						d.addstr(&o.nm);
+						d.addstr(&o.personalization.nm);
 						set_player_color(o, false, d);
 						
 						mvl!();
@@ -1688,7 +1691,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 						d.addstr(&gold_offering);
 						
 						mvl!();mvl!();mvl!();mvl!();
-						d.addstr(&format!("( Negative values indicate {} will instead pay and not you;", o.nm));
+						d.addstr(&format!("( Negative values indicate {} will instead pay and not you;", o.personalization.nm));
 						mvl!();
 						d.addstr(&format!("  Peace treaties cannot be terminated for {} years after signing. )", relations.config.peace_treaty_min_years));
 						
@@ -1696,8 +1699,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 						// print notice that treaty rejected and give a quote from the ruler
 						if *treaty_rejected {
 							mvl!();mvl!();
-							d.addstr(&format!("{} {} rejects your offer, ", o.ruler_nm.first, o.ruler_nm.last));
-							relations.print_mood_action(*owner_id, self.cur_player as usize, owners, d);
+							d.addstr(&format!("{} {} rejects your offer, ", o.personalization.ruler_nm.first, o.personalization.ruler_nm.last));
+							relations.print_mood_action(*owner_id, self.cur_player as usize, players, d);
 							d.addstr(" saying:");
 							
 							mvl!();
@@ -1731,7 +1734,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					};
 			let advisor_caution = &l.Advisor_caution;
 			let w = {
-				let log_len = print_log(&log_type, false, owners, doctrine_templates, l, d);
+				let log_len = print_log(&log_type, false, players, temps.doctrines, l, d);
 				max(advisor_caution.len(), log_len) + 4
 			};
 			let w_pos = print_window(ScreenSz{w, h: 2+4+3, sz:0}, self.screen_sz, disp_chars, d);
@@ -1745,7 +1748,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			
 			mvl!(); buttons.Esc_to_close.print(None, l, d);
 			mvl!(); mvl!();
-			print_log(&log_type, true, owners, doctrine_templates, l, d);
+			print_log(&log_type, true, players, temps.doctrines, l, d);
 			mvl!(); mvl!(1);
 			d.addstr(advisor_caution);
 		
@@ -1802,7 +1805,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			}
 			
 			let advisors = { // Vec[(advisor_nm, advice)]
-				let pstats = &stats[self.cur_player as usize];
+				let pstats = &players[self.cur_player as usize].stats;
 				//printlnq!("{:#?}", pstats.locally_logged.contrib);
 				
 				const N_LVLS: f32 = 5.;
@@ -1844,7 +1847,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					"pacifism"
 				};
 				
-				let o = &owners[self.cur_player as usize];
+				let o = &players[self.cur_player as usize].personalization;
 				
 				let mut pacifism_advice = advice(&o.pacifism_advisor_nm, &l.Public_Counsel_of_Foreign_Affairs, contrib.pacifism, pos_sum, false, &advisors_advice_txts[2]);
 				pacifism_advice.txt = pacifism_advice.txt.replace("[]", militarism_pacifism);
@@ -1911,7 +1914,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 
 		///////////////////////// public polling
 		}else if let UIMode::PublicPollingWindow = &self.ui_mode {
-			let pstats = &stats[self.cur_player as usize];
+			let pstats = &players[self.cur_player as usize].stats;
 			let contrib = &pstats.locally_logged.contrib;
 			let pos_sum = contrib.doctrine + contrib.pacifism;
 			let neg_sum = contrib.health + contrib.unemployment + contrib.crime;
@@ -2059,18 +2062,19 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		
 		////////////////////////// civilization intel
 		}else if let UIMode::CivilizationIntelWindow {mode, selection_phase} = self.ui_mode {
-			let contacted_civs = contacted_civilizations_list(relations, stats, owners, self.cur_player, turn);
+			let contacted_civs = contacted_civilizations_list(relations, players, self.cur_player, turn);
 			
 			// select civilization
 			if selection_phase {
-				print_list_window(mode, &l.Select_civilization, contacted_civs, self, disp_chars, None, None, 0, Some(owners), l, buttons, d);
+				print_list_window(mode, &l.Select_civilization, contacted_civs, self, disp_chars, None, None, 0, Some(players), l, buttons, d);
 			// show information for civilization
 			}else{
 				let owner_id = if let ArgOptionUI::OwnerInd(owner_id) = contacted_civs.options[mode].arg {
 					owner_id }else{ panicq!("owner id not in menu options"); };
 				
-				let o = &owners[owner_id];
-				let motto_txt = format!("{} \"{}\"", l.National_motto, o.motto);
+				let player = &players[owner_id];
+				let o = player;
+				let motto_txt = format!("{} \"{}\"", l.National_motto, o.personalization.motto);
 				let w = max("Our intelligence tells us this is an aggressive and mythological culture.".len(),
 						motto_txt.len()) + 4;
 				let w_pos = print_window(ScreenSz{w, h: 8+3, sz:0}, self.screen_sz, disp_chars, d);
@@ -2099,7 +2103,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				///////////// title -- country name
 				{
 					mvl!();
-					let txt_len = format!("Our Intel on {}", o.nm).len();
+					let txt_len = format!("Our Intel on {}", o.personalization.nm).len();
 					let g = (w as usize - txt_len) / 2;
 					let mut sp = String::with_capacity(g);
 					for _ in 0..g {sp.push(' ');}
@@ -2108,7 +2112,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					d.addstr("Our Intel on ");
 					
 					set_player_color(o, true, d);
-					d.addstr(&o.nm);
+					d.addstr(&o.personalization.nm);
 					set_player_color(o, false, d);
 					
 					mvl!();
@@ -2116,7 +2120,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				
 				//////////// ruler
 				mvl!();
-				d.addstr(&format!("{} {} {}", l.Ruler, o.ruler_nm.first, o.ruler_nm.last));
+				d.addstr(&format!("{} {} {}", l.Ruler, o.personalization.ruler_nm.first, o.personalization.ruler_nm.last));
 				
 				////////////// motto
 				mvl!();
@@ -2125,7 +2129,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				////////// prevailing doctrine
 				{
 					mvl!();
-					let pstats = &stats[owner_id];
+					let pstats = &players[owner_id].stats;
 					d.addstr(&l.Prevailing_doctrine);
 					if pstats.doctrine_template.id == 0 {
 						d.addstr(&format!(" {}", l.None));
@@ -2135,7 +2139,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				}
 				
 				//////////// personality
-				if let PlayerType::AI(personality) = &o.player_type {
+				if let PlayerType::AI {personality, ..} = &player.ptype {
 					mvl!();mvl!(true);
 					
 					d.addstr("Our intelligence tells us this is a");
@@ -2171,31 +2175,31 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			
 		/////////////////////////// switch to player
 		}else if let UIMode::SwitchToPlayerWindow {mode} = self.ui_mode {
-			let all_civs = all_civilizations_list(owners);
+			let all_civs = all_civilizations_list(players);
 			
-			print_list_window(mode, &l.Select_civilization, all_civs, self, disp_chars, None, None, 0, Some(owners), l, buttons, d);
+			print_list_window(mode, &l.Select_civilization, all_civs, self, disp_chars, None, None, 0, Some(players), l, buttons, d);
 
 		////////////////////////// discover technology
 		}else if let UIMode::DiscoverTechWindow {mode} = self.ui_mode {
-			let techs = undiscovered_tech_list(&stats[self.cur_player as usize], tech_templates, l);
+			let techs = undiscovered_tech_list(&players[self.cur_player as usize].stats, temps.techs, l);
 			
 			print_list_window(mode, &l.Select_technology, techs, self, disp_chars, None, None, 0, None, l, buttons, d);
 		
 		////////////////////////// obtain resource
 		}else if let UIMode::ObtainResourceWindow {mode} = self.ui_mode {
-			let resources = all_resources_list(resource_templates, l);
+			let resources = all_resources_list(temps.resources, l);
 			
 			print_list_window(mode, &l.Select_resource, resources, self, disp_chars, None, None, 0, None, l, buttons, d);
 		
 		////////////////////////// select doctrine dedication
 		}else if let UIMode::SelectBldgDoctrine {mode, ..} = self.ui_mode {
-			let list = doctrines_available_list(&stats[self.cur_player as usize], doctrine_templates, l);
+			let list = doctrines_available_list(&players[self.cur_player as usize].stats, temps.doctrines, l);
 			
 			print_list_window(mode, &l.Dedicate_to, list.clone(), self, disp_chars, None, None, 0, None, l, buttons, d);
 			
 			// print details for selected bldg
 			if let ArgOptionUI::DoctrineTemplate(Some(doc)) = list.options[mode].arg {
-				self.show_exemplar_info(doc.id, EncyclopediaCategory::Doctrine, OffsetOrPos::Offset(26), Some(25), OffsetOrPos::Offset(mode+4), InfoLevel::Abbrev, unit_templates, bldg_templates, tech_templates, resource_templates, doctrine_templates, &stats[self.cur_player as usize], disp_chars, l, d);
+				self.show_exemplar_info(doc.id, EncyclopediaCategory::Doctrine, OffsetOrPos::Offset(26), Some(25), OffsetOrPos::Offset(mode+4), InfoLevel::Abbrev, temps, &players[self.cur_player as usize].stats, disp_chars, l, d);
 			}else{panicq!("could not find doctrine template {}", mode);}
 		
 		////////////////////////// select auto-explore type
@@ -2210,13 +2214,13 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 
 		////////////////////////// place unit
 		}else if let UIMode::PlaceUnitWindow {mode} = self.ui_mode {
-			let unit_opts = discovered_units_list(&stats[self.cur_player as usize], unit_templates, l);
+			let unit_opts = discovered_units_list(&players[self.cur_player as usize].stats, temps.units, l);
 			
 			print_list_window(mode, &l.Select_a_unit, unit_opts, self, disp_chars, None, None, 0, None, l, buttons, d);
 
 		////////////// show resources available
 		}else if let UIMode::ResourcesAvailableWindow = self.ui_mode {
-			let pstats = &stats[self.cur_player as usize];
+			let pstats = &players[self.cur_player as usize].stats;
 			let n_resources_avail = pstats.resources_avail.iter().filter(|&&r| r != 0).count();
 			let w = 30;
 			let window_sz = if n_resources_avail != 0 {
@@ -2241,7 +2245,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					center_txt(&l.None, w, None, d);
 				}else{
 					let mut n_shown = 0;
-					for (avail, resource) in pstats.resources_avail.iter().zip(resource_templates) {
+					for (avail, resource) in pstats.resources_avail.iter().zip(temps.resources) {
 						if *avail == 0 || !pstats.resource_discov(resource) {continue;}
 					
 						d.mv(y + 2 + n_shown, x + 1);
@@ -2274,16 +2278,16 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		}else if let UIMode::ResourcesDiscoveredWindow {mode} = self.ui_mode {
 			let cursor_coord = self.cursor_to_map_coord_zoomed_in(map_data);
 			
-			let resource_opts = discovered_resources_list(&stats[self.cur_player as usize], cursor_coord, resource_templates, *map_data.map_szs.last().unwrap());
+			let resource_opts = discovered_resources_list(&players[self.cur_player as usize].stats, cursor_coord, temps.resources, *map_data.map_szs.last().unwrap());
 			
 			let row = print_list_window(mode, &l.Go_to_resource, resource_opts.clone(), self, disp_chars, None, None, 0, None, l, buttons, d).0.y as usize;
 			
 			// show info box
 			if resource_opts.options.len() > 0 {
-				let pstats = &stats[self.cur_player as usize];
+				let pstats = &players[self.cur_player as usize].stats;
 				if let ArgOptionUI::ResourceWCoord {rt, ..} = resource_opts.options[mode].arg {
 					let w = 29 + 3;
-					self.show_exemplar_info(rt.id as usize, EncyclopediaCategory::Resource, OffsetOrPos::Offset(w), None, OffsetOrPos::Pos(row + mode + 4), InfoLevel::Abbrev, unit_templates, bldg_templates, tech_templates, resource_templates, doctrine_templates, pstats, disp_chars, l, d);
+					self.show_exemplar_info(rt.id as usize, EncyclopediaCategory::Resource, OffsetOrPos::Offset(w), None, OffsetOrPos::Pos(row + mode + 4), InfoLevel::Abbrev, temps, pstats, disp_chars, l, d);
 				}else{panicq!("invalid UI setting");}
 			}
 		}

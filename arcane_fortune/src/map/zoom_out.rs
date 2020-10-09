@@ -9,6 +9,7 @@ use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::zones::{StructureData, FOG_UNIT_DIST};
 use crate::gcore::{Log, Relations};
 use crate::units::Unit;
+use crate::player::{Stats, Player};
 use crate::zones::return_zone_coord;
 use crate::resources::N_RESOURCES_DISCOV_LOG;
 #[cfg(feature="profile")]
@@ -81,11 +82,8 @@ fn add_nm_to_city_hall_sums<'b,'bt,'ut,'rt,'dt>(city_nm: &str, city_hall_sums: &
 ////////////////
 // find the max bldg and owner on zoomed map at map[zoom_ind][i,j] using values on map[zoom_ind+1] (`...p1` variables)
 fn compute_bldg_and_zoning_zoom_zcoord<'bt,'ut,'rt,'dt>(map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		zone_exs_owners: &Vec<HashedMapZoneEx>, bldgs: &Vec<Bldg>,
-		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, owners: &Vec<Owner>, 
+		players: &Vec<Player<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>,
 		zoom_ind: usize, i: usize, j: usize) {
-	
-	//if zoom_ind == 3 && i == 99 && j == 451 {printlnq!("updating");}
 	
 	debug_assertq!(zoom_ind != map_data.max_zoom_ind());
 	
@@ -115,11 +113,8 @@ fn compute_bldg_and_zoning_zoom_zcoord<'bt,'ut,'rt,'dt>(map_data: &mut MapData, 
 	
 	/////////////
 	// find all of the following variables on zoomed in map within defined box (derived above)
-	
-	let n_players = owners.len();
-	
 	let mut zone_type_sum = vec!(0; ZoneType::N as usize).into_boxed_slice();
-	let mut owner_sum = vec!(0; n_players).into_boxed_slice();
+	let mut owner_sum = vec!(0; players.len()).into_boxed_slice();
 	let mut bldg_template_sum = vec!(0; bldg_templates.len()).into_boxed_slice();
 	let mut structure_type_sum = vec!(0; StructureType::N as usize).into_boxed_slice();
 	let mut structure_orientation_sum = vec!(0; 4).into_boxed_slice();
@@ -145,7 +140,7 @@ fn compute_bldg_and_zoning_zoom_zcoord<'bt,'ut,'rt,'dt>(map_data: &mut MapData, 
 						// add based on bldg_ind
 						let zone_coord = return_zone_coord(map_coord, map_sz_p1);
 						let owner_id = ex.actual.owner_id.unwrap_or_else(|| panicq!("could not get owner")) as usize;
-						let zone_ex = zone_exs_owners[owner_id].get(&zone_coord).unwrap_or_else(||
+						let zone_ex = players[owner_id as usize].zone_exs.get(&zone_coord).unwrap_or_else(||
 								panicq!("could not get zone. owner {} coord {}", owner_id, Coord::frm_ind(zone_coord, map_sz_p1)));
 						match zone_ex.ret_city_hall_dist() {
 							Dist::Is {bldg_ind, ..} | Dist::ForceRecompute {bldg_ind, ..} => {
@@ -269,8 +264,8 @@ fn compute_bldg_and_zoning_zoom_zcoord<'bt,'ut,'rt,'dt>(map_data: &mut MapData, 
 // land type, arability, show_snow, elevation
 // sets map_data.map_szs[0..N_EXPLICITLY_STORED_ZOOM_LVLS] (not setting ZOOM_IND_ROOT which is within this range)
 impl <'rt>MapData<'rt> {
-	pub fn compute_zoom_outs<'bt,'ut,'dt>(&mut self, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &Vec<HashedMapZoneEx>,
-			bldgs: &Vec<Bldg>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, owners: &Vec<Owner>){
+	pub fn compute_zoom_outs<'bt,'ut,'dt>(&mut self, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &Vec<Player<'bt,'ut,'rt,'dt>>,
+			bldgs: &Vec<Bldg>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>){
 		
 		let map_sz = self.map_szs[ZOOM_IND_ROOT];
 		
@@ -296,7 +291,7 @@ impl <'rt>MapData<'rt> {
 			
 			for i in 0..map_szz.h {
 			for j in 0..map_szz.w {
-				compute_bldg_and_zoning_zoom_zcoord(self, exs, zone_exs_owners, bldgs, bldg_templates, owners, zoom_ind, i, j);
+				compute_bldg_and_zoning_zoom_zcoord(self, exs, players, bldgs, bldg_templates, zoom_ind, i, j);
 				
 				let mut val_type_sum = 0.;
 				let mut val_arability_sum = 0.;
@@ -306,7 +301,7 @@ impl <'rt>MapData<'rt> {
 				let mut n_summed: usize = 0;
 				
 				let mf = &self.zoom_out[ZOOM_IND_ROOT];
-
+				
 				for i_avg in 0..n_avg_i {
 					let i_use = i*n_avg_i + i_avg; // for ZOOM_IND_ROOT
 					if i_use >= map_sz.h { continue; }
@@ -369,12 +364,13 @@ pub enum PresenceAction {
 // add or remove fog of war window around unit, discover land if relevant
 // 	only the active player has fog of war. others only have discovery
 // 		^ (speed optimization--also, discoveries not computed on zoomed out maps for non-current players)
-pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, player_ind: usize, is_cur_player: bool, action: PresenceAction,
+pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, is_cur_player: bool, action: PresenceAction,
 		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, pstats: &mut Stats<'bt,'ut,'rt,'dt>,
-		owners: &Vec<Owner>, map_sz: MapSz, relations: &mut Relations, 
-		units: &Vec<Unit>, logs: &mut Vec<Log>, turn: usize){
+		map_sz: MapSz, relations: &mut Relations, units: &Vec<Unit>, logs: &mut Vec<Log>, turn: usize){
 	#[cfg(feature="profile")]
 	let _g = Guard::new("compute_active_window");
+	
+	let player_ind = pstats.id as usize;
 	
 	assertq!(map_sz == *map_data.map_szs.last().unwrap());
 	
@@ -396,7 +392,7 @@ pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, player_in
 				if let PresenceAction::SetPresentAndDiscover | PresenceAction::DiscoverOnly = action {
 					let land_discov_coord = pstats.land_discov.last().unwrap().map_to_discov_coord(Coord::frm_ind(coord, map_sz));
 					if prev_land_discov_coord != land_discov_coord {
-						compute_zooms_coord(coord, RecompType::Discover {pstats, is_cur_player}, map_data, exs, owners);
+						compute_zooms_discover(coord, is_cur_player, pstats, map_data, exs);
 						prev_land_discov_coord = land_discov_coord;
 					}
 					
@@ -431,9 +427,9 @@ pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, player_in
 				// update fog of war
 				if is_cur_player {
 					if action == PresenceAction::SetPresentAndDiscover {
-						compute_zooms_coord(coord, RecompType::Fog {pstats, present: true}, map_data, exs, owners);
+						compute_zooms_fog(coord, true, pstats, map_data, exs);
 					}else if action == PresenceAction::SetAbsent {
-						compute_zooms_coord(coord, RecompType::Fog {pstats, present: false}, map_data, exs, owners);
+						compute_zooms_fog(coord, false, pstats, map_data, exs);
 					}
 				}
 			} // valid coord
@@ -443,47 +439,21 @@ pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, player_in
 
 // compute zoomed out discoveries when switching players because it has not been kept up-to-date for speed optimization
 pub fn compute_zoomed_out_discoveries<'r,'bt,'ut,'rt,'dt>(map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		pstats: &mut Stats<'bt,'ut,'rt,'dt>, owners: &Vec<Owner>){
+		pstats: &mut Stats<'bt,'ut,'rt,'dt>){
 	let land_discov_full = pstats.land_discov.last().unwrap().clone();
 	for coord in LandDiscovIter::from(&land_discov_full) {
-		compute_zooms_coord(coord, RecompType::Discover {pstats, is_cur_player: true}, map_data, exs, owners);
+		compute_zooms_discover(coord, true, pstats, map_data, exs);
 	}
 }
 
-///////////////////
-// recompute:
-//
-// fog for player (for when a part of the map is no longer visible)
-// OR
-// discover land (if is_cur_player = False, we compute only the first zoom level)
-// OR
-// unit maxes
-// OR
-// bldg maxes & zoning
-//
-// on all zoomed maps. specifically, only the points
-// that represent coord_recompute (on the fully zoomed map)
+////////////////////////////////
+// functions recompute exs on all zoomed out maps. specifically, only
+// the points that represent coord_recompute (on the fully zoomed map)
 
-pub enum RecompType<'r,'bt,'ut,'rt,'dt,'z> {
-	Fog {pstats: &'r mut Stats<'bt,'ut,'rt,'dt>, present: bool},
-	Discover {pstats: &'r mut Stats<'bt,'ut,'rt,'dt>, is_cur_player: bool},
-	AddUnit(usize),
-	RmUnit(usize),
-	Bldgs(&'r Vec<Bldg<'bt,'ut,'rt,'dt>>, &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, &'z Vec<HashedMapZoneEx>)
-}
+pub enum RecompType {AddUnit, RmUnit}
 
-pub fn compute_zooms_coord<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, mut recomp_type: RecompType<'r,'bt,'ut,'rt,'dt,'z>,
-		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, owners: &Vec<Owner>) {
-	#[cfg(feature="profile")]
-	let _g = Guard::new(match recomp_type {
-		RecompType::Fog {..} => {"compute_zooms_coord Fog"}
-		RecompType::Discover {is_cur_player: true, ..} => {"compute_zooms_coord Discover ai=true"}
-		RecompType::Discover {is_cur_player: false, ..} => {"compute_zooms_coord Discover ai=false"}
-		RecompType::AddUnit(_) => {"compute_zooms_coord AddUnit"}
-		RecompType::RmUnit(_) => {"compute_zooms_coord RmUnit"}
-		RecompType::Bldgs(_,_,_) => {"compute_zooms_coord Bldgs"}
-	});
-	
+pub fn compute_zooms_coord_unit<'bt,'ut,'rt,'dt>(coord_recompute: u64, unit_ind: usize, recomp_type: RecompType,
+		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>) {
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
 	// most zoomed in coordinates
@@ -493,16 +463,7 @@ pub fn compute_zooms_coord<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, mut reco
 	// start at one step above fully zoomed in and then zoom out
 	// (so that we can simply use ex values used from previous zoom levels instead of zooming
 	//  all the way into ZoomInd::Full each time)
-	
-	let last_zoom_ind = match recomp_type {
-		RecompType::Discover {..} | RecompType::Fog {..} | RecompType::AddUnit(_) | RecompType::RmUnit(_) => {
-			map_data.max_zoom_ind()
-		} RecompType::Bldgs(_,_,_) => {
-			map_data.max_zoom_ind() - 1
-		}
-	};
-	
-	for zoom_ind in (0..=last_zoom_ind).rev() { // note RecompType::Discover {is_cur_player: False} assumes this reverse loop
+	for zoom_ind in (0..=map_data.max_zoom_ind()).rev() {
 		let map_sz = map_data.map_szs[zoom_ind];
 		
 		// convert coordinates to zoom_ind
@@ -513,25 +474,7 @@ pub fn compute_zooms_coord<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, mut reco
 		let coord_ind = coord.to_ind(map_sz) as u64;
 		
 		match recomp_type {
-			RecompType::Discover {ref mut pstats, is_cur_player} => {
-				pstats.land_discov[zoom_ind].map_coord_discover(Coord::frm_ind(coord_ind, map_sz));
-				if !is_cur_player {return;} // only full map is computed
-			} RecompType::Fog {ref mut pstats, present} => {
-				let fog = &mut pstats.fog[zoom_ind];
-				
-				// unit or bldg present, we just use the actual value of ex
-				if present {
-					fog.remove(&coord_ind);
-					
-				// unit or bldg not present, we copy the current ex value
-				}else{
-					if let Some(ex) = exs[zoom_ind].get(&coord_ind) {
-						fog.insert(coord_ind, ex.actual.clone());
-					}else{
-						fog.remove(&coord_ind);
-					}
-				}
-			} RecompType::AddUnit(unit_ind) => {
+			RecompType::AddUnit => {
 				// update previous ex
 				if let Some(ref mut ex) = exs[zoom_ind].get_mut(&coord_ind) {
 					if let Some(ref mut unit_inds) = ex.unit_inds {
@@ -546,7 +489,7 @@ pub fn compute_zooms_coord<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, mut reco
 					ex.unit_inds = Some(vec![unit_ind]);
 					exs[zoom_ind].update_or_insert(coord_ind, ex);
 				}
-			} RecompType::RmUnit(unit_ind) => {
+			} RecompType::RmUnit => {
 				// check if we remove unit_ind from unit_inds or if we can remove the entire ex entry
 				let mut rm_unit = || {
 					// update previous ex
@@ -595,8 +538,103 @@ pub fn compute_zooms_coord<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, mut reco
 					}else {panicq!("attempted to remove non-existant unit_ind {} from coord {}, {}  at zoom {}", unit_ind, coord.y as usize, coord.x as usize, zoom_ind);}
 				};
 				rm_unit();
-			} RecompType::Bldgs(b, bts, zone_exs_owners) => {
-				compute_bldg_and_zoning_zoom_zcoord(map_data, exs, zone_exs_owners, b, bts, owners, zoom_ind, coord.y as usize, coord.x as usize);
+			}
+		}
+		
+		coord_prev = coord;
+	} // zoom loop
+}
+
+// for bldgs/structures/zones only
+pub fn compute_zooms_coord<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>,
+		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &Vec<Player<'bt,'ut,'rt,'dt>>) {
+	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
+	
+	// most zoomed in coordinates
+	let mut coord_prev = Coord::frm_ind(coord_recompute, map_sz);
+	
+	/////////////////////////////////////////////////////////////
+	// start at one step above fully zoomed in and then zoom out
+	// (so that we can simply use ex values used from previous zoom levels instead of zooming
+	//  all the way into ZoomInd::Full each time)
+	for zoom_ind in (0..=(map_data.max_zoom_ind() - 1)).rev() {
+		let map_sz = map_data.map_szs[zoom_ind];
+		
+		// convert coordinates to zoom_ind
+		let coord = if zoom_ind != map_data.max_zoom_ind() {
+			coord_prev.to_zoom(zoom_ind+1, zoom_ind, &map_data.map_szs)
+		}else {coord_prev.clone()};
+		
+		let coord_ind = coord.to_ind(map_sz) as u64;
+		
+		compute_bldg_and_zoning_zoom_zcoord(map_data, exs, players, bldgs, bldg_templates, zoom_ind, coord.y as usize, coord.x as usize);
+		
+		coord_prev = coord;
+	} // zoom loop
+}
+
+pub fn compute_zooms_discover<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, is_cur_player: bool,
+		pstats: &mut Stats<'bt,'ut,'rt,'dt>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>) {
+	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
+	
+	// most zoomed in coordinates
+	let mut coord_prev = Coord::frm_ind(coord_recompute, map_sz);
+	
+	/////////////////////////////////////////////////////////////
+	// start at one step above fully zoomed in and then zoom out
+	// (so that we can simply use ex values used from previous zoom levels instead of zooming
+	//  all the way into ZoomInd::Full each time)
+	
+	for zoom_ind in (0..=map_data.max_zoom_ind()).rev() { // note RecompType::Discover {is_cur_player: False} assumes this reverse loop
+		let map_sz = map_data.map_szs[zoom_ind];
+		
+		// convert coordinates to zoom_ind
+		let coord = if zoom_ind != map_data.max_zoom_ind() {
+			coord_prev.to_zoom(zoom_ind+1, zoom_ind, &map_data.map_szs)
+		}else {coord_prev.clone()};
+		
+		let coord_ind = coord.to_ind(map_sz) as u64;
+		
+		pstats.land_discov[zoom_ind].map_coord_discover(Coord::frm_ind(coord_ind, map_sz));
+		if !is_cur_player {return;} // only full map is computed
+		coord_prev = coord;
+	} // zoom loop
+}
+
+pub fn compute_zooms_fog<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, present: bool,
+		pstats: &mut Stats<'bt,'ut,'rt,'dt>,
+		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>) {
+	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
+	
+	// most zoomed in coordinates
+	let mut coord_prev = Coord::frm_ind(coord_recompute, map_sz);
+	
+	/////////////////////////////////////////////////////////////
+	// start at one step above fully zoomed in and then zoom out
+	// (so that we can simply use ex values used from previous zoom levels instead of zooming
+	//  all the way into ZoomInd::Full each time)
+	for zoom_ind in (0..=map_data.max_zoom_ind()).rev() {
+		let map_sz = map_data.map_szs[zoom_ind];
+		
+		// convert coordinates to zoom_ind
+		let coord = if zoom_ind != map_data.max_zoom_ind() {
+			coord_prev.to_zoom(zoom_ind+1, zoom_ind, &map_data.map_szs)
+		}else {coord_prev.clone()};
+		
+		let coord_ind = coord.to_ind(map_sz) as u64;
+		
+		let fog = &mut pstats.fog[zoom_ind];
+		
+		// unit or bldg present, we just use the actual value of ex
+		if present {
+			fog.remove(&coord_ind);
+			
+		// unit or bldg not present, we copy the current ex value
+		}else{
+			if let Some(ex) = exs[zoom_ind].get(&coord_ind) {
+				fog.insert(coord_ind, ex.actual.clone());
+			}else{
+				fog.remove(&coord_ind);
 			}
 		}
 		

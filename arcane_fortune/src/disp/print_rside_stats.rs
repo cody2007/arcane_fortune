@@ -6,6 +6,8 @@ use crate::gcore::hashing::HashedMapZoneEx;
 use crate::buildings::Bldg;
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
+use crate::player::{Player, Stats};
+use crate::containers::Templates;
 use super::*;
 
 pub fn crop_txt(txt: &str, w: usize) -> String {
@@ -27,15 +29,14 @@ pub fn crop_txt(txt: &str, w: usize) -> String {
 
 impl IfaceSettings<'_,'_,'_,'_,'_> {
 	pub fn print_rside_stats(&self, frame_stats: &FrameStats, turn: usize, bldgs: &Vec<Bldg>,
-			stats: &Vec<Stats>, tech_templates: &Vec<TechTemplate>, doctrine_templates: &Vec<DoctrineTemplate>,
-			disp_chars: &DispChars, l: &Localization,
-			exf: &HashedMapEx, map_data: &MapData, zone_exs: &HashedMapZoneEx,
+			players: &Vec<Player>, temps: &Templates, disp_chars: &DispChars, l: &Localization,
+			exf: &HashedMapEx, map_data: &MapData,
 			map_sz: MapSz, kbd: &KeyboardMap, buttons: &mut Buttons, txt_list: &mut TxtList, d: &mut DispState) {
 		
 		let screen_sz = self.screen_sz;
 		
 		let turn_col = (self.map_screen_sz.w + 1) as i32;
-		for row in 0..self.map_screen_sz.h {d.mv(row as i32, turn_col-1); d.addch(' ' as chtype);}
+		for row in 1..self.map_screen_sz.h {d.mv(row as i32, turn_col-1); d.addch(' ' as chtype);}
 		
 		macro_rules! center_txt{($txt: expr) => {
 			debug_assertq!(self.screen_sz.w > turn_col as usize);
@@ -63,7 +64,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		macro_rules! mvclr{() => (d.mv(roff, turn_col); roff += 1; d.clrtoeol());}
 		macro_rules! mvclr3{() => (mvclr!(); mvclr!(); mvclr!(););}
 		
-		let pstats = &stats[self.cur_player as usize];
+		let pstats = &players[self.cur_player as usize].stats;
 		
 		///////////////////////////////////////// display date and next turn keys
 		{
@@ -190,7 +191,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				
 				if let Some(tech_scheduled) = pstats.techs_scheduled.last() {
 					let tech_ind = *tech_scheduled as usize;
-					let tech = &tech_templates[tech_ind];
+					let tech = &temps.techs[tech_ind];
 					mvclr!(); ralign_txt!(&tech.nm[l.lang_ind]);
 					//d.mv(roff, turn_col); ///////////////////////////////////// !!!!!! mvclr!();
 					mvclr!();
@@ -235,7 +236,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						if let Some(ex) = exf.get(&coord) {
 							if ex.actual.owner_id == Some(self.cur_player) {
 								if let Some(zone_type) = ex.actual.ret_zone_type() {
-									if let Some(zone_ex) = zone_exs.get(&return_zone_coord(coord, map_sz)) {
+									if let Some(zone_ex) = players[self.cur_player as usize].zone_exs.get(&return_zone_coord(coord, map_sz)) {
 										if self.show_all_zone_information {
 											d.mv(2,0);
 											let zs = &zone_ex.zone_agnostic_stats;
@@ -246,7 +247,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 											d.addstr(&format!("Crime: {}", zs.crime_sum));
 											d.mv(5,0);
 											d.addstr("Docrines: ");
-											for (dsum, dt) in zs.locally_logged.doctrinality_sum.iter().zip(doctrine_templates.iter()) {
+											for (dsum, dt) in zs.locally_logged.doctrinality_sum.iter().zip(temps.doctrines.iter()) {
 												if *dsum == 0. {continue;}
 												d.addstr(&format!("{}: {}, ", dt.nm[l.lang_ind], dsum));
 											}

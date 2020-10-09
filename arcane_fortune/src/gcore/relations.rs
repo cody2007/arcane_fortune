@@ -8,7 +8,7 @@ use crate::disp::*;
 use crate::disp::menus::{update_menu_indicators, OptionsUI};
 use crate::config_load::{config_parse, find_req_key_parse, read_file};
 use crate::nn::{TxtCategory, TxtPrinter};
-use crate::map::{PlayerType, Owner};
+use crate::player::{PlayerType, Player};
 use crate::gcore::XorState;
 use crate::doctrine::DoctrineTemplate;
 
@@ -35,32 +35,34 @@ pub fn init_relations_config() -> RelationsConfig {
 }
 
 #[derive(Clone, PartialEq)]
-pub enum WarStatus {
+pub enum RelationStatus {
 	Peace {turn_started: usize},
-	War {turn_started: usize}
+	War {turn_started: usize},
+	Fiefdom {turn_joined: usize}
 }
 
 #[derive(Clone, PartialEq)]
 pub struct Relations {
 	// square matrices only the upper triangle contains relevant values
 	// i.e., it should be indexed (i,j) where i < j
-	pub war: Vec<WarStatus>, // use relations.peace_treaty_expiry() to check if war can be declared
-	pub discov: Vec<bool>,
+	relation_status: Vec<RelationStatus>, // use relations.peace_treaty_expiry() to check if war can be declared
+	discov: Vec<bool>,
 	
-	pub mood_toward: Vec<f32>, // (i,j) owner i's view toward owner j. this matrix does *not* need to be symmetric, unlike above
+	mood_toward: Vec<f32>, // (i,j) owner i's view toward owner j. this matrix does *not* need to be symmetric, unlike above
 	
-	pub n_owners: usize,
+	n_owners: usize,
 	
 	pub config: RelationsConfig
 }
 
-impl_saving!{Relations{war, discov, mood_toward, n_owners, config}}
+impl_saving!{Relations{relation_status, discov, mood_toward, n_owners, config}}
 
-impl WarStatus {
+impl RelationStatus {
 	pub fn is_peace(&self) -> bool {
 		match self {
-			WarStatus::Peace {..} => true,
-			WarStatus::War {..} => false
+			RelationStatus::Peace {..} => true,
+			RelationStatus::War {..} => false,
+			RelationStatus::Fiefdom {..} => true
 		}
 	}
 }
@@ -85,12 +87,17 @@ impl Relations {
 	
 	pub fn at_war(&self, owner1: usize, owner2: usize) -> bool {
 		let (omin, omax) = order_indices(owner1, owner2);
-		match self.war[omin*self.n_owners + omax] {
-			WarStatus::Peace {..} => false,
-			WarStatus::War {..} => true
-		}
+		!self.relation_status[omin*self.n_owners + omax].is_peace()
 	}
 	
+	pub fn fiefdom(&self, owner1: usize, owner2: usize) -> bool {
+		let (omin, omax) = order_indices(owner1, owner2);
+		match self.relation_status[omin*self.n_owners + omax] {
+			RelationStatus::Fiefdom {..} => true,
+			RelationStatus::War {..} | RelationStatus::Peace {..} => false
+		}
+	}
+
 	fn peace_treaty_expiry_turn(&self, turn_started: usize) -> usize {
 		self.config.peace_treaty_min_years * TURNS_PER_YEAR + turn_started
 	}
@@ -99,9 +106,9 @@ impl Relations {
 	pub fn peace_treaty_turns_remaining(&self, owner1: usize, owner2: usize, turn: usize) -> Option<usize> {
 		let (omin, omax) = order_indices(owner1, owner2);
 		
-		match self.war[omin*self.n_owners + omax] {
-			WarStatus::War {..} => None,
-			WarStatus::Peace {turn_started} => {
+		match self.relation_status[omin*self.n_owners + omax] {
+			RelationStatus::War {..} | RelationStatus::Fiefdom {..} => None,
+			RelationStatus::Peace {turn_started} => {
 				// peace treaty in effect; see declare_war() for similar computation
 				let expiry_turn = self.peace_treaty_expiry_turn(turn_started);
 				if turn_started != 0 && expiry_turn > turn {
@@ -116,9 +123,9 @@ impl Relations {
 	pub fn turn_war_started(&self, owner1: usize, owner2: usize) -> usize {
 		let (omin, omax) = order_indices(owner1, owner2);
 		
-		match self.war[omin*self.n_owners + omax] {
-			WarStatus::War {turn_started} => {turn_started}
-			WarStatus::Peace {..} => {panicq!("war not active")}
+		match self.relation_status[omin*self.n_owners + omax] {
+			RelationStatus::War {turn_started} => {turn_started}
+			RelationStatus::Peace {..} | RelationStatus::Fiefdom {..} => {panicq!("war not active")}
 		}
 	}
 	
@@ -133,6 +140,16 @@ impl Relations {
 		wars
 	}
 	
+	pub fn noble_houses(&self, owner1: usize) -> Vec<usize> {
+		let mut houses = Vec::with_capacity(self.n_owners);
+		for owner_id in (0..self.n_owners).filter(|&o| o != owner1) {
+			if self.fiefdom(owner1, owner_id) {
+				houses.push(owner_id);
+			}
+		}
+		houses
+	}
+	
 	// owner 1 threatens owner2
 	// note: using an ICBM calls this multiple times to lower mood
 	pub fn threaten(&mut self, owner1: usize, owner2: usize) {
@@ -142,7 +159,7 @@ impl Relations {
 	
 	// owner 1 declares war on owner2
 	// returns true if already at war or war can be declared, false if war cannot be declared
-	pub fn declare_war(&mut self, owner1: usize, owner2: usize, logs: &mut Vec<Log>, owners: &Vec<Owner>, turn: usize,
+	pub fn declare_war(&mut self, owner1: usize, owner2: usize, logs: &mut Vec<Log>, players: &Vec<Player>, turn: usize,
 			iface_settings: &mut IfaceSettings, cur_ai_player_is_paused: Option<bool>,
 			disp_settings: &DispSettings, menu_options: &mut OptionsUI, rng: &mut XorState, d: &mut DispState) -> bool {
 		self.discover_civ(owner1, owner2, logs, turn);
@@ -151,13 +168,13 @@ impl Relations {
 		let relation_ind = omin*self.n_owners + omax;
 		
 		// log & disable auto-turn
-		if let WarStatus::Peace {turn_started} = &self.war[relation_ind] {
+		if let RelationStatus::Peace {turn_started} = &self.relation_status[relation_ind] {
 			// peace treaty in effect; see peace_treaty_expiry() for similar computation
 			if *turn_started != 0 && self.peace_treaty_expiry_turn(*turn_started) > turn {
 				return false;
 			}
 			
-			self.war[relation_ind] = WarStatus::War {turn_started: turn};
+			self.relation_status[relation_ind] = RelationStatus::War {turn_started: turn};
 			self.discov[relation_ind] = true;
 			
 			// owner2's mood toward owner1's drops
@@ -176,7 +193,7 @@ impl Relations {
 				update_menu_indicators(menu_options, iface_settings, cur_ai_player_is_paused, disp_settings);
 				d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 				
-				let quote_category = TxtCategory::from_relations(self, owner1, owner2, owners);
+				let quote_category = TxtCategory::from_relations(self, owner1, owner2, players);
 				
 				iface_settings.ui_mode = UIMode::ContactEmbassyWindow {
 					state: EmbassyState::DeclaredWarOn {
@@ -192,18 +209,18 @@ impl Relations {
 	
 	pub fn declare_peace_wo_logging(&mut self, owner1: usize, owner2: usize, turn: usize) {
 		let (omin, omax) = order_indices(owner1, owner2);
-		let war = &mut self.war[omin*self.n_owners + omax];
+		let relation_status = &mut self.relation_status[omin*self.n_owners + omax];
 		
-		debug_assertq!(!war.is_peace());
-		*war = WarStatus::Peace {turn_started: turn};
+		debug_assertq!(!relation_status.is_peace());
+		*relation_status = RelationStatus::Peace {turn_started: turn};
 	}
 
 	pub fn declare_peace(&mut self, owner1: usize, owner2: usize, logs: &mut Vec<Log>, turn: usize) {
 		let (omin, omax) = order_indices(owner1, owner2);
-		let war = &mut self.war[omin*self.n_owners + omax];
+		let relation_status = &mut self.relation_status[omin*self.n_owners + omax];
 		
-		debug_assertq!(!war.is_peace());
-		*war = WarStatus::Peace {turn_started: turn};
+		debug_assertq!(!relation_status.is_peace());
+		*relation_status = RelationStatus::Peace {turn_started: turn};
 		
 		logs.push(Log {turn,
 				   val: LogType::PeaceDeclaration {
@@ -244,7 +261,7 @@ impl Relations {
 	
 	pub fn new(n_owners: usize) -> Self {
 		Self {
-			war: vec!{WarStatus::Peace {turn_started: 0}; n_owners*n_owners},
+			relation_status: vec!{RelationStatus::Peace {turn_started: 0}; n_owners*n_owners},
 			discov: vec!{false; n_owners*n_owners},
 			mood_toward: vec!{0.; n_owners*n_owners},
 			n_owners,
@@ -253,8 +270,8 @@ impl Relations {
 	}
 	
 	// how owner1 sees owner2
-	pub fn print_mood_action(&self, owner1: usize, owner2: usize, owners: &Vec<Owner>, d: &mut DispState) {
-		let friendliness = self.friendliness_toward(owner1, owner2, owners);
+	pub fn print_mood_action(&self, owner1: usize, owner2: usize, players: &Vec<Player>, d: &mut DispState) {
+		let friendliness = self.friendliness_toward(owner1, owner2, players);
 		
 		macro_rules! c{($txt: expr, $color: expr) => {
 			d.attron(COLOR_PAIR($color));
@@ -282,11 +299,13 @@ impl Relations {
 	}
 	
 	// how friendly is owner1 to owner2
-	pub fn friendliness_toward(&self, owner1: usize, owner2: usize, owners: &Vec<Owner>) -> f32 {
+	pub fn friendliness_toward(&self, owner1: usize, owner2: usize, players: &Vec<Player>) -> f32 {
 		// intrinsic friendliness
-		let friendliness = if let PlayerType::AI(personality) = &owners[owner1].player_type {
-			personality.friendliness
-		}else{ 0. };
+		let friendliness = match &players[owner1].ptype {
+			PlayerType::AI {personality, ..} => {
+				personality.friendliness
+			} PlayerType::Nobility {..} | PlayerType::Human {..} | PlayerType::Barbarian {..} => {0.}
+		};
 		
 		// from relations
 		debug_assertq!(self.mood_toward.len() == (self.n_owners*self.n_owners));
@@ -297,8 +316,8 @@ impl Relations {
 
 impl TxtCategory {
 	// how does owner1 see owner2?
-	pub fn from_relations(relations: &Relations, owner1: usize, owner2: usize, owners: &Vec<Owner>) -> Self {
-		let friendliness = relations.friendliness_toward(owner1, owner2, owners);
+	pub fn from_relations(relations: &Relations, owner1: usize, owner2: usize, players: &Vec<Player>) -> Self {
+		let friendliness = relations.friendliness_toward(owner1, owner2, players);
 		
 		const SPACE: f32 = 2./3.;
 		if friendliness < (SPACE - 1.) {
@@ -310,4 +329,14 @@ impl TxtCategory {
 		}
 	}
 }
+
+impl Default for Relations {
+	fn default() -> Self {
+		Self {
+			relation_status: Vec::new(),
+			discov: Vec::new(),
+			mood_toward: Vec::new(),
+			n_owners: 0,
+			config: Default::default()
+}}}
 

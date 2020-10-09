@@ -5,14 +5,9 @@ use crate::disp::window::ProdOptions;
 use crate::units::*;
 use crate::map::*;
 use crate::gcore::*;
-use crate::tech::TechTemplate;
-use crate::ai::{AIState, BarbarianState, AIConfig};
+use crate::ai::{AIState, BarbarianState};
 use crate::zones::return_zone_coord;
 use crate::disp::menus::{OptionsUI, ArgOptionUI, FindType};
-use crate::resources::ResourceTemplate;
-use crate::doctrine::DoctrineTemplate;
-use crate::keyboard::KeyboardMap;
-use crate::localization::Localization;
 use crate::nobility::House;
 use crate::containers::Templates;
 
@@ -54,20 +49,15 @@ fn start_zoning<'bt,'ut,'rt,'dt>(unit_inds: &Vec<usize>, zone_type: ZoneType, un
 	}
 }
 
-pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &Option<MEVENT>, turn: &mut usize, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, 
-		zone_exs_owners: &mut Vec<HashedMapZoneEx>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
-		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'o,'tt>,
+pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<MEVENT>, turn: &mut usize, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, 
+		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
+		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		disp_chars: &DispChars, disp_settings: &DispSettings,
-		stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>,
-		unaffiliated_houses: &mut Vec<House>, relations: &mut Relations,
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
 		iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>, production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>,
-		ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-		barbarian_states: &mut Vec<Option<BarbarianState>>,
 		logs: &mut Vec<Log>, menu_options: &mut OptionsUI, frame_stats: &mut FrameStats,
 		buttons: &mut Buttons, txt_list: &mut TxtList, rng: &mut XorState, d: &mut DispState){
 	
-	let owners = temps.owners;
-	let nms = &temps.nms;
 	let bldg_config = &temps.bldg_config;
 	let kbd = &temps.kbd;
 	let l = &temps.l;
@@ -77,22 +67,22 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 	// cursor and view movement
 	macro_rules! lupdate{($coord_set: expr, $sign: expr)=> {
 		match iface_settings.view_mv_mode {
-			ViewMvMode::Cursor => iface_settings.linear_update($coord_set, $sign, map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, map_sz, logs, *turn, d),
-			ViewMvMode::Screen => iface_settings.linear_update_screen($coord_set, $sign, map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, map_sz, logs, *turn, d),
+			ViewMvMode::Cursor => iface_settings.linear_update($coord_set, $sign, map_data, exs, units, bldgs, relations, players, map_sz, logs, *turn, d),
+			ViewMvMode::Screen => iface_settings.linear_update_screen($coord_set, $sign, map_data, exs, units, bldgs, relations, players, map_sz, logs, *turn, d),
 			ViewMvMode::N => {panicq!("invalid view setting");}
 		}
 	}};
 	macro_rules! aupdate{($coord_set: expr, $sign: expr)=> {
 		match iface_settings.view_mv_mode {
-			ViewMvMode::Cursor => iface_settings.accel_update($coord_set, ($sign) as f32, map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, map_sz, logs, *turn, d),
-			ViewMvMode::Screen => iface_settings.accel_update_screen($coord_set, ($sign) as f32, map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, map_sz, logs, *turn, d),
+			ViewMvMode::Cursor => iface_settings.accel_update($coord_set, ($sign) as f32, map_data, exs, units, bldgs, relations, players, map_sz, logs, *turn, d),
+			ViewMvMode::Screen => iface_settings.accel_update_screen($coord_set, ($sign) as f32, map_data, exs, units, bldgs, relations, players, map_sz, logs, *turn, d),
 			ViewMvMode::N => {panicq!("invalid view setting");}
 		}
 	}};
 	
 	macro_rules! end_turn_c{()=>(end_turn(turn, units, bldgs, temps, disp_chars, disp_settings,
-		map_data, exs, zone_exs_owners, stats, unaffiliated_houses, relations, iface_settings, production_options, 
-		ai_states, barbarian_states, logs, menu_options, frame_stats, rng, buttons, txt_list, d););};
+		map_data, exs, players, relations, iface_settings, production_options, 
+		logs, menu_options, frame_stats, rng, buttons, txt_list, d););};
 		
 	macro_rules! set_taxes{($inc: expr)=>{
 		if let UIMode::SetTaxes(zone_type) = iface_settings.ui_mode {
@@ -105,19 +95,20 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 						
 						// update taxable income on all bldgs connected to this city hall
 						let owner_id = bldgs[city_hall_ind_set].owner_id;
-						let zone_exs = &mut zone_exs_owners[owner_id as usize];
 						
 						for bldg_ind in 0..bldgs.len() {
 							let b = &bldgs[bldg_ind];
 							if owner_id != b.owner_id {continue;}
 							if let BldgType::Taxable(_) = b.template.bldg_type { // req. that the bldg actually be taxable
+								let zone_exs = &mut players[owner_id as usize].zone_exs;
 								if let Some(zone_ex) = zone_exs.get(&return_zone_coord(b.coord, map_sz)) {
 									if let Dist::Is {bldg_ind: city_hall_ind, ..} = zone_ex.ret_city_hall_dist() {
 										if city_hall_ind == city_hall_ind_set {
+											let player = &mut players[b.owner_id as usize];
 											let new_income = -bldgs[bldg_ind].template.upkeep * 
-												return_effective_tax_rate(b.coord, map_data, exs, zone_exs, bldgs, stats, temps.doctrines, map_sz, *turn);
+												return_effective_tax_rate(b.coord, map_data, exs, player, bldgs, temps.doctrines, map_sz, *turn);
 											
-											bldgs[bldg_ind].set_taxable_upkeep(new_income, stats);
+											bldgs[bldg_ind].set_taxable_upkeep(new_income, &mut player.stats);
 										} // city hall used is the one set
 									} // has city hall dist set
 								}else{ panicq!("taxable bldg should be in taxable zone"); } // bldg is in a zone
@@ -136,7 +127,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 	if buttons.show_expanded_submap.activated(k, mouse_event) || buttons.hide_submap.activated(k, mouse_event) {iface_settings.show_expanded_submap ^= true;}
 	
 	let exf = exs.last().unwrap();
-	let unit_inds = iface_settings.sel_units_owned(&stats[iface_settings.cur_player as usize], units, map_data, exf);
+	let unit_inds = iface_settings.sel_units_owned(&players[iface_settings.cur_player as usize].stats, units, map_data, exf);
 	
 	// mouse
 	// 	-dragging (both submap and normal map)
@@ -200,7 +191,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 			if lbutton_clicked(mouse_event) || lbutton_released(mouse_event) || lbutton_pressed(mouse_event) || dragging(mouse_event) {
 				let screen_coord = Coord {y: m_event.y as isize, x: m_event.x as isize};
 				let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
-				iface_settings.set_text_coord(screen_coord, units, bldgs, exs, relations, map_data, barbarian_states, ai_states, stats, owners, map_sz, logs, *turn, d);
+				iface_settings.set_text_coord(screen_coord, units, bldgs, exs, relations, map_data, players, map_sz, logs, *turn, d);
 				
 				if iface_settings.zoom_ind == map_data.max_zoom_ind() {
 					let cur_mi = iface_settings.cursor_to_map_ind(map_data);
@@ -238,11 +229,11 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 		macro_rules! set_text_coord{() => {
 			if let Some(screen_coord) = d.mouse_pos() {
 				let screen_coord = Coord {y: screen_coord.0 as isize, x: screen_coord.1 as isize};
-				iface_settings.set_text_coord(screen_coord, units, bldgs, exs, relations, map_data, barbarian_states, ai_states, stats, owners, map_sz, logs, *turn, d);
+				iface_settings.set_text_coord(screen_coord, units, bldgs, exs, relations, map_data, players, map_sz, logs, *turn, d);
 			}
 		};};
 		
-		macro_rules! chg_zoom{($dir:expr) => {iface_settings.chg_zoom($dir, map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, map_sz, logs, *turn, d);};};
+		macro_rules! chg_zoom{($dir:expr) => {iface_settings.chg_zoom($dir, map_data, exs, units, bldgs, relations, players, map_sz, logs, *turn, d);};};
 		
 		if kbd.zoom_in == k {chg_zoom!(1);}
 		if kbd.zoom_out == k {chg_zoom!(-1);}
@@ -393,13 +384,13 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 			iface_settings.set_auto_turn(AutoTurn::FinishAllActions, d);
 		// alert that there are unmoved units
 		}else if iface_settings.auto_turn == AutoTurn::Off {
-			iface_settings.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, *turn, d);
+			iface_settings.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, relations, players, logs, *turn, d);
 			d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 			iface_settings.ui_mode = UIMode::UnmovedUnitsNotification;
 		}
 	}
 	
-	let pstats = &stats[iface_settings.cur_player as usize];
+	let pstats = &players[iface_settings.cur_player as usize].stats;
 	let exf = exs.last().unwrap();
 	
 	if let AddActionTo::None = iface_settings.add_action_to {
@@ -510,7 +501,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 		// join or leave brigade
 		if buttons.join_brigade.activated(k, mouse_event) || buttons.leave_brigade.activated(k, mouse_event) {
 			if let Some(unit_ind) = unit_inds.first() {
-				let pstats = &mut stats[iface_settings.cur_player as usize];
+				let pstats = &mut players[iface_settings.cur_player as usize].stats;
 				
 				// leave brigade
 				if let Some(_) = pstats.unit_brigade_nm(*unit_ind) {
@@ -583,7 +574,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 		// disband
 		if buttons.disband.activated(k, mouse_event) {
 			for unit_ind in unit_inds.iter() {
-				disband_unit(*unit_ind, true, units, map_data, exs, stats, relations, barbarian_states, ai_states, owners, map_sz, logs, *turn);
+				disband_unit(*unit_ind, true, units, map_data, exs, players, relations, map_sz, logs, *turn);
 			}
 			
 			if unit_inds.len() != 0 {
@@ -647,7 +638,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 				
 				// create sector around city, then automate
 				if iface_settings.workers_create_city_sectors {
-					if let Some(ai_state) = &ai_states[u.owner_id as usize] {
+					if let Some(ai_state) = &players[u.owner_id as usize].ptype.ai_state() {
 						let u_coord = Coord::frm_ind(u.return_coord(), map_sz);
 						if let Some(min_city) = ai_state.city_states.iter().min_by_key(|c|
 								manhattan_dist(Coord::frm_ind(c.coord, map_sz), u_coord, map_sz)) {
@@ -674,7 +665,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 								
 								if let Some(MapEx {bldg_ind: Some(bldg_ind), ..}) = exs.last().unwrap().get(&min_city.coord) {
 									if let BldgArgs::CityHall {nm, ..} = &bldgs[*bldg_ind as usize].args {
-										let sectors = &mut stats[u.owner_id as usize].sectors;
+										let sectors = &mut players[u.owner_id as usize].stats.sectors;
 										if !sectors.iter().any(|s| s.nm == *nm) {
 											sectors.push(Sector {
 												nm: nm.clone(),
@@ -727,8 +718,9 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 					while let Unboard::Loc {coord, carried_ind} = unboard_land_adj(*unit_ind, units, bldgs, map_data, exs.last().unwrap()) {
 						if let Some(ref mut units_carried) = &mut units[*unit_ind].units_carried {
 							let ur = units_carried.swap_remove(carried_ind);
-							debug_assertq!(ur.owner_id == units[*unit_ind].owner_id);
-							unboard_unit(coord, ur, units, map_data, exs, owners);
+							let owner_id = ur.owner_id;
+							debug_assertq!(owner_id == units[*unit_ind].owner_id);
+							unboard_unit(coord, ur, units, map_data, exs, &players[owner_id as usize]);
 						}else{panicq!("carried unit should be available");}
 					}
 					
@@ -935,7 +927,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 									
 									// create brigade
 									if brigade_unit_inds.len() != 0 {
-										let pstats = &mut stats[iface_settings.cur_player as usize];
+										let pstats = &mut players[iface_settings.cur_player as usize].stats;
 										
 										// if any unit already belongs to a brigade, remove it from the existing brigade
 										for brigade in pstats.brigades.iter_mut() {
@@ -974,7 +966,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 							} ActionType::SectorCreation {ref mut start_coord, creation_type, ref nm, ..} => {
 								// finished drawing rectangle, create or add to sector
 								if let Some(start_coord) = start_coord {
-									let pstats = &mut stats[iface_settings.cur_player as usize];
+									let pstats = &mut players[iface_settings.cur_player as usize].stats;
 									
 									let segment = Rectangle {
 										start: Coord::frm_ind(*start_coord, map_sz),
@@ -1005,7 +997,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 				// chk if zone & bldg placement valid:
 				if iface_settings.pre_process_action_chk_valid(cur_mi, units, bldgs, exf, map_data) {
 					if let AddActionTo::BrigadeBuildList {action: Some(action), brigade_nm} = &iface_settings.add_action_to {
-						let pstats = &mut stats[iface_settings.cur_player as usize];
+						let pstats = &mut players[iface_settings.cur_player as usize].stats;
 						let brigade_nm = brigade_nm.clone();
 						let mut action = action.clone();
 						
@@ -1031,7 +1023,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 				if iface_settings.pre_process_action_chk_valid(cur_mi, units, bldgs, exf, map_data) {
 					if let AddActionTo::IndividualUnit {action_iface} = &iface_settings.add_action_to {
 						let action_iface = action_iface.clone();
-						if iface_settings.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, stats, exs, ai_states, barbarian_states, relations, owners, bldg_config, temps.units, temps.bldgs, temps.techs, temps.doctrines, zone_exs_owners, map_data, map_sz, disp_settings, disp_chars, menu_options, logs, *turn, rng, frame_stats, kbd, l, buttons, txt_list, d) {
+						if iface_settings.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, exs, relations, players, temps, map_data, map_sz, disp_settings, disp_chars, menu_options, logs, *turn, rng, frame_stats, kbd, l, buttons, txt_list, d) {
 							iface_settings.add_action_to = AddActionTo::None;
 						}
 					}else{panicq!("invalid add_action_to state");}
@@ -1047,7 +1039,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'o,'tt,'f>(key_pressed: i32, mouse_event: &
 				
 				// add action to all units in brigade
 				for action_iface in action_ifaces.clone() {
-					if iface_settings.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, stats, exs, ai_states, barbarian_states, relations, owners, bldg_config, temps.units, temps.bldgs, temps.techs, temps.doctrines, zone_exs_owners, map_data, map_sz, disp_settings, disp_chars, menu_options, logs, *turn, rng, frame_stats, kbd, l, buttons, txt_list, d) {
+					if iface_settings.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, exs, relations, players, temps, map_data, map_sz, disp_settings, disp_chars, menu_options, logs, *turn, rng, frame_stats, kbd, l, buttons, txt_list, d) {
 						any_success = true;
 					}
 				}

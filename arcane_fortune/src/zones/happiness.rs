@@ -162,28 +162,22 @@ const N_TURNS_RECOMP_ZONE_AGNOSTIC_STATS: usize = 30*12;//*5; //30*12 * 1;//75;
 
 // returns happiness, recomputes if needed
 pub fn return_happiness<'z>(mut coord: u64, map_data: &mut MapData, 
-		exs: &mut Vec<HashedMapEx>, zone_exs: &'z mut HashedMapZoneEx, bldgs: &Vec<Bldg>, stats: &mut Vec<Stats>, 
+		exs: &mut Vec<HashedMapEx>, bldgs: &Vec<Bldg>, player: &'z mut Player,
 		doctrine_templates: &Vec<DoctrineTemplate>, relations: &Relations, logs: &Vec<Log>,
 		map_sz: MapSz, turn: usize) -> &'z ZoneAgnosticStats {
 	
-	let exf = exs.last().unwrap();
-	let ex = exf.get(&coord).unwrap();
-	
 	//////////// compute zone demands on a spaced grid, unless zone doesn't match the grid
 	coord = return_zone_coord(coord, map_sz);
-	let zone_ex = zone_exs.get_mut(&coord).unwrap(); // should be created by add_zone() method in FogVars
-	let owner_id = ex.actual.owner_id.unwrap();
-	
-	let pstats = &mut stats[owner_id as usize];
+	let zone_ex = player.zone_exs.get_mut(&coord).unwrap(); // should be created by add_zone() method in FogVars
 	
 	////// check if we re-compute or use old vals
 	if (zone_ex.zone_agnostic_stats.turn_computed + N_TURNS_RECOMP_ZONE_AGNOSTIC_STATS) < turn || zone_ex.zone_agnostic_stats.turn_computed == 0 {
-		let stats_new = ZoneAgnosticStats::new(coord, owner_id, map_data, exs, bldgs, pstats.doctrine_template, doctrine_templates, relations, logs, map_sz, turn);
+		let stats_new = ZoneAgnosticStats::new(coord, player.id, map_data, exs, bldgs, player.stats.doctrine_template, doctrine_templates, relations, logs, map_sz, turn);
 		let stats_old = &mut zone_ex.zone_agnostic_stats;
 		
 		//////////////////////
 		// update values stored in pstats
-		pstats.locally_logged = pstats.locally_logged.clone() + stats_new.locally_logged.clone() - stats_old.locally_logged.clone();
+		player.stats.locally_logged = player.stats.locally_logged.clone() + stats_new.locally_logged.clone() - stats_old.locally_logged.clone();
 		
 		*stats_old = stats_new;
 	}
@@ -193,19 +187,18 @@ pub fn return_happiness<'z>(mut coord: u64, map_data: &mut MapData,
 
 // randomly updates old happiness values
 pub fn randomly_update_happiness<'bt,'ut,'rt,'dt>(map_data: &mut MapData, 
-		exs: &mut Vec<HashedMapEx>, zone_exs_owners: &mut Vec<HashedMapZoneEx>,
-		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, stats: &mut Vec<Stats>, 
+		exs: &mut Vec<HashedMapEx>, players: &mut Vec<Player>,
+		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 		doctrine_templates: &'dt Vec<DoctrineTemplate>, relations: &Relations,
 		logs: &Vec<Log>, map_sz: MapSz, turn: usize, rng: &mut XorState) {
 	#[cfg(feature="profile")]
 	let _g = Guard::new("randomly_update_happiness");
 	
 	let exf = exs.last().unwrap();
-	if let Some(coord) = SampleType::ZoneAgnostic.coord_frm_turn_computed(zone_exs_owners, exf, map_sz, turn, rng) {
+	if let Some(coord) = SampleType::ZoneAgnostic.coord_frm_turn_computed(players, exf, map_sz, turn, rng) {
 		if let Some(ex) = exf.get(&coord) {
 			if let Some(owner_id) = ex.actual.owner_id {
-				let zone_exs = &mut zone_exs_owners[owner_id as usize];
-				let zone_agnostic_stats = return_happiness(coord, map_data, exs, zone_exs, bldgs, stats, doctrine_templates, relations, logs, map_sz, turn);
+				let zone_agnostic_stats = return_happiness(coord, map_data, exs, bldgs, &mut players[owner_id as usize], doctrine_templates, relations, logs, map_sz, turn);
 				
 				// get max doctrinality of the zone
 				let max_doc = {

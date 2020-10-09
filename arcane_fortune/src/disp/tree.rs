@@ -3,7 +3,7 @@
 use crate::disp_lib::*;
 use crate::saving::defaults::SmSvType;
 use super::{ScreenSz, DispChars, CRED, CLOGO, Buttons};
-use crate::map::Stats;
+use crate::player::Stats;
 use crate::localization::Localization;
 
 pub trait TreeTemplate {

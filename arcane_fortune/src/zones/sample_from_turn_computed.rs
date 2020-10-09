@@ -3,6 +3,7 @@ use crate::map::MapSz;
 use crate::gcore::rand::XorState;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::zones::ZONE_SPACING;
+use crate::player::Player;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 
@@ -11,13 +12,13 @@ pub enum SampleType {ZoneDemand, ZoneAgnostic}
 impl SampleType {
 	// prioritizes uncomputed coords & then ones which were computed long ago
 	// output is used for recomputing zone demands and happiness
-	pub fn coord_frm_turn_computed(&self, zone_exs_owners: &mut Vec<HashedMapZoneEx>,
+	pub fn coord_frm_turn_computed(&self, players: &Vec<Player>,
 			exf: &HashedMapEx, map_sz: MapSz, turn: usize,
 			rng: &mut XorState) -> Option<u64> {
 		let n_zone_coords = {
 			let mut n_zone_coords = 0;
-			for zone_exs in zone_exs_owners.iter() {
-				n_zone_coords += zone_exs.len();
+			for player in players.iter() {
+				n_zone_coords += player.zone_exs.len();
 			}
 			n_zone_coords
 		};
@@ -40,8 +41,8 @@ impl SampleType {
 			let mut zone_coords = Vec::with_capacity(n_zone_coords);
 			let mut n_not_computed = 0;
 			let mut turn_sum = 0;
-			for zone_exs in zone_exs_owners.iter() {
-				for (coord, zone_ex) in zone_exs.iter() {
+			for player in players.iter() {
+				for (coord, zone_ex) in player.zone_exs.iter() {
 					let turn_computed = match self {
 						SampleType::ZoneDemand => {
 							let mut turn_computed = 0;

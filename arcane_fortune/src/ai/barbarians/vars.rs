@@ -1,5 +1,5 @@
 use crate::saving::*;
-use crate::map::{Owner, PlayerType};
+use crate::player::{PlayerType};
 use crate::disp_lib::endwin;
 use crate::units::*;
 use crate::buildings::*;
@@ -20,9 +20,7 @@ pub struct BarbarianState {
 impl_saving!{BarbarianState {defender_inds, attacker_inds, camp_ind}}
 
 impl BarbarianState {
-	pub fn add_unit(&mut self, unit_ind: usize, ut: &UnitTemplate, owner: &Owner) {
-		if owner.player_type != PlayerType::Barbarian {return;}
-		
+	pub fn add_unit(&mut self, unit_ind: usize, ut: &UnitTemplate) {
 		debug_assertq!(!self.defender_inds.contains(&unit_ind) && !self.attacker_inds.contains(&unit_ind)); // id already contained
 		
 		const N_DEFENDERS: usize = 5;
@@ -33,9 +31,7 @@ impl BarbarianState {
 		}
 	}
 	
-	pub fn rm_unit(&mut self, unit_ind: usize, owner: &Owner) {
-		if owner.player_type != PlayerType::Barbarian {return;}
-
+	pub fn rm_unit(&mut self, unit_ind: usize) {
 		if let Some(indx) = self.defender_inds.iter().position(|&r| r == unit_ind) {
 			self.defender_inds.swap_remove(indx);
 		}else if let Some(indx) = self.attacker_inds.iter().position(|&r| r == unit_ind) {
@@ -43,14 +39,12 @@ impl BarbarianState {
 		}else{panicq!("id {} not contained in barbarian_state", unit_ind);}
 	}
 	
-	pub fn chg_unit_ind(&mut self, frm_ind: usize, to_ind: usize, owner: &Owner) {
-		if owner.player_type != PlayerType::Barbarian {return;}
-		
+	pub fn chg_unit_ind(&mut self, frm_ind: usize, to_ind: usize) {
 		if let Some(indx) = self.defender_inds.iter().position(|&r| r == frm_ind) {
 			self.defender_inds[indx] = to_ind;
 		}else if let Some(indx) = self.attacker_inds.iter().position(|&r| r == frm_ind) {
 			self.attacker_inds[indx] = to_ind;
-		}else{panicq!("chg_unit_ind frm {} to {}. frm not contained in barbarian_state (owner: {}). defenders & attackers lens {} {}", frm_ind, to_ind, owner.id,
+		}else{panicq!("chg_unit_ind frm {} to {}. frm not contained in barbarian_state. defenders & attackers lens {} {}", frm_ind, to_ind,
 				self.defender_inds.len(), self.attacker_inds.len());}
 	}
 	

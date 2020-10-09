@@ -13,7 +13,9 @@ use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx, HashStruct64};
 use crate::gcore::{Log, Relations, Bonuses, HUMAN_PLAYER_IND, HUMAN_PLAYER_ID};
 use crate::disp::menus::{update_menu_indicators, FindType, OptionsUI};
 use crate::ai::{CITY_HEIGHT, CITY_WIDTH, AIState, BarbarianState, place_barbarians, AIConfig, init_ai_config};
-use crate::nobility::{House, NOBILITY_OWNER_IND};
+use crate::nobility::{House};
+use crate::player::{PlayerType};
+use crate::containers::Templates;
 use crate::map::gen_utils::print_map_status;
 use crate::localization::Localization;
 
@@ -23,17 +25,11 @@ pub const SAVE_DIR: &str = "saves/";
 pub enum SaveType {Auto, Manual} // if set to manual, name is pulled from iface_settings
 
 pub fn save_game<'f,'bt,'ut,'rt,'dt>(save_type: SaveType, turn: usize, map_data: &MapData<'rt>,
-		exs: &Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &Vec<HashedMapZoneEx>,
-		bldg_config: &BldgConfig,
-		bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, units: &Vec<Unit<'bt,'ut,'rt,'dt>>, stats: &Vec<Stats>,
-		unaffiliated_houses: &mut Vec<House>,
+		exs: &Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+		bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, units: &Vec<Unit<'bt,'ut,'rt,'dt>>,
 		relations: &Relations, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>,
-		doctrine_templates: &'dt Vec<DoctrineTemplate>,
-		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, unit_templates: &'ut Vec<UnitTemplate<'rt>>,
-		resource_templates: &'rt Vec<ResourceTemplate>, owners: &Vec<Owner>, nms: &Nms, disp_settings: &DispSettings,
-		disp_chars: &DispChars, tech_templates: &Vec<TechTemplate>,
-		ai_states: &Vec<Option<AIState<'bt,'ut,'rt,'dt>>>, ai_config: &AIConfig,
-		barbarian_states: &Vec<Option<BarbarianState>>, logs: &Vec<Log>, l: &Localization,
+		players: &Vec<Player>, disp_settings: &DispSettings,
+		disp_chars: &DispChars, logs: &Vec<Log>, l: &Localization,
 		frame_stats: &FrameStats, rng: &mut XorState, d: &mut DispState){
 	let mut buf = Vec::new();
 	
@@ -45,34 +41,45 @@ pub fn save_game<'f,'bt,'ut,'rt,'dt>(save_type: SaveType, turn: usize, map_data:
 	}
 	
 	//////////// save
-	doctrine_templates.sv(&mut buf);
-	resource_templates.sv(&mut buf);
-	unit_templates.sv(&mut buf);
-	bldg_templates.sv(&mut buf);
+	
+	{ // templates
+		// not all fields are saved -- some are loaded from config files each game load
+		temps.doctrines.sv(&mut buf);
+		temps.resources.sv(&mut buf);
+		temps.units.sv(&mut buf);
+		temps.bldgs.sv(&mut buf);
+		temps.techs.sv(&mut buf);
+		temps.ai_config.sv(&mut buf);
+		temps.bldg_config.sv(&mut buf);
+		temps.nms.sv(&mut buf);
+	}
+	
+	{ // players
+		// manually saved due to stats having a reference as a field and it not being possible to have a Default
+		players.len().sv(&mut buf);
+		for player in players.iter() {
+			player.id.sv(&mut buf);
+			player.ptype.sv(&mut buf);
+			player.personalization.sv(&mut buf);
+			player.stats.sv(&mut buf);
+			player.zone_exs.sv(&mut buf);
+		}
+	}
+	
 	turn.sv(&mut buf);
 	iface_settings.sv(&mut buf);
 	map_data.sv(&mut buf);
 	sv_exs(exs, &mut buf);
-	bldg_config.sv(&mut buf);
 	bldgs.sv(&mut buf);
 	units.sv(&mut buf);
 	disp_settings.sv(&mut buf);
-	owners.sv(&mut buf);
-	nms.sv(&mut buf);
-	tech_templates.sv(&mut buf);
-	stats.sv(&mut buf);
-	unaffiliated_houses.sv(&mut buf);
 	relations.sv(&mut buf);
-	ai_states.sv(&mut buf);
-	ai_config.sv(&mut buf);
-	barbarian_states.sv(&mut buf);
 	logs.sv(&mut buf);
-	sv_zone_exs(zone_exs_owners, &mut buf);
 	frame_stats.sv(&mut buf);
 	rng.sv(&mut buf);
 	
 	let file_nm = match save_type {
-		SaveType::Auto => {save_nm_date(&owners[iface_settings.cur_player as usize], turn, true, l)},
+		SaveType::Auto => {save_nm_date(&players[iface_settings.cur_player as usize].personalization, turn, true, l)},
 		SaveType::Manual => {iface_settings.save_nm.clone()}
 	};
 	
@@ -85,8 +92,8 @@ pub fn save_game<'f,'bt,'ut,'rt,'dt>(save_type: SaveType, turn: usize, map_data:
 	}else {panicq!("failed opening file for writing: {}/{}", SAVE_DIR, file_nm);}
 	
 	///////// test that loading works of saved data
-	#[cfg(any(feature="opt_debug", debug_assertions))]
-	test_save_load(turn, map_data, exs, zone_exs_owners, bldg_config, bldgs, units, stats, unaffiliated_houses, relations, iface_settings, doctrine_templates, bldg_templates, unit_templates, resource_templates, owners, nms, disp_settings, tech_templates, ai_states, ai_config, barbarian_states, logs, frame_stats, rng);
+	//#[cfg(any(feature="opt_debug", debug_assertions))]
+	//test_save_load(turn, map_data, exs, temps, bldgs, units, relations, iface_settings, players, nms, disp_settings, logs, frame_stats, rng);
 	
 	if SaveType::Manual == save_type {
 		d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
@@ -94,94 +101,82 @@ pub fn save_game<'f,'bt,'ut,'rt,'dt>(save_type: SaveType, turn: usize, map_data:
 }
 
 pub fn load_game<'f,'bt,'ut,'rt,'dt>(buf: Vec<u8>, mut offset: usize, menu_meta: &mut OptionsUI, disp_settings: &mut DispSettings, turn: &mut usize, map_data: &mut MapData<'rt>,
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &mut Vec<HashedMapZoneEx>,
-		bldg_config: &mut BldgConfig, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, 
-		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>,
-		unaffiliated_houses: &mut Vec<House>,
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
 		relations: &mut Relations, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>,
-		doctrine_templates: &'dt Vec<DoctrineTemplate>,
-		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, 
-		unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>,
-		owners: &mut Vec<Owner>, nms: &mut Nms, disp_chars: &mut DispChars,
-		tech_templates: &mut Vec<TechTemplate>, ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>, 
-		ai_config: &mut AIConfig<'rt>,
-		barbarian_states: &mut Vec<Option<BarbarianState>>, logs: &mut Vec<Log>, frame_stats: &mut FrameStats,
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, disp_chars: &mut DispChars,
+		logs: &mut Vec<Log>, frame_stats: &mut FrameStats,
 		rng: &mut XorState, d: &mut DispState){
 	
-	macro_rules! ld_val{($val:ident) => ($val.ld(&buf, &mut offset, &bldg_templates, &unit_templates, &resource_templates, &doctrine_templates););};
+	macro_rules! ld_val{($val:ident) => ($val.ld(&buf, &mut offset, &temps.bldgs, &temps.units, &temps.resources, &temps.doctrines););};
+	
+	{ // players
+		let mut sz: usize = 0;
+		sz.ld(&buf, &mut offset, temps.bldgs, temps.units, temps.resources, temps.doctrines);
+		*players = Vec::with_capacity(sz);
+		for _ in 0..sz {
+			let mut id: SmSvType = Default::default();
+			let mut ptype = PlayerType::Human {ai_state: Default::default()};
+			let mut personalization: Personalization = Default::default();
+			let mut stats = Stats::default(temps.doctrines);
+			let mut zone_exs: HashedMapZoneEx = Default::default();
+			ld_val!(id);
+			ld_val!(ptype);
+			ld_val!(personalization);
+			ld_val!(stats);
+			ld_val!(zone_exs);
+			players.push(Player {
+				id, ptype, personalization, stats, zone_exs
+			});
+		}
+	}
 	
 	ld_val!(turn);
 	ld_val!(iface_settings);
 	ld_val!(map_data);
-	ld_exs(exs, &buf, &mut offset, &bldg_templates, &unit_templates, &resource_templates, &doctrine_templates);
-	ld_val!(bldg_config);
+	ld_exs(exs, &buf, &mut offset, &temps.bldgs, &temps.units, &temps.resources, &temps.doctrines);
 	ld_val!(bldgs);
 	ld_val!(units);
 	ld_val!(disp_settings);
-	ld_val!(owners);
-	ld_val!(nms);
-	ld_val!(tech_templates);
-	ld_val!(stats);
-	ld_val!(unaffiliated_houses);
 	ld_val!(relations);
-	ld_val!(ai_states);
-	ld_val!(ai_config);
-	ld_val!(barbarian_states);
 	ld_val!(logs);
-	ld_zone_exs(zone_exs_owners, &buf, &mut offset, &bldg_templates, &unit_templates, &resource_templates, &doctrine_templates);
 	ld_val!(frame_stats);
 	ld_val!(rng);
 	
-	map_data.compute_zoom_outs(exs, zone_exs_owners, bldgs, bldg_templates, owners);
+	map_data.compute_zoom_outs(exs, players, bldgs, temps.bldgs);
 	
 	*disp_chars = init_color_pairs(disp_settings, d);
-	update_menu_indicators(menu_meta, iface_settings, iface_settings.cur_player_paused(ai_states), disp_settings);
+	update_menu_indicators(menu_meta, iface_settings, iface_settings.cur_player_paused(players), disp_settings);
 	iface_settings.set_auto_turn(iface_settings.auto_turn, d); // set frame timeout
 	
 	//map_data.max_zoom_in_buffer_sz = 8_000_000;
 }
 
-#[cfg(any(feature="opt_debug", debug_assertions))]
+/*#[cfg(any(feature="opt_debug", debug_assertions))]
 pub fn test_save_load<'f,'bt,'ut,'rt,'dt>(mut turn: usize, map_data: &MapData<'rt>,
-		exs: &Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &Vec<HashedMapZoneEx>,
-		bldg_config: &BldgConfig, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, 
-		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, stats: &Vec<Stats>,
-		unaffiliated_houses: &Vec<House>,
+		exs: &Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt>,
+		bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, units: &Vec<Unit<'bt,'ut,'rt,'dt>>,
 		relations: &Relations, iface_settings: &IfaceSettings<'f,'bt,'ut,'rt,'dt>,
-		doctrine_templates: &'dt Vec<DoctrineTemplate>,
-		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>,
-		unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>,
-		owners: &Vec<Owner>, nms: &Nms, disp_settings: &DispSettings,
-		tech_templates: &Vec<TechTemplate>, ai_states: &Vec<Option<AIState>>,
-		ai_config: &AIConfig,
-		barbarian_states: &Vec<Option<BarbarianState>>, logs: &Vec<Log>, frame_stats: &FrameStats,
+		players: &Vec<Player>, nms: &Nms, disp_settings: &DispSettings,
+		logs: &Vec<Log>, frame_stats: &FrameStats,
 		rng: &XorState){
 	
 	let mut buf = Vec::new();
 	
 	//////////// save
-	resource_templates.sv(&mut buf);
-	unit_templates.sv(&mut buf);
-	bldg_templates.sv(&mut buf);
+	temps.sv(&mut buf);
 	turn.sv(&mut buf);
 	iface_settings.sv(&mut buf);
 	map_data.sv(&mut buf);
 	sv_exs(exs, &mut buf);
-	bldg_config.sv(&mut buf);
 	bldgs.sv(&mut buf);
 	units.sv(&mut buf);
 	disp_settings.sv(&mut buf);
-	owners.sv(&mut buf);
+	players.sv(&mut buf);
 	nms.sv(&mut buf);
-	tech_templates.sv(&mut buf);
-	stats.sv(&mut buf);
-	unaffiliated_houses.sv(&mut buf);
 	relations.sv(&mut buf);
-	ai_states.sv(&mut buf);
-	ai_config.sv(&mut buf);
-	barbarian_states.sv(&mut buf);
 	logs.sv(&mut buf);
-	sv_zone_exs(zone_exs_owners, &mut buf);
+	//sv_zone_exs(zone_exs_owners, &mut buf);
 	frame_stats.sv(&mut buf);
 	rng.sv(&mut buf);
 	
@@ -301,26 +296,26 @@ pub fn test_save_load<'f,'bt,'ut,'rt,'dt>(mut turn: usize, map_data: &MapData<'r
 	}
 	debug_assertq!(map_data.map_szs == map_data2.map_szs);
 	debug_assertq!(map_data.max_zoom_in_buffer_sz == map_data2.max_zoom_in_buffer_sz);
-}
+}*/
 
 use std::hash::{BuildHasherDefault};
 use std::collections::{HashMap};
 
 // returns "first_last_of_country"
-fn save_nm_first_part(owner: &Owner) -> String {
-	format!("{}_{}_of_{}", owner.ruler_nm.first, owner.ruler_nm.last, owner.nm)
+impl Personalization {
+	fn save_nm_first_part(&self) -> String {
+		format!("{}_{}_of_{}", self.ruler_nm.first, self.ruler_nm.last, self.nm)
+	}
+	
+	pub fn save_nm(&self) -> String {format!("{}.af_game", self.save_nm_first_part())}
 }
 
-pub fn save_nm_date(owner: &Owner, turn: usize, checkpoint: bool, l: &Localization) -> String {
-	let mut nm = format!("{}_{}", save_nm_first_part(owner), l.date_str_underscores(turn));
+pub fn save_nm_date(personalization: &Personalization, turn: usize, checkpoint: bool, l: &Localization) -> String {
+	let mut nm = format!("{}_{}", personalization.save_nm_first_part(), l.date_str_underscores(turn));
 	
 	if checkpoint {nm.push_str("_autosave");}
 	nm.push_str(".af_game");
 	nm
-}
-
-pub fn save_nm(owner: &Owner) -> String {
-	format!("{}.af_game", save_nm_first_part(owner))
 }
 
 pub const GAME_START_TURN: usize = 100*12*30;
@@ -330,23 +325,19 @@ use crate::nn;
 
 pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &DispSettings,
 		turn: &mut usize, map_data: &mut MapData<'rt>,
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, zone_exs_owners: &mut Vec<HashedMapZoneEx>,
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
 		bldg_config: &mut BldgConfig, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, 
-		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, stats: &mut Vec<Stats<'bt,'ut,'rt,'dt>>,
-		unaffiliated_houses: &mut Vec<House>,
+		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
 		relations: &mut Relations, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>,
 		doctrine_templates: &'dt Vec<DoctrineTemplate>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>,
 		unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>,
-		owners: &mut Vec<Owner>, nms: &mut Nms, disp_chars: &DispChars,
-		tech_templates: &Vec<TechTemplate>, ai_states: &mut Vec<Option<AIState<'bt,'ut,'rt,'dt>>>,
-		ai_config: &mut AIConfig<'rt>,
-		barbarian_states: &mut Vec<Option<BarbarianState>>, logs: &mut Vec<Log>, l: &Localization,
+		nms: &mut Nms, disp_chars: &DispChars, tech_templates: &Vec<TechTemplate>,
+		ai_config: &mut AIConfig<'rt>, logs: &mut Vec<Log>, l: &Localization,
 		game_opts: &GameOptions, rng: &mut XorState, d: &mut DispState) {
 	
 	let mut txt_gen = nn::TxtGenerator::new(rng.gen());
 	
 	*bldg_config = BldgConfig::from_config_file();
-	unaffiliated_houses.clear();
 	
 	///////// city names setup
 	nms.cities.clear();
@@ -391,31 +382,22 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 			exs.push(HashMap::with_hasher(s));
 		}
 		
-		map_data.compute_zoom_outs(exs, zone_exs_owners, bldgs, bldg_templates, owners);
+		map_data.compute_zoom_outs(exs, players, bldgs, bldg_templates);
 		
 		//// state and owner vars setup
 		{
-			*owners = Vec::with_capacity(game_opts.n_players + 1);
-			*zone_exs_owners = Vec::with_capacity(game_opts.n_players + 1);
-			*stats = Vec::with_capacity(game_opts.n_players + 1);
-			*barbarian_states = Vec::with_capacity(game_opts.n_players + 1);
-			*ai_states = Vec::with_capacity(game_opts.n_players + 1);
+			*players = Vec::with_capacity(game_opts.n_players + 1);
 			
 			//////////// add human player and generic AI players			
 			for id in 0..(game_opts.n_players) {
 				let personality = AIPersonality::new(rng);
-							
-				let motto = txt_gen.gen_str(nn::TxtCategory::from(&personality));
 				
-				assertq!(HUMAN_PLAYER_IND != NOBILITY_OWNER_IND);
-				let (player_type, bonuses) = if id != HUMAN_PLAYER_IND {
-					(PlayerType::AI(personality), game_opts.ai_bonuses.clone())
-				// nobility
-				}else if id == NOBILITY_OWNER_IND {
-					(PlayerType::Nobility, game_opts.ai_bonuses.clone())
-				}else{
-					(PlayerType::Human, Default::default())
-				};
+				let (player_type, bonuses) = 
+					if id != HUMAN_PLAYER_IND {
+						(PlayerType::AI {ai_state: Default::default(), personality}, game_opts.ai_bonuses.clone())
+					}else{
+						(PlayerType::Human {ai_state: Default::default()}, Default::default())
+					};
 				
 				// country nm -- prevent duplicates
 				let mut nm;
@@ -429,41 +411,27 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 					ruler_nm = ruler.1;
 					
 					// prevent duplicates of names
-					for owner in owners.iter() {
-						if nm == owner.nm {continue 'nm_loop;}
-						if ruler_nm.first == owner.ruler_nm.first &&
-						   ruler_nm.last == owner.ruler_nm.last {
-							   continue 'nm_loop;
-						   }
+					for player in players.iter() {
+						let pers = &player.personalization;
+						if ruler_nm == pers.ruler_nm || nm == pers.nm {
+							continue 'nm_loop;
+						}
 					}
 					break;
 				} // end prevent duplicates
 				
-				owners.push(Owner { id: id as SmSvType, 
-						   color: PLAYER_COLORS[id],
-						   nm, // of country
-						   gender_female,
-						   ruler_nm,
-						   doctrine_advisor_nm: PersonName::new(nms, rng).1,
-						   crime_advisor_nm: PersonName::new(nms, rng).1,
-						   pacifism_advisor_nm: PersonName::new(nms, rng).1,
-						   health_advisor_nm: PersonName::new(nms, rng).1,
-						   unemployment_advisor_nm: PersonName::new(nms, rng).1,
-						   city_nm_theme: rng.usize_range(0, nms.cities.len()),
-						   motto,
-						   player_type});
-				
-				add_owner_vars(&bonuses, zone_exs_owners, stats, relations, barbarian_states, ai_states, owners, tech_templates, resource_templates, doctrine_templates, map_data);
+				players.push(Player::new(id as SmSvType, player_type, personality, nm, ruler_nm, gender_female,
+					&bonuses, PLAYER_COLORS[id], &mut txt_gen, relations, nms, tech_templates, resource_templates, doctrine_templates, map_data, rng));
 			}
 		}
 		
 		///////////////////
 		
-		map_data.compute_zoom_outs(exs, zone_exs_owners, bldgs, bldg_templates, owners);
+		map_data.compute_zoom_outs(exs, players, bldgs, bldg_templates);
 		
-		*iface_settings = IfaceSettings::default(save_nm(&owners[HUMAN_PLAYER_IND]), HUMAN_PLAYER_ID);
+		*iface_settings = IfaceSettings::default(players[HUMAN_PLAYER_IND].personalization.save_nm(), HUMAN_PLAYER_ID);
 		
-		update_menu_indicators(menu_meta, iface_settings, iface_settings.cur_player_paused(ai_states), disp_settings);
+		update_menu_indicators(menu_meta, iface_settings, iface_settings.cur_player_paused(players), disp_settings);
 				
 		bldgs.clear();
 		units.clear();
@@ -473,7 +441,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 		
 		/////////////////// put units on map
 		{
-			let sz_prog = MapSz {h: 0, w: 0, sz: owners.len()};
+			let sz_prog = MapSz {h: 0, w: 0, sz: players.len()};
 			let mut screen_sz = getmaxyxu(d);
 			
 			let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
@@ -482,14 +450,15 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 			let city_w = CITY_WIDTH as isize;
 				
 			macro_rules! add_u{($coord:expr, $player:expr, $type:expr) => (
-				add_unit($coord, $player, $player == iface_settings.cur_player, $type, units, map_data, exs, bldgs, stats, relations, logs, &mut barbarian_states[$player as usize], &mut ai_states[$player as usize], unit_templates, owners, nms, *turn, rng););};
+				add_unit($coord, $player.id == iface_settings.cur_player, $type, units, map_data, exs, bldgs, $player, relations, logs, unit_templates, nms, *turn, rng););};
 			
 			
-			//////////// ai & human players
-			for player in 0..(owners.len() as SmSvType) {
+			//////////// ai, human, and nobility players
+			for player_ind in 0..players.len() {
+				let player = &mut players[player_ind];
 				let mut attempt = 0;
 				
-				print_map_status(Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(player as usize), &mut screen_sz, sz_prog, 0, disp_chars, l, d);
+				print_map_status(Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(player.id as usize), &mut screen_sz, sz_prog, 0, disp_chars, l, d);
 				d.clrtoeol();
 				
 				'player_attempt: loop{
@@ -497,32 +466,25 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 					let map_coord_x = rng.usize_range(0, map_sz.w - CITY_WIDTH - 1) as u64;
 					let map_coord = map_coord_y * map_sz.w as u64 + map_coord_x;
 					
-					//endwin();
-					
 					// not clear, try again
 					if square_clear(map_coord, ScreenSz{h: CITY_HEIGHT, w: CITY_WIDTH, sz: 0}, Quad::Lr, map_data, exs.last().unwrap()) == None {
 						if attempt > N_UNIT_PLACEMENT_ATTEMPTS { // try a new map
 							continue 'map_attempt;
 						}else{ // try another unit placement
 							attempt += 1;
-							print_attempt_update(attempt, player, &sz_prog, &mut screen_sz, disp_chars, l, d);
+							print_attempt_update(attempt, player.id, &sz_prog, &mut screen_sz, disp_chars, l, d);
 							continue 'player_attempt;
 						}
 					}
 					
-					let o = &owners[player as usize];
-					let pstats = &stats[player as usize];
-					
-					if let PlayerType::AI(personality) = &o.player_type {
-						let mut ai_state = AIState::default();
-						ai_state.set_next_bonus_bldg(&pstats, personality, bldg_templates, rng);
-						ai_state.create_city_plan(Coord {y: map_coord_y as isize, x: map_coord_x as isize}, rng, map_data, map_sz, bldg_templates);
-						ai_state.goal_doctrine = Some(&doctrine_templates[rng.usize_range(1, doctrine_templates.len())]);
-						ai_states[player as usize] = Some(ai_state);
-					}else if o.player_type.is_human() {
-						let mut ai_state = AIState::default();
-						ai_state.set_next_bonus_bldg(&pstats, &AIPersonality::default(), bldg_templates, rng);
-						ai_states[player as usize] = Some(ai_state);
+					match &mut player.ptype {
+						PlayerType::AI {ref mut ai_state, personality} => {
+							ai_state.set_next_bonus_bldg(&player.stats, personality, bldg_templates, rng);
+							ai_state.create_city_plan(Coord {y: map_coord_y as isize, x: map_coord_x as isize}, rng, map_data, map_sz, bldg_templates);
+							ai_state.goal_doctrine = Some(&doctrine_templates[rng.usize_range(1, doctrine_templates.len())]);
+						} PlayerType::Human {ref mut ai_state} => {
+							ai_state.set_next_bonus_bldg(&player.stats, &AIPersonality::default(), bldg_templates, rng);
+						} PlayerType::Barbarian {..} | PlayerType::Nobility {..} => {panicq!("shouldn't be added yet");}
 					}
 					
 					// place initial units
@@ -539,7 +501,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 						add_u!(u_coord2, player, UnitTemplate::frm_str(EXPLORER_NM, unit_templates));
 						
 						// set explorer to auto-explore
-						if owners[player as usize].player_type.is_ai() {
+						if player.ptype.is_ai() {
 							let u = &mut units.last_mut().unwrap();
 							assertq!(u.template.nm[0] == EXPLORER_NM);
 							u.action.push(ActionMeta::new(ActionType::AutoExplore {
@@ -550,16 +512,15 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 					}
 					
 					//////////// place barbarians
-					if !place_barbarians(&mut attempt, player, city_h, city_w, map_coord_y, map_coord_x, &game_opts.ai_bonuses, units, bldgs,
-								owners, map_data, exs, zone_exs_owners, doctrine_templates, unit_templates, bldg_templates, tech_templates, 
-								resource_templates, stats, relations, ai_states,
-								barbarian_states, logs, nms, rng, map_sz, &sz_prog, &mut screen_sz, *turn, disp_chars, l, &mut txt_gen, d) {
+					if !place_barbarians(&mut attempt, player_ind as SmSvType, city_h, city_w, map_coord_y, map_coord_x, &game_opts.ai_bonuses, players, units, bldgs,
+							map_data, exs, doctrine_templates, unit_templates, bldg_templates, tech_templates, resource_templates, relations,
+							logs, nms, rng, map_sz, &sz_prog, &mut screen_sz, *turn, disp_chars, l, &mut txt_gen, d) {
 						continue 'map_attempt;
 					}
 					
 					///////// tech plan
-					if let PlayerType::AI(_) = &owners[player as usize].player_type {
-						let pstats = &mut stats[player as usize];
+					let player = &mut players[player_ind];
+					if let PlayerType::AI {..} = &player.ptype {
 						let mut tech_added = true;
 						
 						// loop until no techs added. only add techs that have had the reqs already added
@@ -567,7 +528,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 							tech_added = false;
 							'tech_loop: for &tech_ind in rng.inds(tech_templates.len()).iter() {
 								// already scheduled
-								if pstats.techs_scheduled.contains(&(tech_ind as SmSvType)) {continue 'tech_loop;}
+								if player.stats.techs_scheduled.contains(&(tech_ind as SmSvType)) {continue 'tech_loop;}
 								
 								let tech = &tech_templates[tech_ind];
 								
@@ -576,29 +537,29 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 									if let Some(tech_reqs) = &tech.tech_req {
 										// true if all  tech reqs are already scheduled
 										return tech_reqs.iter().all(|tech_req|
-											pstats.techs_scheduled.contains(tech_req));
+											player.stats.techs_scheduled.contains(tech_req));
 									}
 									// no tech reqs so it can be added immediately
 									true
 								};
 								
 								if schedule_tech() {
-									pstats.techs_scheduled.push(tech_ind as SmSvType);
+									player.stats.techs_scheduled.push(tech_ind as SmSvType);
 									tech_added = true;
 								}
 							} // tech loop
 						} // loop until no techs added
 						
 						// check that all techs added
-						assertq!(tech_templates.len() == pstats.techs_scheduled.len(), "not all techs added -- orphaned tech requirements?");
+						assertq!(tech_templates.len() == player.stats.techs_scheduled.len(), "not all techs added -- orphaned tech requirements?");
 						
 						// reverse order -- first added has no requirements, but techs are scheduled by popping off values
-						let mut techs_scheduled_rev = Vec::with_capacity(pstats.techs_scheduled.len());
-						for ind in pstats.techs_scheduled.iter().rev() {
+						let mut techs_scheduled_rev = Vec::with_capacity(player.stats.techs_scheduled.len());
+						for ind in player.stats.techs_scheduled.iter().rev() {
 							techs_scheduled_rev.push(*ind);
 						}
 						
-						pstats.techs_scheduled = techs_scheduled_rev;
+						player.stats.techs_scheduled = techs_scheduled_rev;
 					}
 					break 'player_attempt;
 				} // player placement loop
@@ -611,18 +572,15 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 		break 'map_attempt;
 	}
 	
-	debug_assertq!(zone_exs_owners.len() == owners.len() && stats.len() == owners.len() && 
-			barbarian_states.len() == owners.len() && ai_states.len() == owners.len());
-	
 	// center cursor on map
 	iface_settings.set_screen_sz(d);
-	iface_settings.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, relations, owners, barbarian_states, ai_states, stats, logs, *turn, d);
+	iface_settings.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, relations, players, logs, *turn, d);
 	
 	iface_settings.ui_mode = UIMode::InitialGameWindow;
 	d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 }
 
-pub fn add_owner_vars<'dt>(bonuses: &Bonuses, zone_exs_owners: &mut Vec<HashedMapZoneEx>,
+/*pub fn add_owner_vars<'dt>(bonuses: &Bonuses, zone_exs_owners: &mut Vec<HashedMapZoneEx>,
 			stats: &mut Vec<Stats<'_,'_,'_,'dt>>, relations: &mut Relations,
 			barbarian_states: &mut Vec<Option<BarbarianState>>, ai_states: &mut Vec<Option<AIState>>,
 			owners: &Vec<Owner>, tech_templates: &Vec<TechTemplate>, resource_templates: &Vec<ResourceTemplate>,
@@ -634,7 +592,7 @@ pub fn add_owner_vars<'dt>(bonuses: &Bonuses, zone_exs_owners: &mut Vec<HashedMa
 	barbarian_states.push(None);
 	ai_states.push(None);
 	*relations = Relations::new(owners.len());
-}
+}*/
 
 pub fn print_attempt_update(attempt: usize, player: SmSvType, sz_prog: &MapSz, screen_sz: &mut ScreenSz, disp_chars: &DispChars, l: &Localization, d: &mut DispState) {
 	if (attempt % 25) != 0 {return;}
