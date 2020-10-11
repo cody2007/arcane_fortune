@@ -3,7 +3,7 @@ Ironnetpro is free software: you can redistribute it and/or modify
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-See arcane_fortune/LICENSE.txt for the full text of the terms and conditions.
+See arcane_fortune/license.txt for the full text of the terms and conditions.
 
 -------------------------
 
