@@ -3,7 +3,6 @@ use crate::doctrine::DoctrineTemplate;
 use crate::resources::ResourceTemplate;
 use crate::buildings::BldgTemplate;
 use crate::units::UnitTemplate;
-use crate::tech::TechTemplate;
 
 // formerly `Owner`
 #[derive(Clone, PartialEq)]
@@ -22,12 +21,13 @@ pub struct Personalization {
 	
 	pub city_nm_theme: usize, // index into nms.cities[city_nm_theme]
 	pub motto: String,
+	pub founded: usize
 }
 
 impl_saving!{Personalization {color, nm, gender_female,
 	ruler_nm, doctrine_advisor_nm, crime_advisor_nm,
 	pacifism_advisor_nm, health_advisor_nm, unemployment_advisor_nm,
-	city_nm_theme, motto}}
+	city_nm_theme, motto, founded}}
 
 #[derive(Clone, PartialEq)]
 pub struct PersonName {

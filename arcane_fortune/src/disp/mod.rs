@@ -4,9 +4,9 @@ use crate::units::vars::{UnitTemplate, Unit, RIOTER_NM};
 use crate::buildings::*;
 //use crate::saving::SmSvType;
 use crate::gcore::{Relations, Log};
-use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
+use crate::gcore::hashing::{HashedMapEx};
 use crate::zones::{FogVars, return_zone_coord, StructureData};
-use crate::ai::{AIState, BarbarianState};
+use crate::ai::*;
 use crate::player::{Player, PlayerType, Stats, PersonName};
 use crate::localization::Localization;
 
@@ -336,7 +336,7 @@ pub fn ret_bldg_color(at_edge: bool, bldg_ind: usize, b: &Bldg, bldgs: &Vec<Bldg
 	// show unconnected bldgs
 	if iface_settings.show_unconnected_bldgs && iface_settings.cur_player == b.owner_id {
 		// only show in unconnected color if not a city hall
-		if let BldgArgs::CityHall {..} = &b.args {} else {
+		if let BldgArgs::PopulationCenter {..} = &b.args {} else {
 			if let Some(zone_ex) = player.zone_exs.get(&return_zone_coord(b.coord, map_sz)) {
 				match zone_ex.ret_city_hall_dist() {
 					Dist::NotInit | Dist::NotPossible {..} => {
@@ -879,7 +879,6 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			UIMode::UnitsWindow {..} |
 			UIMode::GenericAlert {..} |
 			UIMode::NoblePedigree {..} |
-			UIMode::NobilityReqToJoin {..} |
 			
 			UIMode::BrigadesWindow {..} |
 			UIMode::BrigadeBuildList {..} |
@@ -910,6 +909,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			UIMode::PrevailingDoctrineChangedWindow |
 			UIMode::MvWithCursorNoActionsRemainAlert {..} |
 			UIMode::CivicAdvisorsWindow |
+			UIMode::AcceptNobilityIntoEmpire {..} |
 			UIMode::ForeignUnitInSectorAlert {..} |
 			UIMode::AboutWindow => {
 				macro_rules! mv_to_cur {()=>(d.mv(self.cur.y as i32, self.cur.x as i32););}
@@ -970,9 +970,15 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	// used for updating menu indicators (none when current player is not an AI)
 	pub fn cur_player_paused(&self, players: &Vec<Player>) -> Option<bool> {
 		if let Some(player) = players.get(self.cur_player as usize) {
-			if let PlayerType::AI {ai_state, ..} = &player.ptype {
-				return Some(ai_state.paused);
-			}
+			return match &player.ptype {
+				PlayerType::Empire(EmpireState {ai_state, ..}) |
+				PlayerType::Nobility(NobilityState {ai_state, ..}) => {
+					Some(ai_state.paused)
+				}
+				PlayerType::Human(_) | PlayerType::Barbarian(_) => {
+					None
+				}
+			};
 		}
 		None
 	}

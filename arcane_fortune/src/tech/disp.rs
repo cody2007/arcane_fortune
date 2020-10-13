@@ -1,5 +1,4 @@
 use crate::disp_lib::*;
-use crate::resources::ResourceTemplate;
 use crate::player::Stats;
 use crate::saving::SmSvType;
 use crate::disp::*;

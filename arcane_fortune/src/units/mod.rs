@@ -7,14 +7,13 @@ use crate::map::{MapType, MapData, MapSz, ZoomInd, compute_active_window, Presen
 use crate::player::{Stats, Player};
 use crate::movement::*;
 use crate::disp::{Coord, ScreenSz, IfaceSettings};
-use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
+use crate::gcore::hashing::*;
 use crate::buildings::*;
 use crate::config_load::*;
 use crate::saving::*;
 use crate::tech::TechTemplate;
 use crate::resources::ResourceTemplate;
 use crate::gcore::{Log, Relations};
-use crate::ai::{BarbarianState, AIState};
 use crate::localization::Localization;
 use crate::disp_lib::endwin;
 
@@ -240,7 +239,6 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 	debug_assertq!(u.action.len() != 0);
 	
 	let u_owner = u.owner_id as usize;
-	let pstats = &mut players[u_owner].stats;
 	
 	let action = u.action.last().unwrap();
 	debug_assertq!(action.path_coords.len() > 0);

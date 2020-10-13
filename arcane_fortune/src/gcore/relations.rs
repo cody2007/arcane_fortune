@@ -8,6 +8,7 @@ use crate::disp::*;
 use crate::disp::menus::{update_menu_indicators, OptionsUI};
 use crate::config_load::{config_parse, find_req_key_parse, read_file};
 use crate::nn::{TxtCategory, TxtPrinter};
+use crate::ai::*;
 use crate::player::{PlayerType, Player};
 use crate::gcore::XorState;
 use crate::doctrine::DoctrineTemplate;
@@ -182,8 +183,8 @@ impl Relations {
 			
 			logs.push(Log {turn,
 					   val: LogType::WarDeclaration {
-					   owner_attacker_id: owner1,
-					   owner_attackee_id: owner2
+					   	owner_attacker_id: owner1,
+					   	owner_attackee_id: owner2
 					}
 			});
 			
@@ -205,6 +206,26 @@ impl Relations {
 		}
 		
 		true
+	}
+	
+	// owner 1 joints as noble house of owner2
+	pub fn join_as_fiefdom(&mut self, owner1: usize, owner2: usize, players: &mut Vec<Player>,
+			logs: &mut Vec<Log>, turn: usize) {
+		self.discover_civ(owner1, owner2, logs, turn);
+		
+		let (omin, omax) = order_indices(owner1, owner2);
+		let relation_ind = omin*self.n_owners + omax;
+		self.relation_status[relation_ind] = RelationStatus::Fiefdom {turn_joined: turn};
+		
+		let empire_color = players[owner2].personalization.color;
+		players[owner1].personalization.color = empire_color;
+		
+		logs.push(Log {turn,
+			val: LogType::NobleHouseJoinedEmpire {
+				house_id: owner1,
+				empire_id: owner2
+			}
+		});
 	}
 	
 	pub fn declare_peace_wo_logging(&mut self, owner1: usize, owner2: usize, turn: usize) {
@@ -302,9 +323,11 @@ impl Relations {
 	pub fn friendliness_toward(&self, owner1: usize, owner2: usize, players: &Vec<Player>) -> f32 {
 		// intrinsic friendliness
 		let friendliness = match &players[owner1].ptype {
-			PlayerType::AI {personality, ..} => {
+			PlayerType::Empire(EmpireState {personality, ..}) => {
 				personality.friendliness
-			} PlayerType::Nobility {..} | PlayerType::Human {..} | PlayerType::Barbarian {..} => {0.}
+			} PlayerType::Nobility(NobilityState {house, ..}) => {
+				house.head_personality().friendliness
+			} PlayerType::Human {..} | PlayerType::Barbarian {..} => {0.}
 		};
 		
 		// from relations

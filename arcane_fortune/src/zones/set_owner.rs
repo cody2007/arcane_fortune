@@ -1,10 +1,8 @@
 use crate::gcore::{Log, Relations};
-use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
-use crate::buildings::{Bldg, BldgType, BldgTemplate, bldg_resource, StatsAction};
+use crate::gcore::hashing::*;
+use crate::buildings::*;
 use crate::units::Unit;
-use crate::doctrine::DoctrineTemplate;
-use crate::map::{MapSz, Dist, ZoneType, MapData, RecompType,
-	compute_zooms_coord, compute_active_window, PresenceAction};
+use crate::map::*;
 use crate::player::Player;
 use crate::saving::SmSvType;
 use super::{return_zone_coord};
@@ -68,7 +66,7 @@ pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize,
 				// register bldg in ai state
 				if let Some(to_city_state) = to_city_state_opt {
 					//printlnq!("registering bldg {}; frm owner {} to {}", bldg_ind_taxable, frm_owner, to_owner);
-					to_city_state.register_bldg(bldg_ind_taxable, b_update.template);
+					to_city_state.register_bldg(bldg_ind_taxable, b_update);
 				}
 			}
 		}

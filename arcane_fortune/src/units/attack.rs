@@ -7,7 +7,6 @@ use crate::disp_lib::*;
 use crate::ai::*;
 use crate::zones::*;
 use crate::buildings::*;
-use crate::doctrine::DoctrineTemplate;
 //use std::time::Duration;
 //use std::thread;
 use crate::disp::window::keys::end_window;
@@ -246,7 +245,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 									let b = &bldgs[bldg_ind];
 									
 									// log
-									if let BldgArgs::CityHall {nm, ..} = &b.args {
+									if let BldgArgs::PopulationCenter {nm, ..} = &b.args {
 										let b_owner = b.owner_id as usize;
 										if !owners_w_city_halls_rmd.contains(&b_owner) {
 											owners_w_city_halls_rmd.push(b_owner);
@@ -260,8 +259,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 													owner_attacker_id: u.owner_id as usize,
 										}});
 									}
-									rm_bldg(bldg_ind, b.owner_id == iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, players,
-										  UnitDelAction::Record (disband_unit_inds), map_sz);	
+									rm_bldg(bldg_ind, b.owner_id == iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, players,  UnitDelAction::Record (disband_unit_inds), map_sz);	
 								}
 							}
 						}
@@ -548,7 +546,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 			if b.owner_id == u.owner_id {reset_cont!();}
 			
 			// city hall
-			if let BldgArgs::CityHall {nm, ..} = &b.args {
+			if let BldgArgs::PopulationCenter {nm, ..} = &b.args {
 				let city_attackee_nm = nm.clone();
 				
 				// if at city hall, check at entrance
@@ -665,7 +663,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 				
 				// push city state into attacker
 				if let Some(to_city_state) = to_city_state_opt {
-					if let Some(ai_state) = players[u_owner_id].ptype.ai_state_mut() {
+					if let Some(ai_state) = players[u_owner_id].ptype.any_ai_state_mut() {
 						ai_state.city_states.push(to_city_state);
 					}
 				}
@@ -681,7 +679,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 					attackee.stats.alive = false;
 					
 					// remove units
-					if let PlayerType::Barbarian {barbarian_state} = &mut attackee.ptype {
+					if let PlayerType::Barbarian(barbarian_state) = &mut attackee.ptype {
 						for defender in barbarian_state.defender_inds.iter() {
 							debug_assertq!(!disband_unit_inds.contains(defender));
 							disband_unit_inds.push(*defender);

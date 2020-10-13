@@ -1,6 +1,6 @@
 use std::time::*;
 use std::cmp::{Ordering};
-use crate::disp_lib::{DispState, CURSOR_VISIBILITY};
+use crate::disp_lib::DispState;
 use crate::disp::*;
 use crate::disp::window::ProdOptions;
 use crate::disp::menus::{OptionsUI, FindType};
@@ -10,10 +10,9 @@ use crate::buildings::*;
 use crate::zones::*;
 use crate::movement::*;
 use crate::tech::{research_techs};
-use crate::ai::{AIState, BarbarianState, set_target_attackable};
+use crate::ai::*;
 use crate::gcore::Relations;
-use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
-use crate::nobility::{House};//, new_unaffiliated_houses};
+use crate::gcore::hashing::*;
 use crate::player::{LOG_TURNS, Player, PlayerType};
 use crate::containers::Templates;
 #[cfg(feature="profile")]
@@ -50,28 +49,20 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 	
 	//////////////////////////////////////////////
 	// nobility
-	/*{
-		for pstats in stats.iter_mut() {
-			pstats.houses.end_turn(nms, rng, *turn);
-		}
-		
-		for house in unaffiliated_houses.iter_mut() {
-			house.end_turn(nms, rng, *turn);
-		}
-		
-		new_unaffiliated_houses(unaffiliated_houses, stats, bldgs, temps, exs.last().unwrap(), map_data, zone_exs_owners, logs, ai_states, map_sz, rng, *turn);
-	}*/
+	new_unaffiliated_nobility(players, units, bldgs, map_data, exs, logs, temps, players[0].stats.alive_log.len(), relations, map_sz, rng, *turn);
 	
 	//////////////////////////////////////////////
 	// ai & barbarians
 	let mut disband_unit_inds = Vec::new();
 	
 	for player_ind in 0..players.len() {
-		AIState::plan_actions(player_ind, players, units, bldgs, relations, map_data, exs, temps, &mut disband_unit_inds, logs, rng, map_sz, *turn, iface_settings, disp_settings, menu_options, cur_ui_ai_player_is_paused, d);
-		BarbarianState::plan_actions(player_ind, units, bldgs, map_data, exs, players, temps.units, map_sz, rng, *turn);
-		if let PlayerType::Nobility {house} = &mut players[player_ind].ptype {
-			house.plan_actions(player_ind, units, bldgs, map_data, exs, relations, map_sz, rng, logs, nms, *turn);
+		let player = &players[player_ind];
+		if !player.stats.alive {continue;}
+		if let Some(AIState {paused: false, ..}) = player.ptype.any_ai_state() {
+			NobilityState::plan_actions(player_ind, player_ind == iface_settings.cur_player as usize, players, units, bldgs, map_data, exs, &mut disband_unit_inds, relations, map_sz, rng, logs, nms, iface_settings, *turn, temps, d);
+			EmpireState::plan_actions(player_ind, players, units, bldgs, relations, map_data, exs, temps, &mut disband_unit_inds, logs, rng, map_sz, *turn, iface_settings, disp_settings, menu_options, cur_ui_ai_player_is_paused, d);
 		}
+		BarbarianState::plan_actions(player_ind, units, bldgs, map_data, exs, players, temps.units, map_sz, rng, *turn);
 	}
 	
 	///////////////////////////////////////////
@@ -104,10 +95,10 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 			const PROB_FACTOR: f32 = -MAX_PROB / (DEMANDS_THRESH - SATURATING_DEMANDS_THRESH);
 			const PROB_OFFSET: f32 = MAX_PROB / (1. - SATURATING_DEMANDS_THRESH/DEMANDS_THRESH);
 			
-			//const LOG_SPACING_DAYS: usize = 30;
+			const LOG_SPACING_DAYS: usize = 30*12*5;
 			
 			// create demands
-			for player in players.iter() {
+			'demand_loop: for player in players.iter() {
 				let pstats = &player.stats;
 				if !pstats.alive || pstats.locally_logged.happiness_sum > DEMANDS_THRESH {continue;}
 				
@@ -153,14 +144,24 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 						_ => {panicq!("invalid max ind for happiness reason");}
 					};
 					
+					// prevent logging too frequently
+					for log in logs.iter().rev() {
+						// no logs found, do not go further back in time
+						if (log.turn + LOG_SPACING_DAYS) <= *turn {break;}
+						
+						if let LogType::CitizenDemand {owner_id, reason: reason_logged} = &log.val {
+							if *owner_id == player.id as usize && *reason_logged == reason {
+								continue 'demand_loop;
+							}
+						}
+					}
+					
 					logs.push(Log {turn: *turn,
 							val: LogType::CitizenDemand {owner_id: player.id as usize, reason}
 					});
 					
-					if player.id == iface_settings.cur_player && iface_settings.interrupt_auto_turn {
-						iface_settings.set_auto_turn(AutoTurn::Off, d);
-						d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-						iface_settings.ui_mode = UIMode::CitizenDemandAlert {reason};
+					if player.id == iface_settings.cur_player {
+						iface_settings.create_interrupt_window(UIMode::CitizenDemandAlert {reason}, d);
 					}
 				}
 			}
@@ -194,7 +195,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 			const PROB_FACTOR: f32 = -MAX_PROB / (RIOTING_THRESH - SATURATING_RIOTING_THRESH);
 			const PROB_OFFSET: f32 = MAX_PROB / (1. - SATURATING_RIOTING_THRESH/RIOTING_THRESH);
 			
-			const LOG_SPACING_DAYS: usize = 30;
+			const LOG_SPACING_DAYS: usize = 30*5;
 			
 			// create rioters
 			'owner_loop: for owner_ind in 0..players.len() {
@@ -209,7 +210,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 					if let Some(coord) = sample_low_happiness_coords(&player.zone_exs, exs.last().unwrap(), map_sz, rng) {
 						let owner_id = owner_ind as SmSvType;
 						
-						add_unit(coord, owner_id == iface_settings.cur_player, ut, units, map_data, exs, bldgs, &mut players[owner_ind], relations, logs, temps.units, &temps.nms, *turn, rng);
+						add_unit(coord, owner_id == iface_settings.cur_player, ut, units, map_data, exs, bldgs, &mut players[owner_ind], relations, logs, temps, *turn, rng);
 						
 						// log and create alert window if relevant
 						{
@@ -217,13 +218,13 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 							
 							// find closest city
 							if let Some(b) = bldgs.iter_mut().filter(|b| {
-										if let BldgArgs::CityHall {..} = b.args {
+										if let BldgArgs::PopulationCenter {..} = b.args {
 											b.owner_id == owner_id
 										}else{false}
 									}).min_by_key(|b| 
 										manhattan_dist(Coord::frm_ind(b.coord, map_sz), c, map_sz)
 									) {
-								if let BldgArgs::CityHall {nm, ..} = &b.args {
+								if let BldgArgs::PopulationCenter {nm, ..} = &b.args {
 									// prevent logging to frequently
 									for log in logs.iter().rev() {
 										// no logs found, do not go further back in time
@@ -242,9 +243,8 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 									});
 									
 									// create alert window
-									if iface_settings.interrupt_auto_turn && owner_id == iface_settings.cur_player {
-										iface_settings.set_auto_turn(AutoTurn::Off, d);
-										iface_settings.ui_mode = UIMode::RiotingAlert {city_nm: nm.clone()};
+									if owner_id == iface_settings.cur_player {
+										iface_settings.create_interrupt_window(UIMode::RiotingAlert {city_nm: nm.clone()}, d);
 										iface_settings.center_on_next_unmoved_menu_item(true, FindType::Coord(coord), map_data, exs, units, bldgs, relations, players, logs, *turn, d);
 									}
 								}else{panicq!("rioting did not filter non-city halls");}
@@ -308,7 +308,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 	{
 		// repair walls
 		'player_loop: for player in players.iter_mut() {
-			if let Some(ai_state) = player.ptype.ai_state() {
+			if let Some(ai_state) = player.ptype.any_ai_state() {
 				if ai_state.damaged_wall_coords.len() == 0 {continue;}
 				
 				let pstats = &mut player.stats;
@@ -385,7 +385,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 						let action = brigade.build_list.pop_front().unwrap();
 						
 						let min_city_opt = {
-							if let Some(ai_state) = player.ptype.ai_state() {
+							if let Some(ai_state) = player.ptype.any_ai_state() {
 								let unit_coord = Coord::frm_ind(u.return_coord(), map_sz);
 								ai_state.city_states.iter().min_by_key(|c| 
 									manhattan_dist(Coord::frm_ind(c.coord, map_sz), unit_coord, map_sz))
@@ -583,7 +583,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 				#[cfg(feature="profile")]
 				let _g = Guard::new("AutoExplore");
 				
-				if !players[u.owner_id as usize].ptype.is_ai() || rng.gen_f32b() < (1./50.) {
+				if !players[u.owner_id as usize].ptype.is_empire() || rng.gen_f32b() < (1./50.) {
 					let start_coord = *start_coord;
 					let explore_type = *explore_type;
 					
@@ -760,7 +760,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 					let bt = &b.template;
 					if let BldgType::Taxable(_) = &bt.bldg_type {
 						true
-					}else if let BldgArgs::CityHall {..} = &b.args {
+					}else if let BldgArgs::PopulationCenter {..} = &b.args {
 						false
 					}else{ bt.doctrinality_bonus == 0. }
 				};
@@ -988,8 +988,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 							Some(dedication.closest_available(&players[u_owner_id].stats, temps.doctrines))
 						}else{None};
 						
-						if !add_bldg(map_coord, u.owner_id, bldgs, template, doctrine_dedication, temps.bldgs, temps.doctrines, map_data, exs, players,
-								nms, *turn, logs, rng) {
+						if !add_bldg(map_coord, u.owner_id, bldgs, template, doctrine_dedication, temps, map_data, exs, players, *turn, logs, rng) {
 							u.action.pop(); // couldn't create bldg
 							continue;
 						}
@@ -1122,7 +1121,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 			}else if let ActionType::UIWorkerAutomateCity = action_type {
 				let u_owner = u.owner_id as usize;
 				let player = &mut players[u_owner];
-				if let Some(ai_state) = player.ptype.ai_state_mut() {
+				if let Some(ai_state) = player.ptype.any_ai_state_mut() {
 					let unit_coord = Coord::frm_ind(u.return_coord(), map_sz);
 					let is_cur_player = u.owner_id == iface_settings.cur_player;
 					
@@ -1231,13 +1230,11 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 							}
 						} SectorUnitEnterAction::Report => {
 							units[unit_ind].action.pop();
-							if automated_unit_owner_id == iface_settings.cur_player && iface_settings.interrupt_auto_turn {
-								iface_settings.set_auto_turn(AutoTurn::Off, d);
-								d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-								iface_settings.ui_mode = UIMode::ForeignUnitInSectorAlert {
+							if automated_unit_owner_id == iface_settings.cur_player {
+								iface_settings.create_interrupt_window(UIMode::ForeignUnitInSectorAlert {
 									sector_nm: sector.nm.clone(),
 									battalion_nm: automated_unit_nm
-								};
+								}, d);
 							}
 						} SectorUnitEnterAction::N => {panicq!("invalid unit enter action");}
 					}
@@ -1567,10 +1564,8 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 						doctrine_to_id: pstats.doctrine_template.id,
 			}});
 			
-			if player.id == iface_settings.cur_player && iface_settings.interrupt_auto_turn {
-				iface_settings.set_auto_turn(AutoTurn::Off, d);
-				d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-				iface_settings.ui_mode = UIMode::PrevailingDoctrineChangedWindow;
+			if player.id == iface_settings.cur_player {
+				iface_settings.create_interrupt_window(UIMode::PrevailingDoctrineChangedWindow, d);
 			}
 		}
 	}
@@ -1605,8 +1600,8 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 	for owner_id in 0..players.len() {
 		let player = &players[owner_id];
 		match player.ptype {
-			PlayerType::Barbarian {..} | PlayerType::Nobility {..} => {continue;}
-			PlayerType::AI {..} | PlayerType::Human {..} => {}
+			PlayerType::Barbarian(_) => {continue;}
+			PlayerType::Empire(_) | PlayerType::Human(_) | PlayerType::Nobility(_) => {}
 		}
 		if !player.stats.alive {continue;}
 		
@@ -1654,7 +1649,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 		let mut n_cities = 0;
 		for b in bldgs.iter() {
 			if b.owner_id != owner_id as u32 {continue;}
-			if let BldgArgs::CityHall {..} = &b.args {n_cities += 1;}
+			if let BldgArgs::PopulationCenter {..} = &b.args {n_cities += 1;}
 		}
 		
 		///////// remove buildings and possibly collapse civ
@@ -1676,7 +1671,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 					// log bldg or city being destroyed
 					{
 						let b_rm = &bldgs[bldg_expense.ind];
-						if let BldgArgs::CityHall {nm, ..} = &b_rm.args {
+						if let BldgArgs::PopulationCenter {nm, ..} = &b_rm.args {
 							logs.push(Log {turn: *turn,
 									   val: LogType::CityDisbanded {
 										owner_id,
@@ -1840,8 +1835,8 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(turn: &mut usize, units: &mut Vec<Unit<'bt,'
 		}
 	}
 	
-	//#[cfg(any(feature="opt_debug", debug_assertions))]
-	//chk_data(units, bldgs, exs, zone_exs_owners, stats, barbarian_states, ai_states, temps.doctrines, map_data, owners, map_sz);
+	#[cfg(any(feature="opt_debug", debug_assertions))]
+	chk_data(units, bldgs, exs, players, temps.doctrines, map_data, map_sz);
 	
 	frame_stats.update(frame_start);
 }

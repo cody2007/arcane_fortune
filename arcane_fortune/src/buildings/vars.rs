@@ -8,10 +8,9 @@ use crate::zones::return_zone_coord;
 use crate::gcore::rand::XorState;
 use crate::disp_lib::endwin;
 use crate::gcore::{Log, Relations};
-use crate::ai::{BarbarianState, AIState};
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
-use crate::player::{Stats, Player, Nms};
+use crate::player::*;
 use crate::containers::Templates;
 
 pub const CITY_HALL_NM: &str = "City Hall";
@@ -336,7 +335,7 @@ pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, uni
 	if let Some(_) = b.construction_done {return;}
 	
 	match &b.args {
-	  BldgArgs::CityHall {production, ..} |
+	  BldgArgs::PopulationCenter {production, ..} |
 	  BldgArgs::GenericProducable {production} => {
 	  	if let Some(entry) = production.last() {
 			let movement_type = entry.production.movement_type;
@@ -392,7 +391,7 @@ pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, uni
 		ProdAction::IncProg => {
 			let b = &mut bldgs[bldg_ind];
 			match b.args {
-			  BldgArgs::CityHall {ref mut production, ..} | BldgArgs::GenericProducable {ref mut production} => {
+			  BldgArgs::PopulationCenter {ref mut production, ..} | BldgArgs::GenericProducable {ref mut production} => {
 				production.last_mut().unwrap().progress += unit_production_rate * player.stats.bonuses.production_factor;
 			  } _ => {
 				  panicq!("bldg args in undefined state");
@@ -400,13 +399,13 @@ pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, uni
 			}
 		} ProdAction::FinProd {coord_add, unit_template} => {
 			match bldgs[bldg_ind].args {
-			  BldgArgs::CityHall {ref mut production, ..} | BldgArgs::GenericProducable {ref mut production} => {
+			  BldgArgs::PopulationCenter {ref mut production, ..} | BldgArgs::GenericProducable {ref mut production} => {
 				production.pop();
 			  } _ => {
 				 panicq!("bldg args in undefined state");
 			  }}
 			let owner_id = bldgs[bldg_ind].owner_id;
-			add_unit(coord_add, owner_id == cur_player, unit_template, units, map_data, exs, bldgs, player, relations, logs, temps.units, &temps.nms, turn, rng);
+			add_unit(coord_add, owner_id == cur_player, unit_template, units, map_data, exs, bldgs, player, relations, logs, temps, turn, rng);
 		}
 	}
 }
@@ -460,7 +459,6 @@ pub fn add_commute_to(bldg_ind_send: usize, bldg_ind_recv: usize, bldgs: &mut Ve
 		
 		// record keeping
 		if zone_send == ZoneType::Residential {
-			let id = bldgs[bldg_ind_send].owner_id as usize;
 			pstats.employed += 1;
 			bldgs[bldg_ind_recv].population_update_taxable_upkeep(pstats);
 		}
@@ -566,7 +564,6 @@ pub fn add_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>,
 	
 	b.bldgs_recv_frm.push(Commute {bldg_ind: None, zone_type: ZoneType::Residential});
 	
-	let id = b.owner_id as usize;
 	pstats.population += 1;
 	b.population_update_taxable_upkeep(pstats);
 	
@@ -575,7 +572,7 @@ pub fn add_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>,
 		match zone_ex.ret_city_hall_dist() {
 			Dist::Is {bldg_ind: ch_bldg_ind, ..} |
 			Dist::ForceRecompute {bldg_ind: ch_bldg_ind, ..} => {
-				if let BldgArgs::CityHall {ref mut population, ..} = bldgs[ch_bldg_ind].args {
+				if let BldgArgs::PopulationCenter {ref mut population, ..} = bldgs[ch_bldg_ind].args {
 					*population += 1;
 				}else{panicq!("expected city hall");}
 			}
@@ -625,7 +622,7 @@ pub fn rm_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>, player: &mut Player, 
 		match zone_ex.ret_city_hall_dist() {
 			Dist::Is {bldg_ind: ch_bldg_ind, ..} |
 			Dist::ForceRecompute {bldg_ind: ch_bldg_ind, ..} => {
-				if let BldgArgs::CityHall {ref mut population, ..} = bldgs[ch_bldg_ind].args {
+				if let BldgArgs::PopulationCenter {ref mut population, ..} = bldgs[ch_bldg_ind].args {
 					*population -= 1;
 				}else{panicq!("expected city hall");}
 			}
@@ -647,7 +644,7 @@ impl_saving!{ProductionEntry<'ut,'rt> {production, progress}}
 
 #[derive(Clone, PartialEq)]
 pub enum BldgArgs<'ut,'rt> {
-	CityHall {
+	PopulationCenter {
 		tax_rates: Box<[u8]>, // for each zone type indexed by ZoneType
 		production: Vec<ProductionEntry<'ut,'rt>>, // unit production
 		population: u32, // updated w/: zone_ex.set_city_hall_dist() and add_resident(), rm_resident()

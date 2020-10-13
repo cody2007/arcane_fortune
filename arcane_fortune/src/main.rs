@@ -1,5 +1,7 @@
-#![allow(warnings)]
 use std::time::*;
+use std::path::Path;
+use std::fs;
+
 //use std::time::{SystemTime, UNIX_EPOCH};
 //use std::process::exit;
 
@@ -26,7 +28,6 @@ mod ai;
 mod nn;
 mod keyboard;
 mod localization;
-mod nobility;
 mod player;
 mod containers;
 
@@ -37,7 +38,7 @@ use disp::menus::{init_menus, do_menu_shortcut, UIRet, FindType};
 use disp::window::{init_bldg_prod_windows, do_window_keys};
 use units::*;
 use gcore::*;
-use ai::AIConfig;
+use ai::*;
 use buildings::*;
 //use zones::*;
 use saving::*;
@@ -48,7 +49,6 @@ use doctrine::init_doctrine_templates;
 use keyboard::KeyboardMap;
 use localization::Localization;
 use player::*;
-//use nobility::*;
 use containers::*;
 
 fn main(){
@@ -100,6 +100,7 @@ fn main(){
 		let mut turn = 0;
 		let mut rng = XorState::clock_init();
 		let mut buttons = Buttons::new(&kbd, &lang);
+		let temps;
 		
 		//////////////////////////
 		// (1) create new game or load
@@ -108,15 +109,57 @@ fn main(){
 				game_state = if new_game_options(&mut game_opts, &game_difficulties, &lang, &disp_chars, &mut buttons, &mut d) {GameState::New} else {GameState::TitleScreen};
 				continue 'outer_loop;
 			} GameState::New => {
-				doctrine_templates = init_doctrine_templates(&lang);
-				tech_templates = init_tech_templates(&lang);
-				resource_templates = init_resource_templates(&tech_templates, &disp_chars, &lang);
-				unit_templates = init_unit_templates(&tech_templates, &resource_templates, &lang);
-				bldg_templates = init_bldg_templates(&tech_templates, &unit_templates, &doctrine_templates, &disp_chars, &lang);
+				{ // setup templates (static variables)
+					doctrine_templates = init_doctrine_templates(&lang);
+					tech_templates = init_tech_templates(&lang);
+					resource_templates = init_resource_templates(&tech_templates, &disp_chars, &lang);
+					unit_templates = init_unit_templates(&tech_templates, &resource_templates, &lang);
+					bldg_templates = init_bldg_templates(&tech_templates, &unit_templates, &doctrine_templates, &disp_chars, &lang);
+					
+					bldg_config = BldgConfig::from_config_file();
+					ai_config = init_ai_config(&resource_templates);
+					
+					///////// city names setup
+					nms.cities.clear();
+					{
+						const CITY_NMS_DIR: &str = "config/names/cities/";
+						let city_nms_dir = Path::new(CITY_NMS_DIR);
+						
+						// loop over files in the directory, each file contains a seprate them of city names
+						if let Result::Ok(dir_entries) = fs::read_dir(city_nms_dir) {
+							for entry in dir_entries {
+								if let Result::Ok(e) = entry {
+									nms.cities.push(return_names_list(read_file(
+											e.path().as_os_str().to_str().unwrap())));
+								}
+							}
+						} else {panicq!("failed to open {}", CITY_NMS_DIR);}
+					}
+					
+					////////// unit names setup
+					nms.units = return_names_list(read_file("config/names/battalion_names.txt"));
+					nms.brigades = return_names_list(read_file("config/names/brigade_names.txt"));
+					nms.sectors = return_names_list(read_file("config/names/sector_names.txt"));
+					nms.noble_houses = return_names_list(read_file("config/names/noble_houses/english_names.txt"));
+					nms.females = return_names_list(read_file("config/names/females.txt")); // names of rulers/nobility
+					nms.males = return_names_list(read_file("config/names/males.txt")); // names of rulers/nobility
+					
+					temps = Templates {
+						bldgs: &bldg_templates,
+						units: &unit_templates,
+						doctrines: &doctrine_templates,
+						resources: &resource_templates,
+						techs: &tech_templates,
+						ai_config: ai_config.clone(),
+						bldg_config: bldg_config.clone(),
+						kbd: kbd.clone(),
+						nms: nms.clone(),
+						l: lang.clone(),
+					};
+				}
 				
-				new_game(&mut menu_options, &mut disp_settings, &mut turn, &mut map_data, &mut exs, &mut players, &mut bldg_config, &mut bldgs, &mut units, &mut relations,
-						&mut iface_settings, &doctrine_templates, &bldg_templates,
-						&unit_templates, &resource_templates, &mut nms, &mut disp_chars, &tech_templates, &mut ai_config, &mut logs, &lang, &game_opts, &mut rng, &mut d);
+				new_game(&mut menu_options, &mut disp_settings, &mut turn, &mut map_data, &mut exs, &mut players, &temps, &mut bldgs, &mut units, &mut relations,
+						&mut iface_settings, &mut disp_chars, &mut logs, &lang, &game_opts, &mut rng, &mut d);
 			} GameState::Load(file_nm) => {
 				print_clear_centered_logo_txt(&lang.Loading_game, &disp_chars, &mut d);
 				
@@ -133,7 +176,7 @@ fn main(){
 				bldg_config.ld(&buf, &mut offset, &bldg_templates, &unit_templates, &resource_templates, &doctrine_templates);
 				nms.ld(&buf, &mut offset, &bldg_templates, &unit_templates, &resource_templates, &doctrine_templates);
 				
-				let temps = Templates {
+				temps = Templates {
 					bldgs: &bldg_templates,
 					units: &unit_templates,
 					doctrines: &doctrine_templates,
@@ -170,19 +213,6 @@ fn main(){
 		let mut alt_ind = 0; // for multiple units on the same land plot
 		let mut last_alt_time = Instant::now(); // when we last changed alt_ind
 		let mut txt_list = TxtList::new();
-		
-		let temps = Templates {
-			bldgs: &bldg_templates,
-			units: &unit_templates,
-			doctrines: &doctrine_templates,
-			resources: &resource_templates,
-			techs: &tech_templates,
-			ai_config: ai_config.clone(),
-			bldg_config: bldg_config.clone(),
-			kbd: kbd.clone(),
-			nms: nms.clone(),
-			l: lang.clone(),
-		};
 		
 		match &iface_settings.ui_mode {
 			UIMode::InitialGameWindow => {}
@@ -259,7 +289,7 @@ fn main(){
 				#[cfg(feature="profile")]
 				let _g = Guard::new("main frame loop -> all key actions");
 				
-				match do_window_keys(key_pressed, &mouse_event, &mut map_data, &mut exs, &mut units, &mut bldgs, &mut production_options, &mut iface_settings, &mut players, &mut relations, &temps, &mut logs, &mut disp_settings, &disp_chars, &mut menu_options, &frame_stats, turn, &mut game_state, &game_difficulties, &mut rng, &kbd, &lang, &mut buttons, &mut d) {
+				match do_window_keys(key_pressed, &mouse_event, &mut map_data, &mut exs, &mut units, &mut bldgs, &mut production_options, &mut iface_settings, &mut players, &mut relations, &temps, &mut logs, &mut disp_settings, &mut menu_options, turn, &mut game_state, &game_difficulties, &mut rng, &kbd, &lang, &mut buttons, &mut d) {
 					UIRet::Active => {}
 					UIRet::ChgGameState => {break;}
 					UIRet::Inactive => {

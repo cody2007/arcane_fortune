@@ -1,8 +1,7 @@
 use crate::disp::{ScreenSz, DispChars, set_player_color};
 use crate::gcore::Relations;
-use crate::player::{Player, Stats, PlayerType};
+use crate::player::*;
 use crate::disp_lib::{DispState};
-use crate::containers::Templates;
 use super::*;
 
 impl IfaceSettings<'_,'_,'_,'_,'_> {
@@ -16,8 +15,8 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				continue;
 			}
 			match player.ptype {
-				PlayerType::Barbarian {..} | PlayerType::Nobility {..} => {continue;}
-				PlayerType::AI {..} | PlayerType::Human {..} => {}
+				PlayerType::Barbarian(_) | PlayerType::Nobility(_) => {continue;}
+				PlayerType::Empire(_) | PlayerType::Human(_) => {}
 			}
 			if player.personalization.nm.len() as i32 > max_len {max_len = player.personalization.nm.len() as i32;}
 			players_discov.push(player);

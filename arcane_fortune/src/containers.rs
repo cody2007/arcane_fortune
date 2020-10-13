@@ -1,4 +1,3 @@
-use crate::saving::*;
 use crate::buildings::{BldgConfig, BldgTemplate};
 use crate::units::UnitTemplate;
 use crate::doctrine::DoctrineTemplate;
@@ -28,7 +27,10 @@ pub struct Templates<'bt,'ut,'rt,'dt,'tt> {
 	pub l: Localization
 }
 
+
+
 /* todo?
+
 pub struct Disp {
 	disp_settings: DispSettings, // limit characters or colors
 	disp_chars: DispChars,
@@ -37,16 +39,18 @@ pub struct Disp {
 	txt_list: TxtList, // for screen readers
 	buttons: Buttons,
 	local: Localization,
-	kbd: KeyboardMap,,
+	kbd: KeyboardMap,
 	disp_state: DispState // sdl state variables
 }
+*/
 
-pub struct Map<'bt,'ut,'rt,'dt> {
+/*pub struct Map<'bt,'ut,'rt,'dt> {
 	map_data: MapData<'rt>,
 	exs: Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-}
+	sz: MapSz
+}*/
 
-pub struct GameState {
+/*pub struct GameState {
 	relations: Relations,
 	logs: Vec<Log>,
 	rng: XorState,
@@ -59,3 +63,36 @@ pub struct Objs {
 }
 */
 
+/*
+pub struct Game {
+	objs: Objs,
+	players: Vec<Player>,
+	gstate: GameState,
+	map: Map,
+}
+*/
+
+// new_unaffiliated_houses(players, objs, map, temps, n_log_entries, game_state)
+// new_unaffiliated_houses(game)
+// house.plan_actions(is_cur_player, pstats, objs, map_data, exs, relations, map_sz, rng, logs, nms, turn);
+// house.plan_actions(is_cur_player, &mut pstats, &mut objs, &mut map, &mut game_state);
+
+// disband_units(disband_unit_inds, cur_ui_player, units, map_data, exs, players, relations, map_sz, logs, turn);
+// disband_units(disband_unit_inds, cur_ui_player, units, &mut map, &mut players, &mut gstate)
+
+// mv_units(unit_ind, is_cur_player, units, map_data, exs, bldgs, players, relations, map_sz, del_action, logs, turn)
+// mv_unit(unit_ind, del_action, is_cur_player, objs, map, players, gstate)
+// mv_unit(unit_ind, del_action, is_cur_player, units, map, players, gstate) //
+// mv_unit(unit_ind, del_action, is_cur_player, game)
+
+// action_iface.update_move_search(end_coord, map, mv_vars, bldgs)
+
+// plan_actions(ai_ind, players, units, bldgs, relations, map_data, exs, temps, disband_unit_inds, logs, rng, map_sz, turn, iface_settings, disp_settings, menu_options, cur_ui_ai_player_is_paused, d)
+// plan_actions(ai_ind, players, objs, gstate, map, temps, disband_unit_inds, iface_settings, disp_settings, menu_options, cur_ui_ai_player_is_paused)
+
+// add_bldg(coord, bldgs, bt, doctrine_dedication, temps, map_data, exs, players, turn, logs, rng)
+// add_bldg(coord, bldgs, bt, doctrine_dedication, temps, map, players, gstate)
+// add_bldg(coord, bt, doctrine_dedication, game)
+
+// add_unit(coord, is_cur_player, unit_template, units, map_data, exs, bldgs, player, relations, logs, temps, turn, rng)
+// add_unit(coord, is_cur_player, unit_template, player, objs, map, gstate)

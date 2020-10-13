@@ -1,5 +1,5 @@
 use crate::map::{MapData};
-use crate::player::{Player, Stats, LOG_TURNS, PlayerType};
+use crate::player::*;
 use crate::disp_lib::*;
 use crate::gcore::Relations;
 use super::{float_string, set_player_color, Buttons, addstr_c};
@@ -176,8 +176,8 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 						// only plot if civ discovered
 						if !relations.discovered(cur_player, player.id as usize) {continue;}
 						match player.ptype {
-							PlayerType::Barbarian {..} | PlayerType::Nobility {..} => {continue;}
-							PlayerType::Human {..} | PlayerType::AI {..} => {}
+							PlayerType::Barbarian(_) | PlayerType::Nobility(_) => {continue;}
+							PlayerType::Human(_) | PlayerType::Empire(_) => {}
 						}
 						
 						set_player_color(player, true, d);
@@ -225,8 +225,8 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 						// only plot if discov
 						if !relations.discovered(cur_player, owner_id) {continue;}
 						match player.ptype {
-							PlayerType::Barbarian {..} | PlayerType::Nobility {..} => {continue;}
-							PlayerType::Human {..} | PlayerType::AI {..} => {}
+							PlayerType::Barbarian(_) | PlayerType::Nobility(_) => {continue;}
+							PlayerType::Human(_) | PlayerType::Empire(_) => {}
 						}
 						
 						d.mv(row_counter + ROW_TOP_GAP + LEGEND_ROW_GAP + 2, COL_START + LEGEND_COL_GAP);

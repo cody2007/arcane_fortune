@@ -3,7 +3,7 @@ use crate::units::{ActionType, Unit};
 use crate::buildings::{Bldg, BldgType};
 use crate::disp::{Coord};
 use crate::map::{MapSz, MapData, StructureType};
-use crate::player::{Player, PlayerType};
+use crate::player::*;
 use crate::movement::{manhattan_dist};
 use crate::gcore::hashing::HashedMapEx;
 #[cfg(feature = "profile")]

@@ -5,8 +5,8 @@ use crate::doctrine::DoctrineTemplate;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 
-const WAR_WEARINESS_FACTOR: f32 = 1./3600.;
-const MAX_TIME_MASSACRE: usize = 360*10;
+const WAR_WEARINESS_FACTOR: f32 = 1./(10. * TURNS_PER_YEAR as f32);
+const MAX_TIME_MASSACRE: usize = 10 * TURNS_PER_YEAR;
 const MASSACRE_FACTOR: f32 = 10.;
 
 fn nrelu(val: f32) -> f32 {

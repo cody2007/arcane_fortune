@@ -10,6 +10,7 @@ pub mod keys; pub use keys::*;
 pub mod war_status; pub use war_status::*;
 pub mod encyclopedia_info; pub use encyclopedia_info::*;
 pub mod history; pub use history::*;
+pub mod nobility; pub use nobility::*;
 
 use std::cmp::Ordering;
 use crate::disp_lib::*;
@@ -251,35 +252,44 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			print_tech_tree(temps, disp_chars, pstats, sel, sel_mv, tree_offsets, self.screen_sz, *prompt_tech, kbd, l, buttons, d);
 		///////////// noble pedigree
 		}else if let UIMode::NoblePedigree {mode, house_nm, ..} = &mut self.ui_mode {
-			/*let houses = &stats[self.cur_player as usize].houses;
-			
+			// find and set house_nm
 			if house_nm.is_none() {
+				let houses = relations.noble_houses(self.cur_player as usize);
+				
 				// no houses to show
-				if houses.houses.len() == 0 {
+				if houses.len() == 0 {
 					self.ui_mode = UIMode::GenericAlert {
 						txt: l.No_nobility_in_empire.clone()
 					};
 					return;
 					
 				// only one pedigree to show
-				}else if houses.houses.len() == 1 {
-					*house_nm = Some(houses.houses[0].name.clone());
+				}else if houses.len() == 1 {
+					*house_nm = Some(players[houses[0]].personalization.nm.clone());
 					
 				// ask which pedigree to show
 				}else{
-					print_list_window(*mode, &l.Select_a_noble_house, noble_houses_list(houses), self, disp_chars, None, None, 0, None, l, buttons, d);
+					let options = noble_houses_list(self.cur_player as usize, relations, players, l);
+					print_list_window(*mode, &l.Select_a_noble_house, options, self, disp_chars, None, None, 0, None, l, buttons, d);
 					return;
 				}
 			}
 			
 			// print the pedigree
 			if let Some(house_nm) = house_nm {
-				if let Some(house) = houses.houses.iter().find(|h| h.name == *house_nm) {
-					house.print_pedigree(buttons, self.screen_sz, disp_chars, l, d, turn);
-				}else{
-					end_window(self, d);
+				if let Some(player) = players.iter().find(|h| h.personalization.nm == *house_nm) {
+					if let Some(house) = player.ptype.house() {
+						house.print_pedigree(&player.personalization, buttons, self.screen_sz, disp_chars, l, d, turn);
+						return;
+					}
 				}
-			}*/
+				
+				end_window(self, d);
+			}
+			
+		/////////// nobility requests to join empire
+		}else if let UIMode::AcceptNobilityIntoEmpire {mode, house_ind} = self.ui_mode {
+			self.print_accept_nobility_into_empire(mode, house_ind, players, l, disp_chars, buttons, d);
 			
 		//////////// doctrine tree window
 		}else if let UIMode::DoctrineWindow {sel, sel_mv, tree_offsets, ..} = &mut self.ui_mode {
@@ -1449,7 +1459,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		}else if let UIMode::ContactEmbassyWindow {state} = &mut self.ui_mode {
 			match state {
 				EmbassyState::CivSelection{mode} => {
-					let contacted_civs = contacted_civilizations_list(relations, players, self.cur_player, turn);
+					let contacted_civs = contacted_civilizations_list(relations, players, self.cur_player, turn, l);
 					print_list_window(*mode, &l.Select_civilization, contacted_civs, self, disp_chars, None, None, 0, Some(players), l, buttons, d);
 				} EmbassyState::DialogSelection{mode, owner_id, ref mut quote_printer} => {
 					let o = &players[*owner_id];
@@ -2062,7 +2072,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		
 		////////////////////////// civilization intel
 		}else if let UIMode::CivilizationIntelWindow {mode, selection_phase} = self.ui_mode {
-			let contacted_civs = contacted_civilizations_list(relations, players, self.cur_player, turn);
+			let contacted_civs = contacted_civilizations_list(relations, players, self.cur_player, turn, l);
 			
 			// select civilization
 			if selection_phase {
@@ -2139,7 +2149,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				}
 				
 				//////////// personality
-				if let PlayerType::AI {personality, ..} = &player.ptype {
+				if let PlayerType::Empire(EmpireState {personality, ..}) = &player.ptype {
 					mvl!();mvl!(true);
 					
 					d.addstr("Our intelligence tells us this is a");

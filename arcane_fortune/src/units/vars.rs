@@ -13,8 +13,8 @@ use crate::movement::{MvVarsAtZoom, Dest};
 use crate::disp::Coord;
 use crate::gcore::{Log, Relations};
 use crate::localization::Localization;
-use crate::ai::{BarbarianState, AIState};
-use crate::player::{Stats, Player, Nms};
+use crate::player::*;
+use crate::containers::*;
 
 pub const MAX_UNITS_PER_PLOT: usize = 2;
 
@@ -367,7 +367,6 @@ pub fn set_coord<'bt,'ut,'rt,'dt>(coord: u64, unit_ind: usize, is_cur_player: bo
 		map_sz: MapSz, relations: &mut Relations, logs: &mut Vec<Log>, turn: usize) {
 	
 	let u = &units[unit_ind];
-	let owner_id = u.owner_id as usize;
 	
 	rm_unit_coord_frm_map(unit_ind, is_cur_player, u.coord, units, map_data, exs, pstats, map_sz, relations, logs, turn);
 	units[unit_ind].coord = coord;
@@ -380,7 +379,7 @@ pub fn set_coord<'bt,'ut,'rt,'dt>(coord: u64, unit_ind: usize, is_cur_player: bo
 }
 
 pub fn unboard_unit<'bt,'ut,'rt,'dt>(coord: u64, mut u: Unit<'bt,'ut,'rt,'dt>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, 
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, player: &Player) {
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>) {
 	u.coord = coord;
 	u.action.clear();
 	u.actions_used = Some(0.);
@@ -398,8 +397,7 @@ use crate::disp_lib::endwin;
 pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, is_cur_player: bool, unit_template: &'ut UnitTemplate<'rt>, 
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
 		bldgs: &Vec<Bldg>, player: &mut Player<'bt,'ut,'rt,'dt>, relations: &mut Relations,
-		logs: &mut Vec<Log>, unit_templates: &Vec<UnitTemplate>,
-		nms: &Nms, turn: usize, rng: &mut XorState){
+		logs: &mut Vec<Log>, temps: &Templates<'bt,'ut,'rt,'dt,'_>, turn: usize, rng: &mut XorState){
 	
 	let exf = exs.last_mut().unwrap();
 	// set the first param (current location of unit) to some other coord than the destination so movable_to does not always return true
@@ -407,7 +405,7 @@ pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, is_cur_player: bool, unit_template:
 				bldgs, &Dest::NoAttack, unit_template.movement_type));
 	
 	units.push(Unit {
-			nm: nms.units[rng.usize_range(0, nms.units.len())].clone(),
+			nm: temps.nms.units[rng.usize_range(0, temps.nms.units.len())].clone(),
 			health: unit_template.max_health,
 			owner_id: player.id,
 			template: unit_template,
@@ -418,7 +416,6 @@ pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, is_cur_player: bool, unit_template:
 		});
 	
 	let unit_ind = units.len() - 1;
-	let owner_id = player.id as usize;
 	
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
@@ -429,7 +426,7 @@ pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, is_cur_player: bool, unit_template:
 	player.stats.unit_expenses += unit_template.upkeep;
 	
 	// record-keeping
-	player.add_unit(unit_ind, coord, unit_template, unit_templates, map_sz);
+	player.add_unit(unit_ind, coord, unit_template, temps.units, map_sz);
 }
 
 pub fn disband_unit<'bt,'ut,'rt,'dt>(unit_ind: usize, is_cur_player: bool, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, 

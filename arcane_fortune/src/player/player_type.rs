@@ -1,87 +1,106 @@
-use std::fmt;
-use crate::saving::*;
 use crate::gcore::{XorState};
-use crate::nobility::House;
-use crate::ai::{BarbarianState, AIState};
-use crate::doctrine::DoctrineTemplate;
-use crate::resources::ResourceTemplate;
-use crate::buildings::BldgTemplate;
-use crate::units::UnitTemplate;
-use crate::tech::TechTemplate;
+use crate::ai::*;
 
 #[derive(Clone, PartialEq)]
 pub enum PlayerType<'bt,'ut,'rt,'dt> {
-	Human {ai_state: AIState<'bt,'ut,'rt,'dt>},
-	AI {
-		ai_state: AIState<'bt,'ut,'rt,'dt>,
-		personality: AIPersonality
-	},
-	Barbarian {barbarian_state: BarbarianState},
-	Nobility {house: House<'bt,'ut,'rt,'dt>}
+	Human(AIState<'bt,'ut,'rt,'dt>),
+	Empire(EmpireState<'bt,'ut,'rt,'dt>),
+	Barbarian(BarbarianState),
+	Nobility(NobilityState<'bt,'ut,'rt,'dt>)
 }
-
-#[derive(Clone, PartialEq, Copy)]
-pub struct AIPersonality {
-	pub friendliness: f32, // negative friendliness is agression; range [-1:1]
-	// ^ (1 - friendliness) -> proportionate to war declaration probability
-	pub spirituality: f32, // negative spirituality is scientific; range [-1:1]
-	// ^ (1 - spirituality)/2 -> probability of scientific buildings
-}
-
-impl_saving!{AIPersonality {friendliness, spirituality} }
 
 ///////////////////////// PlayerType
 impl PlayerType<'_,'_,'_,'_> {
-	pub fn is_ai(&self) -> bool {
-		if let PlayerType::AI {..} = &self {true} else {false}
+	pub fn is_empire(&self) -> bool {
+		if let PlayerType::Empire(_) = &self {true} else {false}
 	}
 	
 	pub fn is_barbarian(&self) -> bool {
-		if let PlayerType::Barbarian {..} = &self {true} else {false}
+		if let PlayerType::Barbarian(_) = &self {true} else {false}
 	}
 
-	pub fn is_nobility(&self) -> bool {
-		if let PlayerType::Nobility {..} = &self {true} else {false}
-	}
-	
 	pub fn is_human(&self) -> bool {
-		if let PlayerType::Human {..} = &self {true} else {false}
+		if let PlayerType::Human(_) = &self {true} else {false}
 	}
 }
 
 impl <'bt,'ut,'rt,'dt>PlayerType<'bt,'ut,'rt,'dt> {
-	pub fn ai_state(&self) -> Option<&AIState<'bt,'ut,'rt,'dt>> {
+	pub fn empire_or_human_ai_state(&self) -> Option<&AIState<'bt,'ut,'rt,'dt>> {
 		match &self {
-			PlayerType::AI {ai_state, ..} | PlayerType::Human {ai_state} => {
+			PlayerType::Empire(EmpireState {ai_state, ..}) | PlayerType::Human(ai_state) => {
 				Some(ai_state)
 			}
-			PlayerType::Barbarian {..} | PlayerType::Nobility {..} => {
+			PlayerType::Barbarian(_) | PlayerType::Nobility(_) => {
 				None
 			}
 		}
 	}
 	
-	pub fn house(&self) -> Option<&House<'bt,'ut,'rt,'dt>> {
+	pub fn house(&self) -> Option<&House> {
 		match &self {
-			PlayerType::Nobility {house} => {Some(house)}
-			PlayerType::AI {..} | PlayerType::Human {..} |
-			PlayerType::Barbarian {..} => {None}
+			PlayerType::Nobility(NobilityState {house, ..}) => {Some(house)}
+			PlayerType::Empire(_) | PlayerType::Human(_) | PlayerType::Barbarian(_) => {None}
 		}
 	}
 	
-	pub fn ai_state_mut<'s>(&'s mut self) -> Option<&'s mut AIState<'bt,'ut,'rt,'dt>> {
+	pub fn house_mut(&mut self) -> Option<&mut House> {
 		match self {
-			PlayerType::AI {ai_state, ..} | PlayerType::Human {ai_state} => {
+			PlayerType::Nobility(NobilityState {house, ..}) => {Some(house)}
+			PlayerType::Empire(_) | PlayerType::Human(_) |
+			PlayerType::Barbarian(_) => {None}
+		}
+	}
+	
+	pub fn empire_state(&self) -> Option<&EmpireState<'bt,'ut,'rt,'dt>> {
+		match self {
+			PlayerType::Empire(empire_state) => {
+				Some(empire_state)
+			}
+			PlayerType::Nobility(_) | PlayerType::Human(_) | PlayerType::Barbarian(_) => {
+				None
+			}
+		}
+	}
+	
+	pub fn nobility_state(&self) -> Option<&NobilityState<'bt,'ut,'rt,'dt>> {
+		match self {
+			PlayerType::Nobility(nobility_state) => {
+				Some(nobility_state)
+			}
+			PlayerType::Empire(_) | PlayerType::Human(_) | PlayerType::Barbarian(_) => {
+				None
+			}
+		}
+	}
+	
+	pub fn any_ai_state(&self) -> Option<&AIState<'bt,'ut,'rt,'dt>> {
+		match self {
+			PlayerType::Empire(EmpireState {ai_state, ..}) |
+			PlayerType::Nobility(NobilityState {ai_state, ..}) |
+			PlayerType::Human(ai_state) => {
 				Some(ai_state)
 			}
-			PlayerType::Barbarian {..} | PlayerType::Nobility {..} => {
+			PlayerType::Barbarian(_) => {
+				None
+			}
+		}
+	}
+	
+	pub fn any_ai_state_mut<'s>(&'s mut self) -> Option<&'s mut AIState<'bt,'ut,'rt,'dt>> {
+		match self {
+			PlayerType::Empire(EmpireState {ai_state, ..}) |
+			PlayerType::Nobility(NobilityState {ai_state, ..}) |
+			PlayerType::Human(ai_state) => {
+				Some(ai_state)
+			}
+			PlayerType::Barbarian(_) => {
 				None
 			}
 		}
 	}
 }
 
-impl fmt::Display for PlayerType<'_,'_,'_,'_> {
+/*impl fmt::Display for PlayerType<'_,'_,'_,'_> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "{}", match self {
 			PlayerType::Human {..} => {"Human"}
@@ -90,7 +109,7 @@ impl fmt::Display for PlayerType<'_,'_,'_,'_> {
 			PlayerType::Nobility {..} => {"Nobility"}
 		})
 	}
-}
+}*/
 
 //////////////////////// AIPersonality
 impl AIPersonality {

@@ -4,11 +4,10 @@ use crate::map::*;
 use crate::buildings::*;
 use crate::saving::*;
 use crate::units::*;
-use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
+use crate::gcore::hashing::*;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::disp_lib::endwin;
-use crate::ai::AIState;
 use crate::player::Player;
 
 pub mod disp; pub use disp::*;
@@ -386,7 +385,7 @@ impl ZoneEx {
 			Dist::ForceRecompute {bldg_ind: ch_bldg_ind, ..} => {
 				count_population_moved!();
 				
-				if let BldgArgs::CityHall {ref mut population, ..} = bldgs[ch_bldg_ind].args {
+				if let BldgArgs::PopulationCenter {ref mut population, ..} = bldgs[ch_bldg_ind].args {
 					*population += population_moved.unwrap() as u32;
 				}else{panicq!("input requires the bldg ind be a city hall");}
 			}
@@ -400,7 +399,7 @@ impl ZoneEx {
 			Dist::ForceRecompute {bldg_ind: ch_bldg_ind, ..} => {
 				count_population_moved!();
 				
-				if let BldgArgs::CityHall {ref mut population, ..} = bldgs[ch_bldg_ind].args {
+				if let BldgArgs::PopulationCenter {ref mut population, ..} = bldgs[ch_bldg_ind].args {
 					debug_assertq!(*population >= population_moved.unwrap() as u32);
 					*population -= population_moved.unwrap() as u32;
 				}else{panicq!("input requires the bldg ind be a city hall");}

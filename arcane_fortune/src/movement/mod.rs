@@ -6,7 +6,6 @@ use crate::map::*;
 use crate::units::*;
 use crate::buildings::*;
 use crate::gcore::{Relations, Log};
-use crate::ai::{AIState, BarbarianState};
 use crate::disp::*;
 use crate::disp::menus::FindType;
 use crate::disp_lib::*;

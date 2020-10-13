@@ -5,19 +5,16 @@ use crate::disp_lib::*;
 use crate::disp::*;
 use crate::units::{ActionType, add_unit, ActionMeta, DelAction, mv_unit, ExploreType,
 	SectorUnitEnterAction, SectorIdleAction, SectorCreationType};
-use crate::tech::{TechTemplate, TECH_SZ_PRINT};
+use crate::tech::*;
 use crate::saving::{GameState};
 use crate::gcore::{Log, Relations, XorState, worker_inds};
-use crate::saving::save_game::{SaveType, SAVE_DIR};//, save_game};
-use crate::ai::{AIState, BarbarianState, AIConfig};
-use crate::resources::ResourceTemplate;
-use crate::doctrine::{DoctrineTemplate, DOCTRINE_SZ_PRINT};
+use crate::saving::save_game::*;
+use crate::doctrine::*;
 use crate::nn::{TxtPrinter, TxtCategory};
 use crate::keyboard::KeyboardMap;
 use crate::player::Player;
 use crate::localization::Localization;
 use crate::containers::Templates;
-use crate::nobility::House;
 
 use super::*;
 
@@ -102,8 +99,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 		production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>,
 		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, relations: &mut Relations, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
-		logs: &mut Vec<Log>, disp_settings: &mut DispSettings, disp_chars: &DispChars,
-		menu_options: &mut OptionsUI, frame_stats: &FrameStats,
+		logs: &mut Vec<Log>, disp_settings: &mut DispSettings, menu_options: &mut OptionsUI,
 		turn: usize, game_state: &mut GameState, game_difficulties: &GameDifficulties,
 		rng: &mut XorState, kbd: &KeyboardMap, l: &Localization, 
 		buttons: &mut Buttons, d: &mut DispState) -> UIRet {
@@ -146,7 +142,6 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			UIMode::CreateSectorAutomation {ref mut mode, ..} |
 			UIMode::ProdListWindow {ref mut mode} |
 			UIMode::CurrentBldgProd {ref mut mode} |
-			UIMode::NobilityReqToJoin {ref mut mode, ..} |
 			UIMode::SelectBldgDoctrine {ref mut mode, ..} |
 			UIMode::SelectExploreType {ref mut mode} |
 			UIMode::NoblePedigree {ref mut mode, ..} |
@@ -190,12 +185,14 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			UIMode::CivicAdvisorsWindow | UIMode::InitialGameWindow |
 			UIMode::EndGameWindow | UIMode::AboutWindow |
 			UIMode::UnmovedUnitsNotification |
+			UIMode::AcceptNobilityIntoEmpire {..} |
 			UIMode::ForeignUnitInSectorAlert {..} => {}
 		}
 	}
 	
 	let exf = exs.last().unwrap();
-	let pstats = &mut players[iface_settings.cur_player as usize].stats;
+	let cur_player = iface_settings.cur_player as usize;
+	let pstats = &mut players[cur_player].stats;
 	
 	/////////////// tech window
 	// (should be checked first as the remaining if statements are first checking the cursor location, then
@@ -207,7 +204,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		tree_window_movement(key_pressed, sel_mv, tree_offsets, &TECH_SZ_PRINT, kbd);
 		
 		// start researching tech
-		if key_pressed == '\n' as i32 {
+		if key_pressed == kbd.enter {
 			if let Some(sel) = sel {
 				// not already scheduled
 				if !pstats.techs_scheduled.contains(&sel) {
@@ -223,11 +220,11 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		return UIRet::Active;
 	
 	}else if let UIMode::NoblePedigree {ref mut mode, ref mut house_nm, ..} = iface_settings.ui_mode {
-		/*let list = noble_houses_list(&pstats.houses);
+		let list = relations.noble_houses(cur_player);
 		
 		macro_rules! enter_action{($mode: expr) => {
-			if let Some(house) = pstats.houses.houses.get(*mode) {
-				*house_nm = Some(house.name.clone());
+			if let Some(house_ind) = list.get($mode) {
+				*house_nm = Some(players[*house_ind].personalization.nm.clone());
 			}else{
 				end_window(iface_settings, d);
 			}
@@ -237,28 +234,34 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		
 		match key_pressed {
 			// down
-			k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
-				if (*mode + 1) <= (list.options.len()-1) {
+			k if kbd.down(k) => {
+				if (*mode + 1) <= (list.len()-1) {
 					*mode += 1;
 				}else{
 					*mode = 0;
 				}
 			
 			// up
-			} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+			} k if kbd.up(k) => {
 				if *mode > 0 {
 					*mode -= 1;
 				}else{
-					*mode = list.options.len() - 1;
+					*mode = list.len() - 1;
 				}
 				
 			// enter
-			} k if k == '\n' as i32 => {
+			} k if k == kbd.enter => {
 				enter_action!(*mode);
 			} _ => {}
-		}*/
+		}
 		return UIRet::Active;
 		
+	}else if let UIMode::AcceptNobilityIntoEmpire {ref mut mode, house_ind, ..} = &mut iface_settings.ui_mode {
+		if accept_nobility_into_empire_keys(mode, *house_ind, iface_settings.cur_player as usize, key_pressed, kbd, relations, players, logs, turn) == UIRet::Inactive {
+			end_window(iface_settings, d);
+		}
+		return UIRet::Active;
+	
 	}else if let UIMode::DoctrineWindow {ref mut sel_mv, ref mut tree_offsets, ..} = iface_settings.ui_mode {
 		*sel_mv = TreeSelMv::None;
 		
@@ -279,7 +282,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		
 		match key_pressed {
 			// down
-			k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+			k if kbd.down(k) => {
 				if (*mode + 1) <= (save_files.len()-1) {
 					*mode += 1;
 				}else{
@@ -287,7 +290,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 			
 			// up
-			} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+			} k if kbd.up(k) => {
 				if *mode > 0 {
 					*mode -= 1;
 				}else{
@@ -435,7 +438,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 	//////////////////// go to coordinate
 	}else if let UIMode::GoToCoordinateWindow {ref mut curs_col, ref mut coordinate, ..} = &mut iface_settings.ui_mode {
 		// enter pressed
-		if key_pressed == '\n' as i32 && coordinate.len() > 0 {
+		if key_pressed == kbd.enter && coordinate.len() > 0 {
 			let coordinates: Vec<&str> = coordinate.split(",").collect();
 			if let Result::Ok(y) = coordinates[0].trim().parse() {
 				if let Result::Ok(x) = coordinates[1].trim().parse() {
@@ -490,7 +493,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			 UIMode::EconomicHistoryWindow {ref mut scroll_first_line} = iface_settings.ui_mode {
 			match key_pressed {
 				// scroll down
-				k if k == kbd.down as i32 || k == KEY_DOWN => {
+				k if kbd.down_normal(k) => {
 					let h = iface_settings.screen_sz.h;
 					if h > (LOG_START_ROW + LOG_STOP_ROW) as usize { // screen tall enough
 						let n_rows_plot = h - (LOG_START_ROW + LOG_STOP_ROW) as usize;
@@ -517,7 +520,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 				
 				// scroll up
-				} k if k == kbd.up as i32 || k == KEY_UP => {
+				} k if kbd.up_normal(k) => {
 					let h = iface_settings.screen_sz.h;
 					if h > (LOG_START_ROW + LOG_STOP_ROW) as usize { // screen tall enough
 						// check to make sure the log is long enough to keep scrolling
@@ -563,7 +566,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		
 		match key_pressed {
 			// down
-			k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+			k if kbd.down(k) => {
 				if (*mode + 1) <= (list.options.len()-1) {
 					*mode += 1;
 				}else{
@@ -571,7 +574,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 			
 			// up
-			} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+			} k if kbd.up(k) => {
 				if *mode > 0 {
 					*mode -= 1;
 				}else{
@@ -757,7 +760,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			if let Some(ind) = buttons.list_item_clicked(mouse_event) {	enter_action!(ind);}
 			
 			match key_pressed {
-				k if entries_present && (k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN) => {
+				k if entries_present && (kbd.down(k)) => {
 					if (*mode + 1) <= (entries.options.len()-1) {
 						*mode += 1;
 					}else{
@@ -765,7 +768,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 				
 				// up
-				} k if entries_present && (k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP) => {
+				} k if entries_present && (kbd.up(k)) => {
 					if *mode > 0 {
 						*mode -= 1;
 					}else{
@@ -773,7 +776,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 					
 				// enter
-				} k if entries_present && (k == '\n' as i32) => {
+				} k if entries_present && (k == kbd.enter) => {
 					enter_action!(*mode);
 				} _ => {}
 			}
@@ -784,7 +787,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 	}else if let UIMode::ContactEmbassyWindow {ref mut state} = iface_settings.ui_mode {
 		match state {
 			EmbassyState::CivSelection {ref mut mode} => {
-				let list = contacted_civilizations_list(relations, players, iface_settings.cur_player, turn);
+				let list = contacted_civilizations_list(relations, players, iface_settings.cur_player, turn, l);
 				
 				macro_rules! enter_action{($mode: expr) => {
 					let owner_id = if let ArgOptionUI::OwnerInd(owner_ind) = list.options[$mode].arg {
@@ -804,7 +807,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				
 				match key_pressed {
 					// down
-					k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+					k if kbd.down(k) => {
 						if (*mode + 1) <= (list.options.len()-1) {
 							*mode += 1;
 						}else{
@@ -812,7 +815,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 						}
 					
 					// up
-					} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+					} k if kbd.up(k) => {
 						if *mode > 0 {
 							*mode -= 1;
 						}else{
@@ -820,7 +823,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 						}
 						
 					// enter
-					} k if k == '\n' as i32 => {
+					} k if k == kbd.enter => {
 						enter_action!(*mode);
 					} _ => {}
 				}
@@ -834,10 +837,10 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				};
 				
 				match key_pressed {
-					KEY_UP => {if *mode > 0 {*mode -= 1;} else {*mode = n_options-1;}
-					} KEY_DOWN => {if *mode < (n_options-1) {*mode += 1;} else {*mode = 0;}
+					k if kbd.up(k) => {if *mode > 0 {*mode -= 1;} else {*mode = n_options-1;}
+					} k if kbd.down(k) => {if *mode < (n_options-1) {*mode += 1;} else {*mode = 0;}
 					// enter
-					} k if k == '\n' as i32 => {
+					} k if k == kbd.enter => {
 						match *mode {
 							// threaten
 							0 => {
@@ -891,31 +894,40 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			EmbassyState::DeclarePeaceTreaty {owner_id, ref mut gold_offering, ref mut curs_col,
 					ref mut treaty_rejected, ref mut quote_printer} => {
 				// enter key pressed
-				if key_pressed == '\n' as i32 && gold_offering.len() > 0 {
+				if key_pressed == kbd.enter && gold_offering.len() > 0 {
 					if let Result::Ok(gold_offering) = gold_offering.parse() {
-						if let Some(a_state) = players[*owner_id].ptype.ai_state() {
-							// the relevant player has sufficient gold for the treaty
-							let gold_sufficient = (gold_offering >= 0. && players[iface_settings.cur_player as usize].stats.gold >= gold_offering) ||
-										    (gold_offering < 0. && players[*owner_id].stats.gold >= (-gold_offering));
-							
-							// ai accepts the treaty
-							if gold_sufficient && a_state.accept_peace_treaty(*owner_id, iface_settings.cur_player as usize, gold_offering, relations, players, turn) {
-								relations.declare_peace(iface_settings.cur_player as usize, *owner_id, logs, turn);
+						let treaty_accepted = (|| {
+							if let Some(empire_state) = players[*owner_id].ptype.empire_state() {
+								// the relevant player has sufficient gold for the treaty
+								let gold_sufficient = (gold_offering >= 0. && players[cur_player].stats.gold >= gold_offering) ||
+											    (gold_offering < 0. && players[*owner_id].stats.gold >= (-gold_offering));
 								
-								players[iface_settings.cur_player as usize].stats.gold -= gold_offering;
-								players[*owner_id].stats.gold += gold_offering;
-								
-								let quote_category = TxtCategory::from_relations(relations, *owner_id, iface_settings.cur_player as usize, players);
-								
-								*state = EmbassyState::DeclarePeace {
-											owner_id: *owner_id,
-											quote_printer: TxtPrinter::new(quote_category, rng.gen())
-								};
-								d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-							}else{
-								*treaty_rejected = true;
-								quote_printer.new_seq();
+								// AI accepts treaty?
+								return gold_sufficient && empire_state.accept_peace_treaty(*owner_id, cur_player, gold_offering, relations, players, turn);
 							}
+							
+							// should occur only for the human player -- nobility & barbarians shouldn't appear as UI options
+							debug_assertq!(players[*owner_id].ptype.is_human());
+							true
+						})();
+						
+						// update player states & UI
+						if treaty_accepted {
+							relations.declare_peace(cur_player, *owner_id, logs, turn);
+							
+							players[cur_player].stats.gold -= gold_offering;
+							players[*owner_id].stats.gold += gold_offering;
+							
+							let quote_category = TxtCategory::from_relations(relations, *owner_id, cur_player, players);
+							
+							*state = EmbassyState::DeclarePeace {
+								owner_id: *owner_id,
+								quote_printer: TxtPrinter::new(quote_category, rng.gen())
+							};
+							d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+						}else{
+							*treaty_rejected = true;
+							quote_printer.new_seq();
 						}
 					}
 					
@@ -931,7 +943,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 	}else if let UIMode::CivilizationIntelWindow {ref mut mode, ref mut selection_phase} = iface_settings.ui_mode {
 		// civilization selection window
 		if *selection_phase {
-			let list = contacted_civilizations_list(relations, players, iface_settings.cur_player, turn);
+			let list = contacted_civilizations_list(relations, players, iface_settings.cur_player, turn, l);
 			if let Some(ind) = buttons.list_item_clicked(mouse_event) {	
 				*mode = ind;
 				*selection_phase = false;
@@ -940,7 +952,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			
 			match key_pressed {
 				// down
-				k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+				k if kbd.down(k) => {
 					if (*mode + 1) <= (list.options.len()-1) {
 						*mode += 1;
 					}else{
@@ -948,7 +960,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 				
 				// up
-				} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+				} k if kbd.up(k) => {
 					if *mode > 0 {
 						*mode -= 1;
 					}else{
@@ -956,7 +968,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 					
 				// enter
-				} k if k == '\n' as i32 => {
+				} k if k == kbd.enter => {
 					*selection_phase = false;
 					
 				} _ => {}
@@ -984,7 +996,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			let pstats = &mut players[iface_settings.cur_player as usize].stats;
 			*production_options = init_bldg_prod_windows(temps.bldgs, pstats, l);
 			update_menu_indicators(menu_options, iface_settings, iface_settings.cur_player_paused(players), disp_settings);
-			compute_zoomed_out_discoveries(map_data, exs, &mut players[iface_settings.cur_player as usize].stats);
+			compute_zoomed_out_discoveries(map_data, &mut players[iface_settings.cur_player as usize].stats);
 			
 			end_window(iface_settings, d);
 			return UIRet::Active;
@@ -993,7 +1005,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		
 		match key_pressed {
 			// down
-			k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+			k if kbd.down(k) => {
 				if (*mode + 1) <= (list.options.len()-1) {
 					*mode += 1;
 				}else{
@@ -1001,7 +1013,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 			
 			// up
-			} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+			} k if kbd.up(k) => {
 				if *mode > 0 {
 					*mode -= 1;
 				}else{
@@ -1009,7 +1021,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 				
 			// enter
-			} k if k == '\n' as i32 => {
+			} k if k == kbd.enter => {
 				enter_action!(*mode);
 			} _ => {}
 		}
@@ -1030,7 +1042,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		
 		match key_pressed {
 			// down
-			k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+			k if kbd.down(k) => {
 				if (*mode + 1) <= (list.options.len()-1) {
 					*mode += 1;
 				}else{
@@ -1038,7 +1050,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 			
 			// up
-			} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+			} k if kbd.up(k) => {
 				if *mode > 0 {
 					*mode -= 1;
 				}else{
@@ -1046,7 +1058,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 				
 			// enter
-			} k if k == '\n' as i32 => {
+			} k if k == kbd.enter => {
 				enter_action!(*mode);
 			} _ => {}
 		}
@@ -1072,7 +1084,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		
 		match key_pressed {
 			// down
-			k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+			k if kbd.down(k) => {
 				if (*mode + 1) <= (list.options.len()-1) {
 					*mode += 1;
 				}else{
@@ -1080,7 +1092,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 			
 			// up
-			} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+			} k if kbd.up(k) => {
 				if *mode > 0 {
 					*mode -= 1;
 				}else{
@@ -1088,7 +1100,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 				
 			// enter
-			} k if k == '\n' as i32 => {
+			} k if k == kbd.enter => {
 				enter_action!(*mode);
 			} _ => {}
 		}
@@ -1112,7 +1124,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		
 		match key_pressed {
 			// down
-			k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+			k if kbd.down(k) => {
 				if (*mode + 1) <= (list.options.len()-1) {
 					*mode += 1;
 				}else{
@@ -1120,7 +1132,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 			
 			// up
-			} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+			} k if kbd.up(k) => {
 				if *mode > 0 {
 					*mode -= 1;
 				}else{
@@ -1128,7 +1140,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 				
 			// enter
-			} k if k == '\n' as i32 => {
+			} k if k == kbd.enter => {
 				enter_action!(*mode);
 			} _ => {}
 		}
@@ -1142,7 +1154,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				if iface_settings.zoom_ind == map_data.max_zoom_ind() {
 					let c = iface_settings.cursor_to_map_ind(map_data);
 					let owner_id = iface_settings.cur_player as usize;
-					add_unit(c, true, ut, units, map_data, exs, bldgs, &mut players[owner_id], relations, logs, temps.units, &temps.nms, turn, rng);
+					add_unit(c, true, ut, units, map_data, exs, bldgs, &mut players[owner_id], relations, logs, temps, turn, rng);
 				}
 			}else{panicq!("invalid UI setting");}
 			
@@ -1153,7 +1165,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		
 		match key_pressed {
 			// down
-			k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+			k if kbd.down(k) => {
 				if (*mode + 1) <= (list.options.len()-1) {
 					*mode += 1;
 				}else{
@@ -1161,7 +1173,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 			
 			// up
-			} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+			} k if kbd.up(k) => {
 				if *mode > 0 {
 					*mode -= 1;
 				}else{
@@ -1169,7 +1181,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 				
 			// enter
-			} k if k == '\n' as i32 => {
+			} k if k == kbd.enter => {
 				enter_action!(*mode);
 			} _ => {}
 		}
@@ -1210,7 +1222,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			
 			match key_pressed {
 				// down
-				k if k == kbd.down as i32 || k == KEY_DOWN => {
+				k if kbd.down_normal(k) => {
 					if (*mode + 1) <= (list.options.len()-1) {
 						*mode += 1;
 					}else{
@@ -1218,7 +1230,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 				
 				// up
-				} k if k == kbd.up as i32 || k == KEY_UP => {
+				} k if kbd.up_normal(k) => {
 					if *mode > 0 {
 						*mode -= 1;
 					}else{
@@ -1242,7 +1254,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 				
 				// enter
-				} k if k == '\n' as i32 => {
+				} k if k == kbd.enter => {
 					enter_action!(*mode);
 				} _ => {}
 			}
@@ -1345,7 +1357,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 		// non-shortcut keys
 		match key_pressed {
 			// down
-			k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+			k if kbd.down(k) => {
 				match state {
 					EncyclopediaState::CategorySelection {ref mut mode} => {
 						*mode += 1;
@@ -1372,7 +1384,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				}
 			
 			// up
-			} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+			} k if kbd.up(k) => {
 				match state {
 					EncyclopediaState::CategorySelection {ref mut mode} => {
 						if *mode > 0 {*mode -= 1;} else {*mode = N_CATEGORIES-1;}
@@ -1403,7 +1415,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					} EncyclopediaState::ExemplarSelection {selection_mode: false, ..} => {}
 				}
 			// enter (progress forward to next menu)
-			} k if k == '\n' as i32 => {
+			} k if k == kbd.enter => {
 				enter_action!();
 			} _ => {}
 		} // end non-shortcut keys
@@ -1460,7 +1472,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			// generic keys
 			match key_pressed {
 				// down
-				k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+				k if kbd.down(k) => {
 					if (*mode + 1) <= (opt.options.len()-1) {
 						*mode += 1;
 					}else{
@@ -1468,7 +1480,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 					
 				// up
-				} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+				} k if kbd.up(k) => {
 					if *mode > 0 {
 						*mode -= 1;
 					}else{
@@ -1476,7 +1488,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 					
 				// enter
-				} k if k == '\n' as i32 => {
+				} k if k == kbd.enter => {
 					set_production!(*mode);
 				} _ => {}
 			} // end key match
@@ -1503,7 +1515,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			
 			match key_pressed {
 				// down
-				k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+				k if kbd.down(k) => {
 					if (*mode + 1) <= (list.options.len()-1) {
 						*mode += 1;
 					}else{
@@ -1511,7 +1523,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 				
 				// up
-				} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+				} k if kbd.up(k) => {
 					if *mode > 0 {
 						*mode -= 1;
 					}else{
@@ -1519,7 +1531,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 					
 				// enter
-				} k if k == '\n' as i32 => {
+				} k if k == kbd.enter => {
 					enter_action!(*mode);
 				} _ => {}
 			}
@@ -1552,7 +1564,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			
 			match key_pressed {
 				// down
-				k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+				k if kbd.down(k) => {
 					if (*mode + 1) <= (list.options.len()-1) {
 						*mode += 1;
 					}else{
@@ -1560,7 +1572,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 				
 				// up
-				} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+				} k if kbd.up(k) => {
 					if *mode > 0 {
 						*mode -= 1;
 					}else{
@@ -1568,7 +1580,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 					
 				// enter
-				} k if k == '\n' as i32 => {
+				} k if k == kbd.enter => {
 					enter_action!(*mode);
 				} _ => {}
 			}
@@ -1592,7 +1604,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				
 				match key_pressed {
 					// down
-					k if entries_present && (k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN) => {
+					k if entries_present && (kbd.down(k)) => {
 						if (*mode + 1) <= (entries.options.len()-1) {
 							*mode += 1;
 						}else{
@@ -1600,7 +1612,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 						}
 					
 					// up
-					} k if entries_present && (k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP) => {
+					} k if entries_present && (kbd.up(k)) => {
 						if *mode > 0 {
 							*mode -= 1;
 						}else{
@@ -1608,7 +1620,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 						}
 						
 					// enter
-					} k if entries_present && (k == '\n' as i32) => {
+					} k if entries_present && k == kbd.enter => {
 						enter_action!(*mode);
 					} _ => {}
 				}
@@ -1648,7 +1660,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			
 			match key_pressed {
 				// down
-				k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+				k if kbd.down(k) => {
 					if (*mode + 1) <= (n_options-1) {
 						*mode += 1;
 					}else{
@@ -1656,7 +1668,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 				
 				// up
-				} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+				} k if kbd.up(k) => {
 					if *mode > 0 {
 						*mode -= 1;
 					}else{
@@ -1664,7 +1676,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 					
 				// enter
-				} k if k == '\n' as i32 => {
+				} k if k == kbd.enter => {
 					progress_ui_state!();
 				} _ => {}
 			}
@@ -1719,7 +1731,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			
 			match key_pressed {
 				// down
-				k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+				k if kbd.down(k) => {
 					if (*mode + 1) <= (n_options-1) {
 						*mode += 1;
 					}else{
@@ -1727,7 +1739,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 				
 				// up
-				} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+				} k if kbd.up(k) => {
 					if *mode > 0 {
 						*mode -= 1;
 					}else{
@@ -1735,7 +1747,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 					
 				// enter
-				} k if k == '\n' as i32 => {
+				} k if k == kbd.enter => {
 					let mode = *mode;
 					progress_ui_state!(mode);
 				} _ => {}
@@ -1822,7 +1834,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			if let Some(opt) = &production_options.bldgs[b.template.id as usize] { // get production options for current bldg
 				macro_rules! set_production {($ind: expr) => (
 					match b.args { // unwrap bldg arguments:
-						BldgArgs::CityHall {ref mut production, ..} |
+						BldgArgs::PopulationCenter {ref mut production, ..} |
 						BldgArgs::GenericProducable {ref mut production} => {	
 							// start production
 							if $ind != 0 {
@@ -1854,7 +1866,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 				// generic keys
 				match key_pressed {
 					// down
-					k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+					k if kbd.down(k) => {
 						if (*mode + 1) <= (opt.options.len()-1) {
 							*mode += 1;
 						}else{
@@ -1862,7 +1874,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 						}
 						
 					// up
-					} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+					} k if kbd.up(k) => {
 						if *mode > 0 {
 							*mode -= 1;
 						}else{
@@ -1870,7 +1882,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 						}
 						
 					// enter
-					} k if k == '\n' as i32 => {
+					} k if k == kbd.enter => {
 						set_production!(*mode);
 					} _ => {}
 				}
@@ -1884,7 +1896,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			
 			let list = bldg_prod_list(&b, l); 
 			macro_rules! enter_action{($mode: expr) => {
-				if let BldgArgs::CityHall {ref mut production, ..} |
+				if let BldgArgs::PopulationCenter {ref mut production, ..} |
 					 	BldgArgs::GenericProducable {ref mut production, ..} = b.args {
 					production.swap_remove($mode);
 				}
@@ -1894,7 +1906,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 			
 			match key_pressed {
 				// down
-				k if k == kbd.down as i32 || k == kbd.fast_down as i32 || k == KEY_DOWN => {
+				k if kbd.down(k) => {
 					if (*mode + 1) <= (list.options.len()-1) {
 						*mode += 1;
 					}else{
@@ -1902,7 +1914,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 				
 				// up
-				} k if k == kbd.up as i32 || k == kbd.fast_up as i32 || k == KEY_UP => {
+				} k if kbd.up(k) => {
 					if *mode > 0 {
 						*mode -= 1;
 					}else{
@@ -1910,7 +1922,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event: &Option
 					}
 					
 				// enter
-				} k if k == '\n' as i32 => {
+				} k if k == kbd.enter => {
 					enter_action!(*mode);
 				} _ => {}
 			}

@@ -34,7 +34,7 @@ use crate::player::*;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx, HashedFogVars, HashedCoords, HashStruct64};
 use crate::gcore::{LogType, RelationStatus};
 use crate::zones::*;
-use crate::ai::{AttackFrontState, Neighbors};
+use crate::ai::*;
 use crate::resources::ResourceTemplate;
 use crate::disp_lib::endwin;
 
@@ -443,19 +443,18 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for RelationStatus {
 impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for PlayerType<'bt,'ut,'rt,'dt> {
 	fn sv(&self, res: &mut Vec<u8>){
 		match self {
-			PlayerType::Human {ai_state} => {
+			PlayerType::Human(ai_state) => {
 				res.push(0);
 				ai_state.sv(res);
-			} PlayerType::AI {ai_state, personality} => {
+			} PlayerType::Empire(empire_state) => {
 				res.push(1);
-				ai_state.sv(res);
-				personality.sv(res);
-			} PlayerType::Barbarian {barbarian_state} => {
+				empire_state.sv(res);
+			} PlayerType::Barbarian(barbarian_state) => {
 				res.push(2);
 				barbarian_state.sv(res);
-			} PlayerType::Nobility {house} => {
+			} PlayerType::Nobility(nobility_state) => {
 				res.push(3);
-				house.sv(res);
+				nobility_state.sv(res);
 			}
 	}}
 	
@@ -465,29 +464,29 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for PlayerType<'bt,'ut,'rt,'dt
 		
 		*self = match res[*o-1] {
 			0 => {
-				let mut d = PlayerType::Human {ai_state: Default::default()};
-				if let PlayerType::Human {ref mut ai_state} = d {
+				let mut d = PlayerType::Human(Default::default());
+				if let PlayerType::Human(ref mut ai_state) = d {
 					ld_vals!(ai_state);
 				}else{panicq!("invalid value");}
 				d
 			
 			} 1 => {
-				let mut d = PlayerType::AI {ai_state: Default::default(), personality: AIPersonality::default()};
-				if let PlayerType::AI {ref mut ai_state, ref mut personality} = d {
-					ld_vals!(ai_state, personality);
+				let mut d = PlayerType::Empire(Default::default());
+				if let PlayerType::Empire(ref mut empire_state) = d {
+					ld_vals!(empire_state);
 				}else{panicq!("invalid value");}
 				d
 			} 2 => {
-				let mut d = PlayerType::Barbarian {barbarian_state: Default::default()};
-				if let PlayerType::Barbarian {ref mut barbarian_state} = d {
+				let mut d = PlayerType::Barbarian(Default::default());
+				if let PlayerType::Barbarian(ref mut barbarian_state) = d {
 					ld_vals!(barbarian_state);
 				}else{panicq!("invalid value");}
 				d
 			
 			} 3 => {
-				let mut d = PlayerType::Nobility {house: Default::default()};
-				if let PlayerType::Nobility {ref mut house} = d {
-					ld_vals!(house);
+				let mut d = PlayerType::Nobility(Default::default());
+				if let PlayerType::Nobility(ref mut nobility_state) = d {
+					ld_vals!(nobility_state);
 				}else{panicq!("invalid value");}
 				d
 			
@@ -633,7 +632,9 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for LogType {
 			} LogType::CitizenDemand {owner_id, reason} => {res.push(18);
 				owner_id.sv(res);
 				reason.sv(res);
-			} LogType::Debug {txt, owner_id} => {res.push(19);
+			} LogType::NobleHouseJoinedEmpire {house_id, empire_id} => {res.push(19);
+				house_id.sv(res); empire_id.sv(res);
+			} LogType::Debug {txt, owner_id} => {res.push(20);
 				txt.sv(res);
 				owner_id.sv(res);
 			}}}
@@ -842,6 +843,12 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for LogType {
 				}else{panicq!("invalid log type");}
 				d
 			} 19 => {
+				let mut d = LogType::NobleHouseJoinedEmpire {house_id: 0, empire_id: 0};
+				if let LogType::NobleHouseJoinedEmpire {ref mut house_id, ref mut empire_id} = d {
+					ld_vals!(house_id, empire_id);
+				}else{panicq!("invalid log type");}
+				d
+			} 20 => {
 				let mut d = LogType::Debug {
 					txt: String::new(),
 					owner_id: None
@@ -911,7 +918,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for UIMode<'bt,'ut,'rt,'dt> {
 impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for BldgArgs<'ut,'rt> {
 	fn sv(&self, res: &mut Vec<u8>){
 		match self {
-			BldgArgs::CityHall {tax_rates, production, population, nm} => {
+			BldgArgs::PopulationCenter {tax_rates, production, population, nm} => {
 				res.push(0);
 				tax_rates.sv(res);
 				production.sv(res);
@@ -930,11 +937,11 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for BldgArgs<'ut,'rt> {
 
 		*self = match res[*o-1] {
 			0 => {
-				let mut args = BldgArgs::CityHall {tax_rates: Vec::new().into_boxed_slice(), production: Vec::new(), 
+				let mut args = BldgArgs::PopulationCenter {tax_rates: Vec::new().into_boxed_slice(), production: Vec::new(), 
 					nm: String::new(), population: 0};
-				if let BldgArgs::CityHall {ref mut tax_rates, ref mut production, ref mut population, ref mut nm} = args {
+				if let BldgArgs::PopulationCenter {ref mut tax_rates, ref mut production, ref mut population, ref mut nm} = args {
 					ld_vals!(tax_rates, production, population, nm);
-				}
+				}else{panicq!("unknown state");}
 				args
 			} 1 => {
 				let mut args = BldgArgs::GenericProducable {production: Vec::new()};

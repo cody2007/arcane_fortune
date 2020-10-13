@@ -1,7 +1,5 @@
 use crate::movement::*;
 use crate::units::*;
-use crate::doctrine::*;
-use crate::tech::*;
 use crate::map::*;
 use crate::gcore::*;
 use crate::keyboard::KeyboardMap;

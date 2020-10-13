@@ -1,12 +1,17 @@
 use super::*;
 
+pub const MIN_DIST_FRM_CITY_CENTER: usize = 3; // min radius of city
+const BUFFER_AROUND_CITY: isize = 5; // additional distance outside of city walls to protect (`city_ul`, `city_lr`)
+
+pub const GRID_SZ: usize = 20;
+
 // returns (height offset, width offset)
 pub fn city_hall_offset(grid_height: isize, grid_width: isize) -> (isize, isize) {
 	(GRID_SZ as isize*grid_height/2, GRID_SZ as isize*grid_width/2)
 }
 
 impl <'bt,'ut,'rt,'dt> CityState <'bt,'ut,'rt,'dt> {
-	pub fn new_city_plan(loc: Coord, city_grid_height: usize, min_dist_frm_center: usize,
+	pub fn new(loc: Coord, city_grid_height: usize, min_dist_frm_center: usize,
 			bldg_template: &'bt BldgTemplate<'ut,'rt,'dt>,
 			rng: &mut XorState, map_data: &mut MapData, map_sz: MapSz) -> Self {
 		///////// road and zones
@@ -67,7 +72,7 @@ impl <'bt,'ut,'rt,'dt> CityState <'bt,'ut,'rt,'dt> {
 			city_ul,
 			city_lr,
 			
-			ch_ind: None,
+			population_center_ind: None,
 			boot_camp_ind: None,
 			academy_ind: None,
 			bonus_bldg_inds: Vec::new(),

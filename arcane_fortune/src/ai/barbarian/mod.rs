@@ -2,24 +2,22 @@ use std::cmp::max;
 use crate::disp::{CGRAY, DispChars};
 use crate::disp_lib::*;
 use crate::units::{ActionMeta, ActionType, Unit, UnitTemplate, add_unit, WARRIOR_NM, square_clear, Quad, ARCHER_NM};
-use crate::buildings::{BldgTemplate, Bldg, BARBARIAN_CAMP_NM, add_bldg, BldgArgs, ProductionEntry};
+use crate::buildings::*;
 use crate::disp::ScreenSz;
-use crate::map::{MapSz, MapData, compute_zooms_coord, RecompType, StructureType};
-use crate::player::{PlayerType, Player, Stats, PersonName, Nms, Personalization};
-use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
+use crate::map::*;
+use crate::player::*;
+use crate::gcore::hashing::*;
 use crate::saving::{N_UNIT_PLACEMENT_ATTEMPTS, SmSvType, print_attempt_update, GAME_START_TURN};
 use crate::zones::StructureData;
-use crate::doctrine::DoctrineTemplate;
 use crate::gcore::{Log, Relations, Bonuses, XorState};
-use super::{AIState, ATTACK_SEARCH_TIMEOUT};
+use super::*;
 use crate::map::utils::ExFns;
-use crate::tech::TechTemplate;
-use crate::resources::ResourceTemplate;
 #[cfg(feature = "profile")]
 use crate::gcore::profiling::*;
-use crate::nn::{TxtGenerator, TxtCategory};
+use crate::nn::*;
 use crate::ai::set_target_attackable;
 use crate::localization::Localization;
+use crate::containers::Templates;
 
 pub mod vars; pub use vars::*;
 pub mod attacking; pub use attacking::*;
@@ -36,7 +34,7 @@ impl BarbarianState {
 
 		let player = &players[player_ind];
 		if !player.stats.alive {return;}
-		if let PlayerType::Barbarian {barbarian_state} = &player.ptype {
+		if let PlayerType::Barbarian(barbarian_state) = &player.ptype {
 			// if barbarian camp is not producing anything, set it to produce a new archer
 			if !barbarian_state.max_units() {
 				let archer_t = UnitTemplate::frm_str(ARCHER_NM, unit_templates);
@@ -117,24 +115,22 @@ pub fn place_barbarians<'bt,'ut,'rt,'dt>(attempt: &mut usize, player_ind: SmSvTy
 		map_coord_y: u64, map_coord_x: u64, bonuses: &Bonuses, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 		map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		doctrine_templates: &'dt Vec<DoctrineTemplate>,
-		unit_templates: &'ut Vec<UnitTemplate<'rt>>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>,
-		tech_templates: &Vec<TechTemplate>, resource_templates: &'rt Vec<ResourceTemplate>,
+		temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		relations: &mut Relations, logs: &mut Vec<Log>,
-		nms: &Nms, rng: &mut XorState, map_sz: MapSz, sz_prog: &MapSz, screen_sz: &mut ScreenSz,
+		rng: &mut XorState, map_sz: MapSz, sz_prog: &MapSz, screen_sz: &mut ScreenSz,
 		turn: usize, disp_chars: &DispChars, l: &Localization, txt_gen: &mut TxtGenerator, d: &mut DispState) -> bool {
-	let warrior_t = UnitTemplate::frm_str(WARRIOR_NM, unit_templates);
+	let warrior_t = UnitTemplate::frm_str(WARRIOR_NM, temps.units);
 	
 	///// find bldg template for camp, set sz
 	const WALL_DIST_I: isize = 2; // from camp
 	const WALL_DIST_J: isize = 4;
-	let mut camp_bt = &bldg_templates[0];
+	let mut camp_bt = &temps.bldgs[0];
 	let camp_sz;
 	let camp_w;
 	let camp_h;
 	{
 		let mut camp_bt_found = false;
-		for bt in bldg_templates.iter() {
+		for bt in temps.bldgs.iter() {
 			if bt.nm[0] == BARBARIAN_CAMP_NM {
 				camp_bt = bt;
 				camp_bt_found = true;
@@ -210,22 +206,20 @@ pub fn place_barbarians<'bt,'ut,'rt,'dt>(attempt: &mut usize, player_ind: SmSvTy
 					let ruler_nm = PersonName {first: String::from("Conan"), last: String::from("Cimmeria")};
 					let nm = String::from("Barbarian");
 					
-					let ptype = PlayerType::Barbarian {
-						barbarian_state: BarbarianState {
-							camp_ind: bldgs.len(),
-							attacker_inds: Vec::new(),
-							defender_inds: Vec::new()
-						}
-					};
+					let ptype = PlayerType::Barbarian(BarbarianState {
+						camp_ind: bldgs.len(),
+						attacker_inds: Vec::new(),
+						defender_inds: Vec::new()
+					});
 					
 					players.push(Player::new(barbarian_id, ptype, Default::default(), nm, ruler_nm, false, &bonuses,
-						CGRAY, txt_gen, relations, nms, tech_templates, resource_templates, doctrine_templates, map_data, rng));
+						CGRAY, txt_gen, relations, 0, temps, map_data, turn, rng));
 				}
 				
 				// location to put bldg
 				let map_coord = map_sz.coord_wrap(by + WALL_DIST_I, bx + WALL_DIST_J).unwrap();
 				if !add_bldg(map_coord, barbarian_id as SmSvType, bldgs, camp_bt,
-						 None, bldg_templates, doctrine_templates, map_data, exs, players, nms, turn, logs, rng) {
+						 None, temps, map_data, exs, players, turn, logs, rng) {
 					panicq!("failed to add barbarian bldg");
 				}
 				
@@ -243,7 +237,7 @@ pub fn place_barbarians<'bt,'ut,'rt,'dt>(attempt: &mut usize, player_ind: SmSvTy
 							health: std::u8::MAX
 					});
 					ex.actual.owner_id = Some(barbarian_id as SmSvType);
-					compute_zooms_coord(coord, bldgs, bldg_templates, map_data, exs, players);
+					compute_zooms_coord(coord, bldgs, temps.bldgs, map_data, exs, players);
 				};};
 				
 				// wall gate
@@ -278,7 +272,7 @@ pub fn place_barbarians<'bt,'ut,'rt,'dt>(attempt: &mut usize, player_ind: SmSvTy
 				{
 					let player = &mut players[barbarian_id as usize];
 					macro_rules! add_u{($coord:expr, $type:expr) => (
-					add_unit($coord, false, $type, units, map_data, exs, bldgs, player, relations, logs, unit_templates, nms, turn, rng););};
+					add_unit($coord, false, $type, units, map_data, exs, bldgs, player, relations, logs, temps, turn, rng););};
 					
 					if c == 0 { // top
 						let coord = map_sz.coord_wrap(by, bx + gate_loc).unwrap();

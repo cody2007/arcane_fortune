@@ -17,6 +17,7 @@ pub fn world_history_events(player_id: usize, relations: &Relations,
 			LogType::PeaceDeclaration {..} |
 			LogType::PrevailingDoctrineChanged {..} |
 			LogType::Rioting {..} |
+			LogType::NobleHouseJoinedEmpire {..} |
 			LogType::RiotersAttacked {..} |
 			LogType::CitizenDemand {..} |
 			LogType::ICBMDetonation {..} => {
@@ -37,8 +38,7 @@ pub fn world_history_events(player_id: usize, relations: &Relations,
 pub fn battle_history_events(player_id: usize, relations: &Relations,
 		logs: &Vec<Log>) -> Vec<Log> {
 	let mut events = Vec::with_capacity(logs.len());
-	for log in logs.iter()
-			.filter(|log| log.visible(player_id, relations)) {
+	for log in logs.iter().filter(|log| log.visible(player_id, relations)) {
 		match log.val {
 			LogType::CivCollapsed {..} |
 			LogType::UnitDisbanded {..} |
@@ -53,6 +53,7 @@ pub fn battle_history_events(player_id: usize, relations: &Relations,
 			LogType::Rioting {..} |
 			LogType::RiotersAttacked {..} |
 			LogType::CitizenDemand {..} |
+			LogType::NobleHouseJoinedEmpire {..} |
 			LogType::Debug {..} => {}
 			
 			LogType::CivDestroyed {..} |
@@ -86,6 +87,7 @@ pub fn economic_history_events(player_id: usize, relations: &Relations,
 			LogType::Debug {..} |
 			LogType::CivDestroyed {..} |
 			LogType::CityCaptured {..} |
+			LogType::NobleHouseJoinedEmpire {..} |
 			LogType::ICBMDetonation {..} |
 			LogType::PrevailingDoctrineChanged {..} |
 			LogType::UnitDestroyed {..} |

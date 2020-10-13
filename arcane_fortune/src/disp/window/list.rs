@@ -4,7 +4,6 @@ use crate::gcore::{GameDifficulties, Log, LogType};
 use crate::doctrine::available_doctrines;
 use crate::localization::Localization;
 use crate::player::{Stats, PlayerType, Player};
-use crate::nobility::House;
 
 pub fn noble_houses_list<'bt,'ut,'rt,'dt>(cur_player: usize, relations: &Relations,
 		players: &Vec<Player>, l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
@@ -410,7 +409,7 @@ pub fn owned_improvement_bldgs_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'r
 	let mut city_entries = Vec::with_capacity(bldgs.len());
 	for b in bldgs.iter() {
 		if b.owner_id != cur_player {continue;}
-		if let BldgArgs::CityHall {nm, ..} = &b.args {
+		if let BldgArgs::PopulationCenter {nm, ..} = &b.args {
 			city_entries.push(CityEntry {nm: nm.clone(), coord: Coord::frm_ind(b.coord, map_sz)});
 		}
 	}
@@ -554,7 +553,7 @@ pub fn owned_military_bldgs_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'
 	let mut city_entries = Vec::with_capacity(bldgs.len());
 	for b in bldgs.iter() {
 		if b.owner_id != cur_player {continue;}
-		if let BldgArgs::CityHall {nm, ..} = &b.args {
+		if let BldgArgs::PopulationCenter {nm, ..} = &b.args {
 			city_entries.push(CityEntry {nm: nm.clone(), coord: Coord::frm_ind(b.coord, map_sz)});
 		}
 	}
@@ -705,7 +704,7 @@ pub fn owned_city_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, cur_
 	let mut max_producing_len = l.Producing.len();
 	
 	for (bldg_ind, b) in bldgs.iter().enumerate().filter(|(_, b)| b.owner_id == cur_player) {
-		if let BldgArgs::CityHall {nm, production, population, tax_rates} = &b.args {
+		if let BldgArgs::PopulationCenter {nm, production, population, tax_rates} = &b.args {
 			let producing = if let Some(entry) = production.last() {
 				format!("{} ({}/{})", entry.production.nm[l.lang_ind], entry.progress, entry.production.production_req)
 			}else{l.None.clone()};
@@ -819,7 +818,8 @@ pub fn owned_city_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, cur_
 }
 
 // for creating list to display of player's cities
-pub fn contacted_civilizations_list<'bt,'ut,'rt,'dt>(relations: &Relations, players: &Vec<Player>, cur_player: SmSvType, turn: usize) -> OptionsUI<'bt,'ut,'rt,'dt> {
+pub fn contacted_civilizations_list<'bt,'ut,'rt,'dt>(relations: &Relations, players: &Vec<Player>, cur_player: SmSvType, turn: usize,
+		l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
 	let cur_player = cur_player as usize;
 	
 	// get all civs contacted by player
@@ -829,16 +829,16 @@ pub fn contacted_civilizations_list<'bt,'ut,'rt,'dt>(relations: &Relations, play
 	for (owner_id, player) in players.iter().enumerate() {
 		if relations.discovered(cur_player, owner_id) && owner_id != cur_player && player.stats.alive {
 			match player.ptype {
-				PlayerType::AI {..} | PlayerType::Human {..} => {
+				PlayerType::Empire(_) | PlayerType::Human(_) => {
 					let nm_string = if let Some(_) = relations.peace_treaty_turns_remaining(cur_player as usize, owner_id, turn) {
-						format!("{} (Peace treaty)", player.personalization.nm)
+						format!("{} {}", player.personalization.nm, l.Peace_treaty_paren)
 					}else if relations.at_war(cur_player as usize, owner_id) {
-						format!("{} (WAR)", player.personalization.nm)
+						format!("{} {}", player.personalization.nm, l.WAR_paren)
 					}else {player.personalization.nm.clone()};
 					
 					nms_string.push(nm_string);
 					owner_ids.push(owner_id);
-				} PlayerType::Nobility {..} | PlayerType::Barbarian {..} => {}
+				} PlayerType::Nobility(_) | PlayerType::Barbarian(_) => {}
 			}
 		}
 	}
@@ -869,8 +869,8 @@ pub fn all_civilizations_list<'bt,'ut,'rt,'dt>(players: &Vec<Player>) -> Options
 	
 	for (owner_id, player) in players.iter().enumerate() {
 		match player.ptype {
-			PlayerType::Barbarian {..} | PlayerType::Nobility {..} => {}
-			PlayerType::AI {..} | PlayerType::Human {..} => {
+			PlayerType::Barbarian(_) | PlayerType::Nobility(_) => {}
+			PlayerType::Empire(_)| PlayerType::Human(_) => {
 				nms_string.push(player.personalization.nm.clone());
 				owner_ids.push(owner_id);
 			}
@@ -1007,7 +1007,7 @@ pub fn discovered_units_list<'bt,'ut,'rt,'dt>(pstats: &Stats, unit_templates: &'
 }
 
 pub fn bldg_prod_list<'bt,'ut,'rt,'dt>(b: &Bldg<'bt,'ut,'rt,'dt>, l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
-	let (nms_string, unit_templates) = if let BldgArgs::CityHall {production, ..} |
+	let (nms_string, unit_templates) = if let BldgArgs::PopulationCenter {production, ..} |
 					BldgArgs::GenericProducable {production} = &b.args {
 		let mut nms_string = Vec::with_capacity(production.len());
 		let mut unit_templates = Vec::with_capacity(production.len());

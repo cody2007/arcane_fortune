@@ -22,7 +22,7 @@ pub enum TxtCategory {
 	Negative = 2
 }
 
-use crate::player::AIPersonality;
+use crate::ai::AIPersonality;
 impl From<&AIPersonality> for TxtCategory {
 	fn from(personality: &AIPersonality) -> Self {
 		const SPACE: f32 = 2./3.;

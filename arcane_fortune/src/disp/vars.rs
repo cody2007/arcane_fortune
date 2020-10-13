@@ -190,8 +190,8 @@ pub enum UIMode<'bt,'ut,'rt,'dt> {
 	EndGameWindow,
 	AboutWindow,
 	UnmovedUnitsNotification,
-	NobilityReqToJoin {mode: usize, unaffiliated_house_nm: String},
 	NoblePedigree {mode: usize, house_nm: Option<String>},
+	AcceptNobilityIntoEmpire {mode: usize, house_ind: usize}, // nobility asks to join the empire
 	ForeignUnitInSectorAlert {sector_nm: String, battalion_nm: String},
 }
 
@@ -764,7 +764,7 @@ pub const TURN_ROW: i32 = MAP_ROW_START as i32;
 
 pub const FAST_TURN_INC: usize = 30;
 
-impl IfaceSettings<'_,'_,'_,'_,'_> {
+impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	pub fn create_tech_window(&mut self, prompt_tech: bool, d: &mut DispState) {
 		self.reset_auto_turn(d);
 		
@@ -814,6 +814,22 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		self.set_auto_turn(AutoTurn::Off, d);
 		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+	}
+	
+	// only if settings indicate auto turn should be interrupted
+	// or the player isn't in the auto-turn mode
+	pub fn create_interrupt_window(&mut self, ui_mode: UIMode<'bt,'ut,'rt,'dt>, d: &mut DispState) {
+		if self.interrupt_auto_turn || self.auto_turn == AutoTurn::Off {
+			self.set_auto_turn(AutoTurn::Off, d);
+			d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+			self.ui_mode = ui_mode;
+		}
+	}
+	
+	// regardless of auto-turn settings
+	pub fn create_window(&mut self, ui_mode: UIMode<'bt,'ut,'rt,'dt>, d: &mut DispState) {
+		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+		self.ui_mode = ui_mode;
 	}
 }
 

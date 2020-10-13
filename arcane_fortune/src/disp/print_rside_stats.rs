@@ -1,12 +1,10 @@
 use crate::zones;
 use crate::zones::disp::ZonePlotType;
-use crate::tech::TechTemplate;
-use crate::doctrine::DoctrineTemplate;
-use crate::gcore::hashing::HashedMapZoneEx;
+use crate::gcore::hashing::*;
 use crate::buildings::Bldg;
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
-use crate::player::{Player, Stats};
+use crate::player::*;
 use crate::containers::Templates;
 use super::*;
 

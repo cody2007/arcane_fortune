@@ -118,7 +118,7 @@ pub fn show_title_screen<'f,'bt,'ut>(disp_chars: &DispChars, kbd: &KeyboardMap,
 	let save_file_exists = return_save_files().len() != 0;
 	let min_option = if save_file_exists {0} else {1}; // don't show load game option if no files exist
 	let mut title_option_sel = min_option;
-	let langs_supported = Localization::supported();
+	//let langs_supported = Localization::supported();
 	
 	let start_time = Instant::now();
 

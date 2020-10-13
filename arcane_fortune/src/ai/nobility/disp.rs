@@ -98,7 +98,7 @@ impl NoblePair {
 	}	
 }
 
-impl House<'_,'_,'_,'_> {
+impl House {
 	pub fn print_pedigree(&self, personalization: &Personalization, buttons: &mut Buttons, screen_sz: ScreenSz,
 			disp_chars: &DispChars,	l: &Localization, d: &mut DispState, turn: usize) {
 		d.clear();

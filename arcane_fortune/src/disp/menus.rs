@@ -4,8 +4,6 @@ use crate::disp_lib::*;
 use crate::disp::*;
 use crate::disp::window::ProdOptions;
 use crate::saving::*;
-use crate::tech::TechTemplate;
-use crate::ai::{AIState, BarbarianState, AIConfig};
 use crate::gcore::{Log, Relations};
 use crate::config_load::return_save_files;
 use crate::resources::ResourceTemplate;
@@ -14,8 +12,7 @@ use crate::gcore::rand::XorState;
 use crate::gcore::GameDifficulties;
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
-use crate::nobility::House;
-use crate::player::{Stats, Player};
+use crate::player::*;
 use crate::containers::Templates;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
@@ -251,7 +248,6 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			UIMode::SetTaxes(_) |
 			UIMode::ProdListWindow {..} |
 			UIMode::GenericAlert {..} |
-			UIMode::NobilityReqToJoin {..} |
 			UIMode::PublicPollingWindow |
 			UIMode::CurrentBldgProd {..} |
 			UIMode::SelectBldgDoctrine {..} |
@@ -291,6 +287,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			UIMode::PrevailingDoctrineChangedWindow |
 			UIMode::CivicAdvisorsWindow |
 			UIMode::ForeignUnitInSectorAlert {..} |
+			UIMode::AcceptNobilityIntoEmpire {..} |
 			UIMode::RiotingAlert {..} |
 			UIMode::AboutWindow => {}
 		}
@@ -745,8 +742,12 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, m
 		return None; // return because end_menu() will overwrite iface_settings.ui_mode
 	
 	}else if m("P|references", "Pause current AI's actio|n|s"){
-		if let PlayerType::AI {ref mut ai_state, ..} = players[iface_settings.cur_player as usize].ptype {
-			ai_state.paused ^= true; update_indicators!();
+		match players[iface_settings.cur_player as usize].ptype {
+			PlayerType::Empire(EmpireState {ref mut ai_state, ..}) |
+			PlayerType::Nobility(NobilityState {ref mut ai_state, ..}) => {
+				ai_state.paused ^= true; update_indicators!();
+			}
+			PlayerType::Barbarian(_) | PlayerType::Human(_) => {}
 		}
 	
 	}else if m("H|elp", "E|ncyclopedia"){

@@ -2,18 +2,16 @@ use std::collections::{VecDeque};
 use std::num::ParseIntError;
 use std::fmt;
 
-use crate::gcore::hashing::{HashedMap, HashStruct64, HashedFogVars};
+use crate::gcore::hashing::{HashedMap, HashStruct64};
 //use crate::config_load::get_usize_map_config;
-use crate::zones::{FogVars, ZoneDemandSumMap, ZoneAgnosticLocallyLogged};
+use crate::zones::{FogVars};
 use crate::units::*;
 use crate::buildings::*;
 use crate::saving::*;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
-use crate::tech::TechTemplate;
 use crate::disp::{CCYAN, CSAND4, CGREEN, CSAND1};
 use crate::disp_lib::*;
-use crate::gcore::{Bonuses, Brigade, Sector, XorState};
 use crate::localization::Localization;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;

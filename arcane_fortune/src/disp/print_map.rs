@@ -1,8 +1,5 @@
 use super::*;
 use crate::gcore::{print_log, Log, Relations};
-use crate::ai::AIState;
-use crate::tech::TechTemplate;
-use crate::doctrine::DoctrineTemplate;
 use crate::disp::menus::OptionsUI;
 use crate::units::ActionType;
 use crate::keyboard::KeyboardMap;
@@ -211,7 +208,7 @@ impl <'f,'bt,'ut,'rt,'st>IfaceSettings<'f,'bt,'ut,'rt,'st> {
 		
 		txt_list.clear();
 		
-		self.print_menus(disp_chars, menu_options, players[self.cur_player as usize].ptype.is_ai(), kbd, buttons, l, d);
+		self.print_menus(disp_chars, menu_options, !players[self.cur_player as usize].ptype.is_human(), kbd, buttons, l, d);
 		
 		///////////// show most recent log entry
 		// (should come after print_menus() as that clears the first line
@@ -249,7 +246,7 @@ impl <'f,'bt,'ut,'rt,'st>IfaceSettings<'f,'bt,'ut,'rt,'st> {
 		//////////////
 		self.print_bottom_stats(map_data, exs, player, players, units, &temps.bldg_config, bldgs, relations, logs, kbd, l, buttons, txt_list, disp_chars, d);
 		self.print_rside_stats(frame_stats, turn, bldgs, players, temps, disp_chars, l, exf, map_data, map_sz, kbd, buttons, txt_list, d);
-		self.print_submap(disp_chars, map_data, units, bldgs, exs, &player.stats, players, alt_ind, kbd, l, buttons, d);
+		self.print_submap(disp_chars, map_data, units, bldgs, exs, players, alt_ind, kbd, l, buttons, d);
 	}
 }
 

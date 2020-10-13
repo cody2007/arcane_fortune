@@ -99,3 +99,28 @@ create_keys!(
 	backward_tab = "backward_tab"
 );
 
+use sdl2_lib::{KEY_UP, KEY_DOWN};
+impl KeyboardMap {
+	// fast or slow up
+	pub fn up(&self, k: i32) -> bool {
+		self.up_normal(k) || k == self.fast_up as i32
+	}
+	
+	// fast or slow down
+	pub fn down(&self, k: i32) -> bool {
+		self.down_normal(k) || k == self.fast_up as i32
+	}
+	
+	// i.e., not the fast up
+	pub fn up_normal(&self, k: i32) -> bool {
+		k == self.up as i32 ||
+		k == KEY_UP
+	}
+	
+	// i.e., not the fast down
+	pub fn down_normal(&self, k: i32) -> bool {
+		k == self.down as i32 ||
+		k == KEY_DOWN
+	}
+}
+

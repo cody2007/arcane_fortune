@@ -3,7 +3,6 @@ use crate::saving::*;
 use crate::config_load::*;
 use crate::map::{TechProg};
 use crate::player::{Stats, Player};
-use crate::buildings::BldgTemplate;
 use crate::disp::{IfaceSettings};
 use crate::disp::window::{init_bldg_prod_windows, ProdOptions};
 use crate::units::UnitTemplate;

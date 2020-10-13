@@ -1,7 +1,7 @@
 use crate::disp_lib::*;
 use crate::map::*;
 use crate::units::{ActionType, ActionMetaCont, WORKER_NM, worker_can_continue_bldg};//MAX_UNITS_PER_PLOT, WORKER_NM};
-use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
+use crate::gcore::hashing::*;
 use crate::gcore::{Relations, Log, LogType};
 use crate::player::{Player, PlayerType, Stats};
 use crate::movement::{manhattan_dist_components, manhattan_dist};
@@ -238,7 +238,8 @@ impl ActionType<'_,'_,'_,'_> {
 	}
 }
 
-fn print_city_hist(city_nm_show: &str, stats_row: i32, players: &Vec<Player>, logs: &Vec<Log>,
+fn print_city_hist(city_nm_show: &str, owner_id: usize,
+		stats_row: i32, players: &Vec<Player>, logs: &Vec<Log>,
 		l: &Localization, txt_list: &mut TxtList, d: &mut DispState) {
 	let mut roff = stats_row; // row offset for printing
 	
@@ -301,6 +302,27 @@ fn print_city_hist(city_nm_show: &str, stats_row: i32, players: &Vec<Player>, lo
 					let width = "Destroyed by the ".len() +
 						" civilization.".len() +
 						players[*owner_attacker_id].personalization.nm.len();
+					
+					if width > max_width {max_width = width;}
+				}
+			}
+			LogType::NobleHouseJoinedEmpire {house_id, empire_id} => {
+				// house_joined_empire_abbrev: "Joined the [empire_nm] empire."
+				if owner_id == *house_id {
+					mvl!();
+					txt_list.add_b(d);
+					l.print_date_log(log.turn, d);
+					
+					let empire = &players[*empire_id].personalization;
+					
+					let tags = vec![KeyValColor {
+						key: String::from("[empire_nm]"),
+						val: empire.nm.clone(),
+						attr: COLOR_PAIR(empire.color)
+					}];
+					
+					color_tags_print(&l.house_joined_empire_abbrev, &tags, None, d);
+					let width = color_tags_txt(&l.house_joined_empire_abbrev, &tags).len();
 					
 					if width > max_width {max_width = width;}
 				}
@@ -587,17 +609,19 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	fn print_owner(&self, mut roff: i32, player: &Player, relations: &Relations,
 			txt_list: &mut TxtList, l: &Localization, d: &mut DispState) {
 		match player.ptype {
-			PlayerType::Human {..} | PlayerType::AI {..} => {
+			PlayerType::Human(_) | PlayerType::Empire(_) => {
 				d.mv(roff, LAND_STATS_COL); roff += 1;
 				txt_list.add_b(d);
 				d.addstr(&l.Country);
 				d.addstr(": ");
 			}
-			PlayerType::Barbarian {..} => {}
-			PlayerType::Nobility {..} => {
+			PlayerType::Barbarian(_) => {}
+			PlayerType::Nobility(_) => {
 				d.mv(roff, LAND_STATS_COL); roff += 1;
 				txt_list.add_b(d);
-				d.addstr(&l.Nobility);
+				set_player_color(player, true, d);
+				d.addstr(&l.only_House_of);
+				set_player_color(player, false, d);
 			}
 		}
 		
@@ -1010,7 +1034,9 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			if show_land {
 				if let Some(fog) = self.get_fog_or_actual(get_cursor_or_sel_coord(), ex, pstats) {
 					if let Some(max_city_nm) = &fog.max_city_nm {
-						print_city_hist(max_city_nm, stats_row, players, logs, l, txt_list, d);
+						if let Some(owner_id) = fog.owner_id {
+							print_city_hist(max_city_nm, owner_id as usize, stats_row, players, logs, l, txt_list, d);
+						}
 						return;
 					}
 				}
@@ -1035,12 +1061,12 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 					
 					// print name of bldg
 					// if city hall & we're not showing all player's actions, show history and return
-					if let BldgArgs::CityHall {nm, ..} = &b.args {
+					if let BldgArgs::PopulationCenter {nm, ..} = &b.args {
 						if b.owner_id == self.cur_player || self.show_actions {
 							txt_list.add_b(d);
 							d.addstr(&format!("{} ({})", nm, bt.nm[l.lang_ind]));
 						}else{
-							print_city_hist(nm, stats_row, players, logs, l, txt_list, d);
+							print_city_hist(nm, b.owner_id as usize, stats_row, players, logs, l, txt_list, d);
 							return;
 						}
 					}else{
@@ -1049,11 +1075,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 						
 						// print "(abandoned)"?
 						if let BldgType::Taxable(_) = b.template.bldg_type {
-							if b.n_residents() == 0 {
-								d.attron(COLOR_PAIR(CGRAY));
-								d.addstr(&l.abandoned);
-								d.attroff(COLOR_PAIR(CGRAY));
-							}
+							if b.n_residents() == 0 {addstr_c(&l.abandoned, CGRAY, d);}
 						}
 					}
 					
@@ -1085,7 +1107,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 							// print production and taxes
 							if !b.template.units_producable.is_none() && (b.owner_id == self.cur_player || self.show_actions) {
 								// constructed
-								if let BldgArgs::CityHall {tax_rates, ..} = &b.args {
+								if let BldgArgs::PopulationCenter {tax_rates, ..} = &b.args {
 									txt_list.add_b(d);
 									d.addstr(&l.Taxes);
 									
@@ -1122,7 +1144,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 								d.addstr(&l.Production); d.mv(roff, UNIT_STATS_COL); /////!!!!!!!!!!!!!! (roff not incremented or else you get a compiler warning)
 								buttons.change_bldg_production.print(Some(self), l, d);
 								
-								if let BldgArgs::CityHall {production, ..} | BldgArgs::GenericProducable {production} = &b.args {
+								if let BldgArgs::PopulationCenter {production, ..} | BldgArgs::GenericProducable {production} = &b.args {
 									if let Some(production_entry) = production.last() {
 										let ut = production_entry.production;
 										txt_list.add_b(d);

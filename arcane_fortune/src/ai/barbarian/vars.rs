@@ -1,5 +1,4 @@
 use crate::saving::*;
-use crate::player::{PlayerType};
 use crate::disp_lib::endwin;
 use crate::units::*;
 use crate::buildings::*;

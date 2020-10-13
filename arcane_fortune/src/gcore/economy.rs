@@ -9,9 +9,8 @@ use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::doctrine::DoctrineTemplate;
 use crate::gcore::Log;
 use crate::disp_lib::endwin;
-use crate::ai::AIState;
 use crate::containers::Templates;
-use crate::player::{Player, Nms, Stats};
+use crate::player::*;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 //use std::cmp::min;
@@ -274,7 +273,6 @@ pub fn return_effective_tax_rate(coord: u64, map_data: &mut MapData, exs: &mut V
 	match zone_ex.ret_city_hall_dist() {
 		Dist::Is {dist, bldg_ind} => {
 			let b = &bldgs[bldg_ind];
-			debug_assertq!(b.template.nm[0] == CITY_HALL_NM);
 			
 			let dist_scale = if dist >= MAX_TAXABLE_DIST {
 					0.
@@ -282,11 +280,11 @@ pub fn return_effective_tax_rate(coord: u64, map_data: &mut MapData, exs: &mut V
 					((MAX_TAXABLE_DIST - dist) as f32) / (MAX_TAXABLE_DIST as f32)
 				};
 			
-			if let BldgArgs::CityHall{tax_rates, ..} = &b.args {
+			if let BldgArgs::PopulationCenter {tax_rates, ..} = &b.args {
 				let zt = exs.last().unwrap().get(&coord).unwrap().actual.ret_zone_type().unwrap() as usize;
 				dist_scale * (tax_rates[zt] as f32 / 100.)
 				
-			}else {panicq!("no city hall tax arguments")}
+			}else {panicq!("no population center tax arguments")}
 	
 		} Dist::NotPossible {..} => {0.
 		} Dist::NotInit | Dist::ForceRecompute {..} => {panicq!("city hall dist left unitialized")}
@@ -363,7 +361,7 @@ pub fn create_taxable_constructions<'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>
 					// add bldg
 					if ((rng.gen_f32b() < 2.*(4.*zone_demand.unwrap() - effective_tax)) || // add based on zone demand
 						(resource_present && (rng.gen_f32b() < 1.))) && // add based on a resource being present
-							add_bldg(coord, owner_id, bldgs, bt, None, temps.bldgs, temps.doctrines, map_data, exs, players, &temps.nms, turn, logs, rng) {
+							add_bldg(coord, owner_id, bldgs, bt, None, temps, map_data, exs, players, turn, logs, rng) {
 						
 						let ind = bldgs.len()-1;
 						bldgs[ind].construction_done = None;

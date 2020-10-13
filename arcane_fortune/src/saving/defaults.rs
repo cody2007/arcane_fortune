@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use crate::map::{MapEx, ZoneType, Map, MapSz, ZoneDemandType, MapType, TechProg, ResourceCont,
 	StructureType, LandDiscov
 };
-use crate::player::{Nms, AIPersonality, Stats, PlayerType, PersonName, Personalization, Player};
+use crate::player::*;
 use crate::zones::{ZoneDemandRaw, StructureData,
 	ZoneAgnosticStats, ZoneAgnosticContribFracs, ZoneAgnosticLocallyLogged};
 use crate::disp::{Coord, ScreenSz, Fire, FireTile};
@@ -11,13 +11,11 @@ use crate::doctrine::DoctrineTemplate;
 use crate::buildings::*;
 use crate::units::*;
 use crate::tech::*;
-use crate::ai::{AttackFront, AttackFronts, AttackFrontState, AIState,
-	BarbarianState, CityState, Neighbors, Defender, AIConfig};
-use crate::gcore::{LogType, Log, Relations, RelationsConfig,
+use crate::ai::*;
+use crate::gcore::{LogType, Log, RelationsConfig,
 	Sector, Brigade, Rectangle, PerimCoords};
 use crate::resources::ResourceTemplate;
 use crate::gcore::{RelationStatus, Bonuses};//, HashStruct64};
-use crate::nobility::*;
 
 pub type SmSvType = u32; // ex, to cast down from usize
 
@@ -148,7 +146,7 @@ impl Default for CityState<'_,'_,'_,'_> {
 			city_ul: Coord {y: 0, x: 0},
 			city_lr: Coord {y: 0, x: 0},
 			
-			ch_ind: None,
+			population_center_ind: None,
 			boot_camp_ind: None,
 			academy_ind: None,
 			bonus_bldg_inds: Vec::new(),
@@ -214,7 +212,7 @@ impl Default for Personalization {
 			health_advisor_nm: PersonName::default(),
 			unemployment_advisor_nm: PersonName::default(),
 			motto: String::new(),
-			city_nm_theme: 0,
+			city_nm_theme: 0, founded: 0
 }}}
 
 impl Default for TechTemplate {
@@ -492,16 +490,12 @@ impl Default for Rectangle {
 	}
 }*/
 
-impl Default for House<'_,'_,'_,'_> {
+impl Default for House {
 	fn default() -> Self {
 		Self {
 			head_noble_pair_ind: 0,
 			noble_pairs: Vec::new(),
 			
-			personality: Default::default(),
-			
-			city_state: Default::default(),
-			attack_fronts: Default::default(),
 			has_req_to_join: false
 		}
 	}

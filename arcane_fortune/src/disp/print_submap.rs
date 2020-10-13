@@ -1,8 +1,8 @@
 use crate::disp_lib::*;
 use crate::map::*;
-use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
+use crate::gcore::hashing::*;
 use crate::keyboard::KeyboardMap;
-use crate::player::{Player, Stats};
+use crate::player::*;
 
 use super::*;
 use super::vars::*;
@@ -10,7 +10,7 @@ use super::color::*;
 
 impl IfaceSettings<'_,'_,'_,'_,'_> {
 	pub fn print_submap(&self, disp_chars: &DispChars, map_data: &mut MapData, units: &Vec<Unit>,
-			bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, pstats: &Stats, players: &Vec<Player>,
+			bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, players: &Vec<Player>,
 			alt_ind: usize, kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons, d: &mut DispState){
 		////////// print bounding box
 		macro_rules! bounding_box{($map_sz: expr) => {

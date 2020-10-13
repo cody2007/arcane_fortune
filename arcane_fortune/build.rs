@@ -2,6 +2,9 @@ use std::env::var;
 use std::process::Command;
 
 fn main() {
+	//println!(r"cargo:rustc-link-search=link_dir/windows");
+	//println!(r"cargo:rustc-link-search=link_dir/linux_musl");
+	
 	// attempt to get the binary to search in the current directory for the library
 	//println!("cargo:rustc-flags=-Wl,-rpath,$ORIGIN");
 	

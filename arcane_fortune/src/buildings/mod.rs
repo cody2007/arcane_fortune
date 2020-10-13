@@ -6,14 +6,14 @@ use crate::tech::TechTemplate;
 use crate::resources::ResourceTemplate;
 use crate::config_load::*;
 use crate::saving::*;
-use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
+use crate::gcore::hashing::*;
 use crate::gcore::rand::XorState;
 use crate::gcore::{Log, LogType, Relations};
 use crate::disp_lib::endwin;
-use crate::ai::{AIState, BarbarianState};
 use crate::localization::Localization;
 use crate::movement::manhattan_dist;
-use crate::player::{Player, Stats, Nms, PlayerType};
+use crate::player::*;
+use crate::containers::Templates;
 
 mod vars; pub use vars::*;
 
@@ -279,11 +279,11 @@ pub fn rm_bldg<'bt,'ut,'rt,'dt>(bldg_ind: usize, is_cur_player: bool, bldgs: &mu
 	// accounting
 	match del_action {
 		UnitDelAction::Record(disband_unit_inds) => {
-			player.rm_bldg(bldg_ind, orig_bt, disband_unit_inds);
+			player.rm_bldg(bldg_ind, b, disband_unit_inds);
 		}
 		UnitDelAction::Delete {units, relations, logs, turn} => {
 			let mut disband_unit_inds = Vec::new();
-			player.rm_bldg(bldg_ind, orig_bt, &mut disband_unit_inds);
+			player.rm_bldg(bldg_ind, b, &mut disband_unit_inds);
 			
 			for unit_ind in disband_unit_inds.iter() {
 				if !disband_unit_inds.contains(unit_ind) {
@@ -332,7 +332,7 @@ pub fn rm_bldg<'bt,'ut,'rt,'dt>(bldg_ind: usize, is_cur_player: bool, bldgs: &mu
 		
 		// accounting
 		let b_owner_id = b.owner_id as usize;
-		players[b_owner_id].chg_bldg_ind(bldgs.len(), bldg_ind, b.template);
+		players[b_owner_id].chg_bldg_ind(bldgs.len(), bldg_ind, b);
 	}
 	
 	bldg_map_update(Coord::frm_ind(orig_coord, map_sz), orig_bt, bldgs, bldg_templates, map_data, exs, players, map_sz);
@@ -343,9 +343,9 @@ use crate::ai::{CITY_GRID_HEIGHT, CITY_GRID_WIDTH, city_hall_offset};
 
 pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, 
 		bt: &'bt BldgTemplate<'ut,'rt,'dt>, doctrine_dedication: Option<&'dt DoctrineTemplate>,
-		bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, doctrine_templates: &'dt Vec<DoctrineTemplate>,
+		temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, nms: &Nms, turn: usize, 
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, turn: usize, 
 		logs: &mut Vec<Log>, rng: &mut XorState) -> bool {
 	
 	let get_doctrine_dedication = || {
@@ -356,7 +356,7 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 				return dedication;
 			}
 		}
-		&doctrine_templates[0]
+		&temps.doctrines[0]
 	};
 	let doctrine_dedication = get_doctrine_dedication();
 	
@@ -392,20 +392,20 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 	let owner_id = owner_id as usize;
 	let player = &mut players[owner_id];
 	
-	let args = if bt.nm[0] == CITY_HALL_NM {
+	let args = if bt.nm[0] == CITY_HALL_NM || bt.nm[0] == MANOR_NM {
 			// create new city plan if this is a human player (it would've already been created for the AI)
-			if let PlayerType::Human {ai_state} = &mut player.ptype {
+			if let PlayerType::Human(ai_state) = &mut player.ptype {
 				let offsets = city_hall_offset(CITY_GRID_HEIGHT as isize, CITY_GRID_WIDTH as isize);
 				let city_coord = Coord {
 					y: c.y - offsets.0,
 					x: c.x - offsets.1 - 1
 				};
-				ai_state.create_city_plan(city_coord, rng, map_data, map_sz, bldg_templates);
+				ai_state.add_city_plan(city_coord, rng, map_data, map_sz, temps.bldgs);
 			}
 			
 			// choose name of city, making sure to not choose one that's already been used
 			let mut unused_nm = || {
-				let city_nms_use = &nms.cities[player.personalization.city_nm_theme];
+				let city_nms_use = &temps.nms.cities[player.personalization.city_nm_theme];
 				let inds = rng.inds(city_nms_use.len());
 				
 				let mut prefix = String::new();
@@ -453,12 +453,14 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 			let nm = unused_nm();
 			
 			// log
-			logs.push(Log {turn, val: LogType::CityFounded {
-							owner_id,
-							city_nm: nm.clone()
-			}});
+			if bt.nm[0] == MANOR_NM {
+				logs.push(Log {turn, val: LogType::CityFounded {
+						owner_id,
+						city_nm: nm.clone()
+				}});
+			}
 			
-			BldgArgs::CityHall {
+			BldgArgs::PopulationCenter {
 				tax_rates: vec!{10; ZoneType::N as usize}.into_boxed_slice(),
 				production: Vec::new(),
 				population: 0,
@@ -482,7 +484,7 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 				player.stats.tax_income -= bt.upkeep; // bt.upkeep is negative so we are adding a positive value
 				-bt.upkeep // make positive then add to income
 			}else{
-				-bt.upkeep * return_effective_tax_rate(coord, map_data, exs, player, bldgs, doctrine_templates, map_sz, turn)
+				-bt.upkeep * return_effective_tax_rate(coord, map_data, exs, player, bldgs, temps.doctrines, map_sz, turn)
 				//           ^ may call set_city_hall_dist which will not update stats because the bldg hasn't been added yet
 			};
 			taxable_upkeep
@@ -536,10 +538,10 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 		ex.bldg_ind = Some(bldgs.len()-1);
 	}}
 	
-	bldg_map_update(c, bt, bldgs, bldg_templates, map_data, exs, players, map_sz);
+	bldg_map_update(c, bt, bldgs, temps.bldgs, map_data, exs, players, map_sz);
 	
 	// log ai state
-	players[owner_id].add_bldg(bldgs.len()-1, coord, bt, map_sz);
+	players[owner_id].add_bldg(bldgs.len()-1, coord, bldgs.last().unwrap(), map_sz);
 	
 	true
 }
@@ -633,7 +635,7 @@ pub fn closest_owned_non_city_hall_bldg<'b,'bt,'ut,'rt,'dt>(coord: Coord,
 	}
 	let mut bldg_dist_opt: Option<BldgDist> = None;
 	for (bldg_ind, b) in bldgs.iter().enumerate().filter(|(_, b)| {
-		if let BldgArgs::CityHall {population, ..} = &b.args {
+		if let BldgArgs::PopulationCenter {population, ..} = &b.args {
 			if *population > population_thresh {
 				return false;
 			}

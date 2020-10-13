@@ -7,7 +7,7 @@ use crate::buildings::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]
 use crate::units::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]
-use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
+use crate::gcore::hashing::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]
 use crate::zones::ZONE_SPACING;
 #[cfg(any(feature="opt_debug", debug_assertions))]
@@ -15,7 +15,7 @@ use crate::disp::Coord;
 #[cfg(any(feature="opt_debug", debug_assertions))]
 use crate::gcore::{approx_eq_tol, in_debt};
 #[cfg(any(feature="opt_debug", debug_assertions))]
-use crate::ai::{BarbarianState, AIState};
+use crate::ai::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]
 use crate::doctrine::DoctrineTemplate;
 #[cfg(any(feature="opt_debug", debug_assertions))]
@@ -130,7 +130,7 @@ pub fn chk_data(units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, pl
 		
 		match &players[owner_id].ptype {
 			// contained in barbarian states
-			PlayerType::Barbarian {barbarian_state} => {
+			PlayerType::Barbarian(barbarian_state) => {
 				// sum # times found across attackers and defenders
 				let n_logged = barbarian_state.defender_inds.iter().filter(|&&d_ind| d_ind == unit_ind).count() + 
 						   barbarian_state.attacker_inds.iter().filter(|&&a_ind| a_ind == unit_ind).count();
@@ -147,7 +147,8 @@ pub fn chk_data(units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, pl
 					}
 					panicq!("{} owner id does not contain {} unit_ind only once. found {}", owner_id, unit_ind, n_logged);
 				}
-			} PlayerType::AI {ai_state, ..} => {
+			} PlayerType::Empire(EmpireState {ai_state, ..}) |
+			PlayerType::Nobility(NobilityState {ai_state, ..}) => {
 				//debug_assertq!(owners[owner_id].player_type.is_ai());
 				match u.template.nm[0].as_str() {
 					WORKER_NM => {
@@ -208,7 +209,7 @@ pub fn chk_data(units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, pl
 		// all unit inds in ai_states are owned by the ai and on the map
 		// all bldgs are also owned by the ai
 		// all alive AIs have at least one city, and all AIs that have no cities aren't alive
-		if let PlayerType::AI {ai_state, ..} = &player.ptype {
+		if let PlayerType::Empire(EmpireState {ai_state, ..}) = &player.ptype {
 			let pstats = &player.stats;
 			
 			// alive AIs must have a city
@@ -240,8 +241,8 @@ pub fn chk_data(units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, pl
 				
 				// bldg checks
 				{
-					if let Some(ch_ind) = city.ch_ind {
-						X!(bldgs[ch_ind].owner_id == player.id);
+					if let Some(population_center_ind) = city.population_center_ind {
+						X!(bldgs[population_center_ind].owner_id == player.id);
 					}
 					if let Some(boot_camp_ind) = city.boot_camp_ind {
 						X!(bldgs[boot_camp_ind].owner_id == player.id, "owner {} claims to own boot camp {}, but it's owned by {}",
@@ -277,7 +278,7 @@ pub fn chk_data(units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, pl
 			}
 		
 		///////// check all unit inds in barbarian_states are owned by the barbarian and on the map
-		}else if let PlayerType::Barbarian {barbarian_state} = &player.ptype {
+		}else if let PlayerType::Barbarian(barbarian_state) = &player.ptype {
 			for defender in barbarian_state.defender_inds.iter() {
 				if units[*defender].owner_id != player.id {
 					panicq!("{} barbarian owner's defenders list claims to own {} but owner is {}", player.id, *defender, units[*defender].owner_id);

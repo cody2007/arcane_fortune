@@ -16,7 +16,7 @@ pub struct KeyValColor {
 	pub attr: chtype // output of COLOR_PAIR()
 }
 
-/*pub fn color_tags_txt(txt: &str, tags: &Vec<KeyValColor>) -> String {
+pub fn color_tags_txt(txt: &str, tags: &Vec<KeyValColor>) -> String {
 	if let Some(tag) = tags.first() {
 		let mut new_txt = txt.replace(&tag.key, &tag.val);
 		for tag in tags.iter().skip(1) {
@@ -26,9 +26,11 @@ pub struct KeyValColor {
 	}else{
 		txt.to_string()
 	}
-}*/
+}
 
 use super::addstr_attr;
+// each tag has a `key`, `val` and `color`.
+// the `key` text is replaced with the `val` text and colorized with `color`
 pub fn color_tags_print(txt: &str, tags: &Vec<KeyValColor>, 
 		def_txt_color_pair: Option<chtype>, d: &mut DispState) {
 	if let Some(tag) = tags.first() {

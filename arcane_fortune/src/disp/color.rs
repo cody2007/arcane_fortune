@@ -78,8 +78,8 @@ const FG_BLACK_OFFSET: i16 = 55; // note: see disp_lib/mod.rs (CWHITE; it should
 
 pub const ESC_COLOR: CInd = CSAND4;
 
-pub const PLAYER_COLORS: &[i32] = &[CLOGO, 1, 2, 3, CREDGREEN4, 5, 6, CREDBLUE, CREDSAND1, CGREEN4, 38];
-// ^ zeroth entry are unaffiliated nobility, first entry is the human player
+pub const PLAYER_COLORS: &[i32] = &[1, 2, 3, CREDGREEN4, 5, 6, CBLUERED2, CREDSAND1, CGREEN4, 38];
+// ^ zeroth entry is the human player
 
 pub const NOBILITY_COLOR: CInd = CREDBLUE;
 

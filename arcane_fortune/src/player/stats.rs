@@ -5,13 +5,11 @@ use crate::saving::*;
 use crate::disp_lib::endwin;
 use crate::map::{TechProg, LandDiscov, MapSz, MapData, ZoneType};
 use crate::zones::{ZoneAgnosticLocallyLogged, ZoneDemandSumMap};
-use crate::gcore::{Sector, Brigade, Bonuses, XorState};
-use crate::gcore::hashing::{HashedMap, HashStruct64, HashedFogVars};
+use crate::gcore::*;
 use crate::doctrine::DoctrineTemplate;
 use crate::resources::ResourceTemplate;
 use crate::buildings::BldgTemplate;
 use crate::units::UnitTemplate;
-use crate::tech::TechTemplate;
 
 pub const LOG_TURNS: usize = 30;
 
@@ -121,9 +119,11 @@ impl_saving!{Stats<'bt,'ut,'rt,'dt> {id, alive, population, gold, employed,
 	    fog
 }}
 
+use crate::containers::Templates;
 impl <'bt,'ut,'rt,'dt>Stats<'bt,'ut,'rt,'dt> {
-	pub fn default_init(id: SmSvType, bonuses: &Bonuses, tech_templates: &Vec<TechTemplate>, resource_templates: &Vec<ResourceTemplate>,
-			doctrine_templates: &'dt Vec<DoctrineTemplate>, map_data: &MapData) -> Self {
+	pub fn default_init(id: SmSvType, bonuses: &Bonuses,
+			temps: &Templates<'bt,'ut,'rt,'dt,'_>, map_data: &MapData,
+			n_log_entries: usize) -> Self {
 		
 		let (fog, land_discov) = {
 			let max_zoom_ind = map_data.max_zoom_ind();
@@ -161,34 +161,34 @@ impl <'bt,'ut,'rt,'dt>Stats<'bt,'ut,'rt,'dt> {
 			gold: 300000.,
 			employed: 0,
 			
-			doctrine_template: &doctrine_templates[0],
-			locally_logged: ZoneAgnosticLocallyLogged::default_init(doctrine_templates),
+			doctrine_template: &temps.doctrines[0],
+			locally_logged: ZoneAgnosticLocallyLogged::default_init(temps.doctrines),
 			crime: 0.,
 			health: 0.,
 			
-			resources_avail: vec!{0; resource_templates.len()},
-			resources_discov_coords: vec!{Vec::new(); resource_templates.len()},
+			resources_avail: vec!{0; temps.resources.len()},
+			resources_discov_coords: vec!{Vec::new(); temps.resources.len()},
 			
 			bonuses: bonuses.clone(),
 			
 			// log across time
-			alive_log: Vec::new(),
-			population_log: Vec::new(),
-			unemployed_log: Vec::new(),
-			gold_log: Vec::new(),
-			net_income_log: Vec::new(),
-			defense_power_log: Vec::new(),
-			offense_power_log: Vec::new(),
-			zone_demand_log: Vec::new(),
+			alive_log: vec![false; n_log_entries],
+			population_log: vec![0; n_log_entries],
+			unemployed_log: vec![0.; n_log_entries],
+			gold_log: vec![0.; n_log_entries],
+			net_income_log: vec![0.; n_log_entries],
+			defense_power_log: vec![0; n_log_entries],
+			offense_power_log: vec![0; n_log_entries],
+			zone_demand_log: vec![vec![0.; ZoneType::N as usize]; n_log_entries],
 			
-			happiness_log: Vec::new(),
-			crime_log: Vec::new(),
-			doctrinality_log: Vec::new(),
-			pacifism_log: Vec::new(),
-			health_log: Vec::new(),
+			happiness_log: vec![0.; n_log_entries],
+			crime_log: vec![0.; n_log_entries],
+			doctrinality_log: vec![vec![0.; temps.doctrines.len()]; n_log_entries],
+			pacifism_log: vec![0.; n_log_entries],
+			health_log: vec![0.; n_log_entries],
 			
-			research_per_turn_log: Vec::new(),
-			research_completed_log: Vec::new(),
+			research_per_turn_log: vec![0; n_log_entries],
+			research_completed_log: vec![0; n_log_entries],
 			
 			mpd_log: Vec::new(),
 			
@@ -196,8 +196,8 @@ impl <'bt,'ut,'rt,'dt>Stats<'bt,'ut,'rt,'dt> {
 			
 			tax_income: 0., unit_expenses: 0., bldg_expenses: 0.,
 			
-			techs_progress: vec!{TechProg::Prog(0); tech_templates.len()}, // entry for each tech template *not a stack*
-			techs_scheduled: Vec::with_capacity(tech_templates.len()), // stack. last entry researched first
+			techs_progress: vec!{TechProg::Prog(0); temps.techs.len()}, // entry for each tech template *not a stack*
+			techs_scheduled: Vec::with_capacity(temps.techs.len()), // stack. last entry researched first
 			research_per_turn: 0,
 			
 			brigades: Vec::new(),

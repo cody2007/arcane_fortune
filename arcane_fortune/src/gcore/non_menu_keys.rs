@@ -5,10 +5,8 @@ use crate::disp::window::ProdOptions;
 use crate::units::*;
 use crate::map::*;
 use crate::gcore::*;
-use crate::ai::{AIState, BarbarianState};
 use crate::zones::return_zone_coord;
 use crate::disp::menus::{OptionsUI, ArgOptionUI, FindType};
-use crate::nobility::House;
 use crate::containers::Templates;
 
 // check if unit present, it is owned by current player, has actions available, and no other action mode is active
@@ -58,7 +56,6 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 		logs: &mut Vec<Log>, menu_options: &mut OptionsUI, frame_stats: &mut FrameStats,
 		buttons: &mut Buttons, txt_list: &mut TxtList, rng: &mut XorState, d: &mut DispState){
 	
-	let bldg_config = &temps.bldg_config;
 	let kbd = &temps.kbd;
 	let l = &temps.l;
 
@@ -87,7 +84,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 	macro_rules! set_taxes{($inc: expr)=>{
 		if let UIMode::SetTaxes(zone_type) = iface_settings.ui_mode {
 			if let Some(city_hall_ind_set) = iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exs.last().unwrap()) {
-				if let BldgArgs::CityHall {ref mut tax_rates, ..} = bldgs[city_hall_ind_set].args {
+				if let BldgArgs::PopulationCenter {ref mut tax_rates, ..} = bldgs[city_hall_ind_set].args {
 					let t = &mut tax_rates[zone_type as usize];
 					let n = (*t as isize) + $inc;
 					if n >= 0 && n <= 100 {
@@ -115,7 +112,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 							} // bldg is taxable
 						} // bldg loop
 					} // update taxes
-				}else{panicq!("could not get city hall bldg args");}
+				}else{panicq!("could not get population center bldg args");}
 			}else{panicq!("tax ui mode set but no bldg selected");}
 		} // in tax-setting UI mode
 	};};
@@ -251,8 +248,8 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 	}
 		
 	////////// cursor OR view straight
-	if kbd.up == k || KEY_UP == k {lupdate!(CoordSet::Y, -1); cursor_moved = true;}
-	if kbd.down == k || KEY_DOWN == k {lupdate!(CoordSet::Y, 1); cursor_moved = true;}
+	if kbd.up_normal(k) {lupdate!(CoordSet::Y, -1); cursor_moved = true;}
+	if kbd.down_normal(k) {lupdate!(CoordSet::Y, 1); cursor_moved = true;}
 	if kbd.left == k || KEY_LEFT == k {lupdate!(CoordSet::X, -1); cursor_moved = true;}
 	if kbd.right == k || KEY_RIGHT == k {lupdate!(CoordSet::X, 1); cursor_moved = true;}
 	
@@ -385,8 +382,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 		// alert that there are unmoved units
 		}else if iface_settings.auto_turn == AutoTurn::Off {
 			iface_settings.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, relations, players, logs, *turn, d);
-			d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-			iface_settings.ui_mode = UIMode::UnmovedUnitsNotification;
+			iface_settings.create_interrupt_window(UIMode::UnmovedUnitsNotification, d);
 		}
 	}
 	
@@ -411,13 +407,12 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 		if buttons.view_brigade.activated(k, mouse_event) {
 			if let Some(unit_ind) = iface_settings.unit_ind_frm_cursor(units, map_data, exf) {
 				if let Some(brigade_nm) = pstats.unit_brigade_nm(unit_ind) {
-					iface_settings.ui_mode = UIMode::BrigadesWindow {
+					iface_settings.create_window(UIMode::BrigadesWindow {
 						mode: 0,
 						brigade_action: BrigadeAction::ViewBrigadeUnits {
 							brigade_nm: brigade_nm.to_string()
 						}
-					};
-					d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+					}, d);
 					return;
 				}
 			}
@@ -429,7 +424,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 				let b = &bldgs[bldg_ind];
 				if let Some(_) = &b.template.units_producable {
 					let production_opt = match &b.args {
-						BldgArgs::CityHall {production, ..} | 
+						BldgArgs::PopulationCenter {production, ..} | 
 						BldgArgs::GenericProducable {production, ..} => production,
 						BldgArgs::None => {panicq!("bldg arguments do not store production");}};
 					
@@ -443,8 +438,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 						}).unwrap()
 					}else{0};
 					
-					iface_settings.ui_mode = UIMode::ProdListWindow {mode};
-					d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+					iface_settings.create_window(UIMode::ProdListWindow {mode}, d);
 					return;
 				}
 			}
@@ -455,8 +449,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 			if let Some(bldg_ind) = iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exf) { // checks cur_player owns it
 				let b = &bldgs[bldg_ind];
 				if let Some(_) = &b.template.units_producable {
-					iface_settings.ui_mode = UIMode::CurrentBldgProd {mode: 0};
-					d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+					iface_settings.create_window(UIMode::CurrentBldgProd {mode: 0}, d);
 					return;
 				}
 			}
@@ -508,11 +501,10 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 					pstats.rm_unit_frm_brigade(*unit_ind);
 				// join brigade
 				}else if pstats.brigades.len() != 0 {
-					iface_settings.ui_mode = UIMode::BrigadesWindow {
+					iface_settings.create_window(UIMode::BrigadesWindow {
 						mode: 0,
 						brigade_action: BrigadeAction::Join {unit_ind: *unit_ind}
-					};
-					d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+					}, d);
 				}
 				return;
 			}
@@ -565,8 +557,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 		// auto-explore
 		if buttons.auto_explore.activated(k, mouse_event) {
 			if unit_inds.len() != 0 {
-				iface_settings.ui_mode = UIMode::SelectExploreType {mode: 0};
-				d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+				iface_settings.create_window(UIMode::SelectExploreType {mode: 0}, d);
 				return;
 			}
 		}
@@ -617,15 +608,14 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 		// sector automation
 		if buttons.soldier_automate.activated(k, mouse_event) {
 			if unit_inds.iter().any(|&ind| !units[ind].template.attack_per_turn.is_none()) {
-				d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-				iface_settings.ui_mode = UIMode::CreateSectorAutomation {
+				iface_settings.create_window(UIMode::CreateSectorAutomation {
 					mode: 0,
 					sector_nm: None,
 					unit_enter_action: None,
 					idle_action: None,
 					curs_col: 1,
 					txt: String::from("0")
-				};
+				}, d);
 				return;
 			}
 		}
@@ -638,7 +628,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 				
 				// create sector around city, then automate
 				if iface_settings.workers_create_city_sectors {
-					if let Some(ai_state) = &players[u.owner_id as usize].ptype.ai_state() {
+					if let Some(ai_state) = &players[u.owner_id as usize].ptype.any_ai_state() {
 						let u_coord = Coord::frm_ind(u.return_coord(), map_sz);
 						if let Some(min_city) = ai_state.city_states.iter().min_by_key(|c|
 								manhattan_dist(Coord::frm_ind(c.coord, map_sz), u_coord, map_sz)) {
@@ -664,7 +654,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 								}];
 								
 								if let Some(MapEx {bldg_ind: Some(bldg_ind), ..}) = exs.last().unwrap().get(&min_city.coord) {
-									if let BldgArgs::CityHall {nm, ..} = &bldgs[*bldg_ind as usize].args {
+									if let BldgArgs::PopulationCenter {nm, ..} = &bldgs[*bldg_ind as usize].args {
 										let sectors = &mut players[u.owner_id as usize].stats.sectors;
 										if !sectors.iter().any(|s| s.nm == *nm) {
 											sectors.push(Sector {
@@ -682,10 +672,9 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 							
 						// no city found
 						}else{
-							d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-							iface_settings.ui_mode = UIMode::GenericAlert {
+							iface_settings.create_window(UIMode::GenericAlert {
 								txt: l.No_city_halls_found.clone()
-							};
+							}, d);
 						}
 					}
 				}
@@ -720,7 +709,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 							let ur = units_carried.swap_remove(carried_ind);
 							let owner_id = ur.owner_id;
 							debug_assertq!(owner_id == units[*unit_ind].owner_id);
-							unboard_unit(coord, ur, units, map_data, exs, &players[owner_id as usize]);
+							unboard_unit(coord, ur, units, map_data, exs);
 						}else{panicq!("carried unit should be available");}
 					}
 					
@@ -738,8 +727,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 		// build bldg
 		if buttons.build_bldg.activated(k, mouse_event) {
 			if worker_unit_inds.len() != 0 {
-				iface_settings.ui_mode = UIMode::ProdListWindow {mode: 0};
-				d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+				iface_settings.create_window(UIMode::ProdListWindow {mode: 0}, d);
 				return;
 			}
 		}

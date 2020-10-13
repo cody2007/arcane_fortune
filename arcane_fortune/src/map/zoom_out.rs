@@ -5,7 +5,7 @@ use crate::map::vars::*;
 use crate::map::utils::*; // update_ex_data(), rm_ex_data()
 use crate::buildings::*;
 use crate::saving::SmSvType;
-use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
+use crate::gcore::hashing::{HashedMapEx};
 use crate::zones::{StructureData, FOG_UNIT_DIST};
 use crate::gcore::{Log, Relations};
 use crate::units::Unit;
@@ -54,7 +54,7 @@ fn add_bldg_to_city_hall_sums<'b,'bt,'ut,'rt,'dt>(city_hall: &'b Bldg<'bt,'ut,'r
 // find bldg by search for city matching `city_nm`
 fn add_nm_to_city_hall_sums<'b,'bt,'ut,'rt,'dt>(city_nm: &str, city_hall_sums: &mut Vec<CityHallSum<'b,'bt,'ut,'rt,'dt>>, bldgs: &'b Vec<Bldg<'bt,'ut,'rt,'dt>>) {
 	for b in bldgs.iter() {
-		if let BldgArgs::CityHall {nm, ..} = &b.args {
+		if let BldgArgs::PopulationCenter {nm, ..} = &b.args {
 			// found the city hall, now check if we've already logged it in `city_hall_sums`
 			if nm == city_nm {
 				// already added?
@@ -177,7 +177,7 @@ fn compute_bldg_and_zoning_zoom_zcoord<'bt,'ut,'rt,'dt>(map_data: &mut MapData, 
 					let b = &bldgs[bldg_ind as usize];
 					bldg_template_sum[b.template.id as usize] += 1;
 					
-					if let BldgArgs::CityHall {..} = &b.args {
+					if let BldgArgs::PopulationCenter {..} = &b.args {
 						add_bldg_to_city_hall_sums(b, &mut city_hall_sums);
 					}
 				}else if let Some(bt) = ex.actual.max_bldg_template {
@@ -253,7 +253,7 @@ fn compute_bldg_and_zoning_zoom_zcoord<'bt,'ut,'rt,'dt>(map_data: &mut MapData, 
 	}else {None};
 	
 	ex.actual.max_city_nm = if let Some(max_city_hall_sum) = max_city_hall_sum {
-		if let BldgArgs::CityHall {nm, ..} = &max_city_hall_sum.bldg.args {
+		if let BldgArgs::PopulationCenter {nm, ..} = &max_city_hall_sum.bldg.args {
 			Some(nm.clone())
 		}else{panicq!("building type not a city hall");}
 	}else {None};
@@ -392,7 +392,7 @@ pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, is_cur_pl
 				if let PresenceAction::SetPresentAndDiscover | PresenceAction::DiscoverOnly = action {
 					let land_discov_coord = pstats.land_discov.last().unwrap().map_to_discov_coord(Coord::frm_ind(coord, map_sz));
 					if prev_land_discov_coord != land_discov_coord {
-						compute_zooms_discover(coord, is_cur_player, pstats, map_data, exs);
+						compute_zooms_discover(coord, is_cur_player, pstats, map_data);
 						prev_land_discov_coord = land_discov_coord;
 					}
 					
@@ -438,11 +438,10 @@ pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, is_cur_pl
 }
 
 // compute zoomed out discoveries when switching players because it has not been kept up-to-date for speed optimization
-pub fn compute_zoomed_out_discoveries<'r,'bt,'ut,'rt,'dt>(map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		pstats: &mut Stats<'bt,'ut,'rt,'dt>){
+pub fn compute_zoomed_out_discoveries<'r,'bt,'ut,'rt,'dt>(map_data: &mut MapData, pstats: &mut Stats<'bt,'ut,'rt,'dt>){
 	let land_discov_full = pstats.land_discov.last().unwrap().clone();
 	for coord in LandDiscovIter::from(&land_discov_full) {
-		compute_zooms_discover(coord, true, pstats, map_data, exs);
+		compute_zooms_discover(coord, true, pstats, map_data);
 	}
 }
 
@@ -558,14 +557,10 @@ pub fn compute_zooms_coord<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, bldgs: &Vec
 	// (so that we can simply use ex values used from previous zoom levels instead of zooming
 	//  all the way into ZoomInd::Full each time)
 	for zoom_ind in (0..=(map_data.max_zoom_ind() - 1)).rev() {
-		let map_sz = map_data.map_szs[zoom_ind];
-		
 		// convert coordinates to zoom_ind
 		let coord = if zoom_ind != map_data.max_zoom_ind() {
 			coord_prev.to_zoom(zoom_ind+1, zoom_ind, &map_data.map_szs)
 		}else {coord_prev.clone()};
-		
-		let coord_ind = coord.to_ind(map_sz) as u64;
 		
 		compute_bldg_and_zoning_zoom_zcoord(map_data, exs, players, bldgs, bldg_templates, zoom_ind, coord.y as usize, coord.x as usize);
 		
@@ -574,7 +569,7 @@ pub fn compute_zooms_coord<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, bldgs: &Vec
 }
 
 pub fn compute_zooms_discover<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, is_cur_player: bool,
-		pstats: &mut Stats<'bt,'ut,'rt,'dt>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>) {
+		pstats: &mut Stats<'bt,'ut,'rt,'dt>, map_data: &mut MapData) {
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
 	// most zoomed in coordinates
