@@ -13,10 +13,12 @@ pub struct House {
 	pub head_noble_pair_ind: usize, // index into noble_pairs
 	pub noble_pairs: Vec<NoblePair>,
 	
-	pub has_req_to_join: bool // requested to join nearby empire
+	pub has_req_to_join: bool, // requested to join nearby empire
+	
+	pub target_city_coord: Option<u64> // target city, if requested by parent empire
 }
 
-impl_saving!{House {head_noble_pair_ind, noble_pairs}}
+impl_saving!{House {head_noble_pair_ind, noble_pairs, has_req_to_join, target_city_coord}}
 
 #[derive(Clone, PartialEq)]
 pub struct NoblePair {
@@ -46,32 +48,32 @@ impl_saving!{Noble {name, personality, born_turn, gender_female}}
 
 impl Noble {
 	// `age` is in turns
-	pub fn new(nms: &Nms, age: usize, gender_female_opt: Option<bool>, rng: &mut XorState, turn: usize) -> Self {
+	pub fn new(nms: &Nms, age: usize, gender_female_opt: Option<bool>, gstate: &mut GameState) -> Self {
 		let (gender_female, name) = if let Some(gender_female) = gender_female_opt {
-			(gender_female, PersonName::new_w_gender(gender_female, nms, rng))
-		}else{PersonName::new(nms, rng)};
+			(gender_female, PersonName::new_w_gender(gender_female, nms, &mut gstate.rng))
+		}else{PersonName::new(nms, &mut gstate.rng)};
 		
 		Noble {
 			name,
-			personality: AIPersonality::new(rng),
-			born_turn: if turn >= age {turn - age} else {GAME_START_TURN},
+			personality: AIPersonality::new(&mut gstate.rng),
+			born_turn: if gstate.turn >= age {gstate.turn - age} else {GAME_START_TURN},
 			gender_female
 		}
 	}
 }
 
 impl Marriage {
-	pub fn new(partner: &Noble, nms: &Nms, rng: &mut XorState, turn: usize) -> Option<Self> {
-		let partner_age = turn - partner.born_turn;
+	pub fn new(partner: &Noble, nms: &Nms, gstate: &mut GameState) -> Option<Self> {
+		let partner_age = gstate.turn - partner.born_turn;
 		if partner_age >= ADULTHOOD_AGE {
-			let new_gender_female = if rng.gen_f32b() <= SAME_SEX_PARTNER_PROB {
+			let new_gender_female = if gstate.rng.gen_f32b() <= SAME_SEX_PARTNER_PROB {
 				partner.gender_female
 			}else{!partner.gender_female};
 			
-			let new_age = rng.usize_range(ADULTHOOD_AGE, partner_age + MAX_PARTNER_AGE_DIFF);
+			let new_age = gstate.rng.usize_range(ADULTHOOD_AGE, partner_age + MAX_PARTNER_AGE_DIFF);
 			
 			Some(Self {
-				partner: Noble::new(nms, new_age, Some(new_gender_female), rng, turn),
+				partner: Noble::new(nms, new_age, Some(new_gender_female), gstate),
 				children: Vec::new()
 			})
 		}else{None}

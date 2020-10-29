@@ -11,7 +11,7 @@ use crate::saving::*;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::disp::{CCYAN, CSAND4, CGREEN, CSAND1};
-use crate::disp_lib::*;
+use crate::renderer::*;
 use crate::localization::Localization;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;

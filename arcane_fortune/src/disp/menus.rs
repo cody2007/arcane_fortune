@@ -1,19 +1,14 @@
 use std::process::exit;
 
-use crate::disp_lib::*;
+use crate::renderer::*;
 use crate::disp::*;
-use crate::disp::window::ProdOptions;
 use crate::saving::*;
-use crate::gcore::{Log, Relations};
 use crate::config_load::return_save_files;
 use crate::resources::ResourceTemplate;
-use crate::doctrine::DoctrineTemplate;
-use crate::gcore::rand::XorState;
+use crate::doctrine::*;
+use crate::tech::*;
 use crate::gcore::GameDifficulties;
-use crate::keyboard::KeyboardMap;
-use crate::localization::Localization;
 use crate::player::*;
-use crate::containers::Templates;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 
@@ -42,6 +37,8 @@ const SUB_MENU_NMS_INIT: &[&[&str]] = &[&[
 		"    Create |n|ew brigade",
 	inact!("Cities"),
 		"  |C|ity Halls", "  |M|ilitary buildings", "  |I|mprovement buildings",
+	inact!("Noble houses"),
+		"  Man|o|rs", "  Battalion|s| (units)",
 	inact!("Resources"),
 		"  |A|vailable", "  |D|iscovered"],
 	
@@ -56,7 +53,7 @@ const SUB_MENU_NMS_INIT: &[&[&str]] = &[&[
 			"    World prevailing doctrines (|2|)",
 			"    Citizen p|a|cifism - militarism", "    Hea|l|th",
 	inact!("Domestic intelligence"),
-			"  Civic advisors (|3|)", "  Public polling (|4|)",
+			"  Civic advisors (|3|)", "  Public polling (|4|)", "  Contact noble house (|5|)",
 	inact!("International affairs"),
 			"  |C|ontact embassy", "  Civilization |i|ntel", "  Active |w|ars"],
 	
@@ -193,145 +190,146 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		
 		None
 	}
-	
-	pub fn center_on_next_unmoved_menu_item(&mut self, update_mv_search: bool, find_type: FindType, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
-			bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
-			logs: &mut Vec<Log>, turn: usize, d: &mut DispState) {
-		let exf = exs.last().unwrap();
-		let found = match find_type {
-			FindType::Units => {self.find_next_unit(map_data, exf, units)}
-			FindType::CityHall => {self.find_next_city_hall(map_data, exf, bldgs)}
-			FindType::Coord(coord) => {Some(coord)}
-		};
-		
-		if let Some(coord) = found {
-			self.zoom_ind = map_data.max_zoom_ind();
-			let map_sz = map_data.map_szs[self.zoom_ind];
-			
-			let coord = Coord::frm_ind(coord, map_sz);
-			
-			// center screen on unit
-			self.map_loc = Coord { y: coord.y - ((self.map_screen_sz.h/2) as isize),
-							 x: coord.x - ((self.map_screen_sz.w/2) as isize) };
-			
-			// wrap screen horizontally
-			if self.map_loc.x < 0 {
-				let d = map_sz.w as isize;
-				self.map_loc.x = d + (self.map_loc.x % d);
-			}
-			
-			// if at bottom of map, bring back map_loc.y to not be out of bounds
-			self.chk_cursor_bounds(map_data); 
-			
-			self.cur = coord.to_screen_coords(self.map_loc, self.map_screen_sz).unwrap();
-			
-			if update_mv_search {self.update_move_search_ui(map_data, exs, units, bldgs, relations, players, logs, map_sz, turn, d);}
-		}
-	}
-	
+}
+
+pub fn start_menu_sep(ui_mode: &mut UIMode, iface_settings: &mut IfaceSettings, renderer: &mut Renderer) {
+	*ui_mode = UIMode::Menu {
+		mode: None,
+		sub_mode: None,
+		sel_loc: (0,0),
+		prev_auto_turn: iface_settings.auto_turn
+	};
+	set_auto_turn_sep(AutoTurn::Off, iface_settings, renderer);
+	renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+}
+
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 	// reset auto turn to setting before the window was launched (stored in `prev_auto_turn`)
-	pub fn reset_auto_turn(&mut self, d: &mut DispState) {
+	pub fn reset_auto_turn(&mut self) {
 		// set prior value of auto turn increment
 		// (will already be set to None if we are changing the value of auto_turn_increment)
 		match self.ui_mode {
 			UIMode::Menu {prev_auto_turn, ..} |  
-			UIMode::SaveAsWindow {prev_auto_turn, ..} |
-			UIMode::OpenWindow {prev_auto_turn, ..} |
-			UIMode::DoctrineWindow {prev_auto_turn, ..} |
-			UIMode::TechWindow {prev_auto_turn, ..} |
-			UIMode::TechDiscoveredWindow {prev_auto_turn, ..} => {
-				self.set_auto_turn(prev_auto_turn, d);
+			UIMode::SaveAsWindow(SaveAsWindowState {prev_auto_turn, ..}) |
+			UIMode::OpenWindow(OpenWindowState {prev_auto_turn, ..}) |
+			UIMode::DoctrineWindow(DoctrineWindowState {prev_auto_turn, ..}) |
+			UIMode::TechWindow(TechWindowState {prev_auto_turn, ..}) |
+			UIMode::TechDiscoveredWindow(TechDiscoveredWindowState {prev_auto_turn, ..}) => {
+				self.state.set_auto_turn(prev_auto_turn);
 			} 
 			UIMode::None |
 			UIMode::TextTab {..} |
 			UIMode::SetTaxes(_) |
-			UIMode::ProdListWindow {..} |
-			UIMode::GenericAlert {..} |
-			UIMode::PublicPollingWindow |
-			UIMode::CurrentBldgProd {..} |
-			UIMode::SelectBldgDoctrine {..} |
-			UIMode::SelectExploreType {..} |
-			UIMode::SaveAutoFreqWindow {..} |
-			UIMode::GetTextWindow {..} |
-			UIMode::PlotWindow {..} |
-			UIMode::CreateSectorAutomation {..} |
-			UIMode::UnitsWindow {..} |
-			UIMode::SectorsWindow {..} |
-			UIMode::CitizenDemandAlert {..} |
-			UIMode::BrigadesWindow {..} |
-			UIMode::BrigadeBuildList {..} |
-			UIMode::ImprovementBldgsWindow {..} |
-			UIMode::MilitaryBldgsWindow {..} |
-			UIMode::CitiesWindow {..} |
-			UIMode::ContactEmbassyWindow {..} |
-			UIMode::CivilizationIntelWindow {..} |
-			UIMode::MvWithCursorNoActionsRemainAlert {..} |
-			UIMode::SwitchToPlayerWindow {..} |
-			UIMode::SetDifficultyWindow {..} |
-			UIMode::DiscoverTechWindow {..} |
-			UIMode::ObtainResourceWindow {..} |
-			UIMode::PlaceUnitWindow {..} |
-			UIMode::ResourcesAvailableWindow |
-			UIMode::ResourcesDiscoveredWindow {..} |
-			UIMode::WorldHistoryWindow {..} |
-			UIMode::BattleHistoryWindow {..} |
-			UIMode::EconomicHistoryWindow {..} |
-			UIMode::WarStatusWindow |
-			UIMode::EncyclopediaWindow {..} |
-			UIMode::GoToCoordinateWindow {..} |
-			UIMode::InitialGameWindow |
-			UIMode::EndGameWindow |
-			UIMode::NoblePedigree {..} |
-			UIMode::UnmovedUnitsNotification |
-			UIMode::PrevailingDoctrineChangedWindow |
-			UIMode::CivicAdvisorsWindow |
-			UIMode::ForeignUnitInSectorAlert {..} |
-			UIMode::AcceptNobilityIntoEmpire {..} |
-			UIMode::RiotingAlert {..} |
-			UIMode::AboutWindow => {}
+			UIMode::Trade(_) |
+			UIMode::ProdListWindow(_) |
+			UIMode::GenericAlert(_) |
+			UIMode::PublicPollingWindow(_) |
+			UIMode::CurrentBldgProd(_) |
+			UIMode::ContactNobilityWindow(_) |
+			UIMode::SelectBldgDoctrine(_) |
+			UIMode::SelectExploreType(_) |
+			UIMode::SaveAutoFreqWindow(_) |
+			UIMode::GetTextWindow(_) |
+			UIMode::PlotWindow(_) |
+			UIMode::CreateSectorAutomation(_) |
+			UIMode::UnitsWindow(_) |
+			UIMode::NobleUnitsWindow(_) |
+			UIMode::SectorsWindow(_) |
+			UIMode::CitizenDemandAlert(_) |
+			UIMode::BrigadesWindow(_) |
+			UIMode::BrigadeBuildList(_) |
+			UIMode::BldgsWindow(_) |
+			UIMode::CitiesWindow(_) |
+			UIMode::ManorsWindow(_) |
+			UIMode::ContactEmbassyWindow(_) |
+			UIMode::CivilizationIntelWindow(_) |
+			UIMode::MvWithCursorNoActionsRemainAlert(_) |
+			UIMode::SwitchToPlayerWindow(_) |
+			UIMode::SetDifficultyWindow(_) |
+			UIMode::DiscoverTechWindow(_) |
+			UIMode::ObtainResourceWindow(_) |
+			UIMode::PlaceUnitWindow(_) |
+			UIMode::ResourcesAvailableWindow(_) |
+			UIMode::ResourcesDiscoveredWindow(_) |
+			UIMode::HistoryWindow(_) |
+			UIMode::WarStatusWindow(_) |
+			UIMode::EncyclopediaWindow(_) |
+			UIMode::GoToCoordinateWindow(_) |
+			UIMode::InitialGameWindow(_) |
+			UIMode::EndGameWindow(_) |
+			UIMode::NoblePedigree(_) |
+			UIMode::UnmovedUnitsNotification(_) |
+			UIMode::PrevailingDoctrineChangedWindow(_) |
+			UIMode::CivicAdvisorsWindow(_) |
+			UIMode::ForeignUnitInSectorAlert(_) |
+			UIMode::AcceptNobilityIntoEmpire(_) |
+			UIMode::RiotingAlert(_) |
+			UIMode::AboutWindow(_) => {}
+		}
+	}
+
+	pub fn center_on_next_unmoved_menu_item(&mut self, update_mv_search: bool, find_type: FindType, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
+			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>) {
+		let exf = exs.last().unwrap();
+		let iface_settings = &mut self.state.iface_settings;
+		let found = match find_type {
+			FindType::Units => {iface_settings.find_next_unit(map_data, exf, units)}
+			FindType::CityHall => {iface_settings.find_next_city_hall(map_data, exf, bldgs)}
+			FindType::Coord(coord) => {Some(coord)}
+		};
+		
+		if let Some(coord) = found {
+			iface_settings.zoom_ind = map_data.max_zoom_ind();
+			let map_sz = map_data.map_szs[iface_settings.zoom_ind];
+			
+			let coord = Coord::frm_ind(coord, map_sz);
+			
+			// center screen on unit
+			iface_settings.map_loc = Coord { y: coord.y - ((iface_settings.map_screen_sz.h/2) as isize),
+							 x: coord.x - ((iface_settings.map_screen_sz.w/2) as isize) };
+			
+			// wrap screen horizontally
+			if iface_settings.map_loc.x < 0 {
+				let d = map_sz.w as isize;
+				iface_settings.map_loc.x = d + (iface_settings.map_loc.x % d);
+			}
+			
+			// if at bottom of map, bring back map_loc.y to not be out of bounds
+			iface_settings.chk_cursor_bounds(map_data); 
+			
+			iface_settings.cur = coord.to_screen_coords(iface_settings.map_loc, iface_settings.map_screen_sz).unwrap();
+			
+			if update_mv_search {self.update_move_search_ui(map_data, exs, units, bldgs, gstate, players, map_sz);}
 		}
 	}
 	
-	pub fn start_menu(&mut self, d: &mut DispState) {
-		self.ui_mode = UIMode::Menu {
-			mode: None,
-			sub_mode: None,
-			sel_loc: (0,0),
-			prev_auto_turn: self.auto_turn
-		};
-		self.set_auto_turn(AutoTurn::Off, d);
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+	pub fn start_menu(&mut self) {
+		start_menu_sep(&mut self.ui_mode, &mut self.state.iface_settings, &mut self.state.renderer);
 	}
-	
-	fn end_menu(&mut self, d: &mut DispState) {
-		self.reset_auto_turn(d);
+
+	fn end_menu(&mut self) {
+		self.reset_auto_turn();
 		self.ui_mode = UIMode::None;
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		self.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
 	}
 }
 
-fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, menu_options: &mut OptionsUI, map_data: &mut MapData<'rt>,
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>,
-		disp_settings: &mut DispSettings, lang: &Localization,
-		disp_chars: &mut DispChars, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
-		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
-		turn: &mut usize,	relations: &mut Relations,
-		logs: &mut Vec<Log>, production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>,
-		frame_stats: &FrameStats, game_opts: &mut GameOptions, game_difficulties: &GameDifficulties,
-		l: &Localization,	buttons: &mut Buttons, rng: &mut XorState, d: &mut DispState) -> Option<GameState> {
+fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, disp: &mut Disp<'f,'bt,'ut,'rt,'dt>, map_data: &mut MapData<'rt>,
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
+		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+		gstate: &mut GameState,	frame_stats: &FrameStats, game_opts: &mut GameOptions, game_difficulties: &GameDifficulties) -> Option<GameControl> {
 	
 	// ret true/false depending on if two strings match main menu, then sub menu
 	let m = |s1: &str, s2: &str| -> bool {
-		if menu_options.options[menu_mode].dyn_str.contains(s1) {
-			if let ArgOptionUI::MainMenu {sub_options, ..} = &menu_options.options[menu_mode].arg {
+		if disp.state.menu_options.options[menu_mode].dyn_str.contains(s1) {
+			if let ArgOptionUI::MainMenu {sub_options, ..} = &disp.state.menu_options.options[menu_mode].arg {
 				if sub_options.options[sub_menu_mode].dyn_str.contains(s2) {return true;}
 			}else{panicq!("main menu arguments not set");}
 		}
 		return false;
 	};
 	
-	macro_rules! update_indicators{()=> (update_menu_indicators(menu_options, iface_settings, iface_settings.cur_player_paused(players), disp_settings););}
+	macro_rules! update_indicators{()=> (disp.state.update_menu_indicators(disp.state.iface_settings.cur_player_paused(players)););}
 	
 	if m("F|ile", "E|x|it") {
 		endwin();
@@ -339,220 +337,228 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, m
 		write_prof();
 		exit(0);
 	}else if m("F|ile", "S|ave") {
-		iface_settings.reset_auto_turn(d); // iface_settings.ui_mode is cleared by save_game(), so the tmp settings of auto turn are lost
-		save_game(SaveType::Manual, *turn, map_data, exs, temps, bldgs, units, relations, iface_settings, players, disp_settings, disp_chars, logs, l, frame_stats, rng, d);
+		disp.reset_auto_turn(); // disp.ui_mode is cleared by save_game(), so the tmp settings of auto turn are lost
+		save_game(SaveType::Manual, gstate, map_data, exs, temps, bldgs, units, players, &mut disp.state, frame_stats);
 	
 	}else if m("F|ile", "Save |A|s") {
-		if let UIMode::Menu {prev_auto_turn, ..} = iface_settings.ui_mode {
-			d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		if let UIMode::Menu {prev_auto_turn, ..} = disp.ui_mode {
+			disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
 			
-			iface_settings.ui_mode = UIMode::SaveAsWindow {
+			disp.ui_mode = UIMode::SaveAsWindow(SaveAsWindowState {
 				prev_auto_turn,
-				save_nm: iface_settings.save_nm.clone(),
-				curs_col: iface_settings.save_nm.len() as isize
-			};
+				save_nm: disp.state.iface_settings.save_nm.clone(),
+				curs_col: disp.state.iface_settings.save_nm.len() as isize
+			});
 		}else{panicq!("invalid UI mode setting, save as");}
 		
 		return None;
 		
 	}else if m("F|ile", "O|pen") {
-		if let UIMode::Menu {prev_auto_turn, ..} = iface_settings.ui_mode {
-			iface_settings.ui_mode = UIMode::OpenWindow {
+		if let UIMode::Menu {prev_auto_turn, ..} = disp.ui_mode {
+			disp.ui_mode = UIMode::OpenWindow(OpenWindowState {
 				prev_auto_turn,
 				save_files: return_save_files(),
 				mode: 0
-			};
+			});
 		}else{panicq!("invalid UI mode setting");}
 		
 		return None;
-		//return Some(GameState::Load);
+		//return Some(GameControl::Load);
 		
 	}else if m("F|ile", "N|ew") {
-		if new_game_options(game_opts, game_difficulties, lang, disp_chars, buttons, d) {
-			return Some(GameState::New);
+		if disp.state.new_game_options(game_opts, game_difficulties) {
+			return Some(GameControl::New);
 		}
 		
 	}else if m("A|c|counting", "B|attalions (units)") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::UnitsWindow {mode: 0};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::UnitsWindow(UnitsWindowState {mode: 0});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("A|c|counting", "B|r|igades (groups of units)") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::BrigadesWindow {mode: 0, brigade_action: BrigadeAction::ViewBrigades};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::BrigadesWindow(BrigadesWindowState {mode: 0, brigade_action: BrigadeAction::ViewBrigades});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("A|c|counting", "Create |n|ew brigade") {
-		let txt = players[iface_settings.cur_player as usize].stats.new_brigade_nm(&temps.nms, rng);
-		iface_settings.reset_auto_turn(d);
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		let txt = players[disp.state.iface_settings.cur_player as usize].stats.new_brigade_nm(&temps.nms, &mut gstate.rng);
+		disp.reset_auto_turn();
+		disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
 		
-		iface_settings.ui_mode = UIMode::GetTextWindow {
+		disp.ui_mode = UIMode::GetTextWindow(GetTextWindowState {
 			curs_col: txt.len() as isize,
 			txt_type: TxtType::BrigadeNm,
 			txt
-		};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("A|c|counting", "M|ilitary buildings") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::MilitaryBldgsWindow {mode: 0};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::BldgsWindow(BldgsWindowState {mode: 0, bldgs_show: BldgsShow::Military});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("A|c|counting", "I|mprovement buildings") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::ImprovementBldgsWindow {mode: 0};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::BldgsWindow(BldgsWindowState {mode: 0, bldgs_show: BldgsShow::Improvements});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("A|c|counting", "|C|ity Halls") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::CitiesWindow {mode: 0};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::CitiesWindow(CitiesWindowState{mode: 0});
+		return None; // return because end_menu() will overwrite disp.ui_mode
+	
+	}else if m("A|c|counting", "Man|o|rs") {
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::ManorsWindow(ManorsWindowState {mode: 0});
+		return None; // return because end_menu() will overwrite disp.ui_mode
+	
+	}else if m("A|c|counting", "Battalion|s| (units)") {
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::NobleUnitsWindow(NobleUnitsWindowState{mode: 0, house_nm: None});
+		return None;
 	
 	}else if m("Inte|l|", "C|ontact embassy") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::ContactEmbassyWindow {
-			state: EmbassyState::CivSelection {mode: 0}
-		};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::ContactEmbassyWindow(ContactEmbassyWindowState::CivSelection {mode: 0});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l|", "Civilization |i|ntel") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::CivilizationIntelWindow {mode: 0, selection_phase: true};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::CivilizationIntelWindow(CivilizationIntelWindowState {mode: 0, selection_phase: true});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l|", "Active |w|ars") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::WarStatusWindow;
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::WarStatusWindow(WarStatusWindowState {});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 		
 	}else if m("A|c|counting", "|A|vailable") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::ResourcesAvailableWindow;
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::ResourcesAvailableWindow(ResourcesAvailableWindowState {});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("A|c|counting", "|D|iscovered") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::ResourcesDiscoveredWindow {mode: 0};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::ResourcesDiscoveredWindow(ResourcesDiscoveredWindowState {mode: 0});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "D|efensive power") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::DefensivePower};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::DefensivePower});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 
 	}else if m("Inte|l", "O|ffensive power") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::OffensivePower};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::OffensivePower});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 
 	}else if m("Inte|l", "P|opulation") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::Population};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::Population});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "U|nemployed") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::Unemployed};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::Unemployed});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 
 	}else if m("Inte|l", "G|old") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::Gold};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::Gold});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 
 	}else if m("Inte|l", "N|et income") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::NetIncome};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::NetIncome});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "R|esearch output") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::ResearchPerTurn};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::ResearchPerTurn});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "T|ech development") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::ResearchCompleted};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::ResearchCompleted});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "Z|one demand") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::ZoneDemands};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::ZoneDemands});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "Happin|e|ss") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::Happiness};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::Happiness});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "Cri|m|e") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::Crime};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::Crime});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "Doctrinality - Methodicali|s|m") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::DoctrineScienceAxis};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::DoctrineScienceAxis});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "Your prevailing doctrines") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::YourPrevailingDoctrines};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::YourPrevailingDoctrines});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "World prevailing doctrines") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::WorldPrevailingDoctrines};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::WorldPrevailingDoctrines});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 
 	}else if m("Inte|l", "Citizen p|a|cifism") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::Pacifism};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::Pacifism});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "Hea|l|th") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::Health};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::Health});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "Civic advisors (|3|)") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::CivicAdvisorsWindow;
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::CivicAdvisorsWindow(CivicAdvisorsWindowState {});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "Public polling (|4|)") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PublicPollingWindow;
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PublicPollingWindow(PublicPollingWindowState {});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 
 	}else if m("V|iew", "|A|rability"){	
-		iface_settings.underlay = Underlay::Arability;  update_indicators!();
+		disp.state.iface_settings.underlay = Underlay::Arability;  update_indicators!();
 		
 	}else if m("V|iew", "|E|levation"){
-		iface_settings.underlay = Underlay::Elevation;  update_indicators!();
+		disp.state.iface_settings.underlay = Underlay::Elevation;  update_indicators!();
 		
 	}else if m("V|iew", "Water & mountains |o|nly"){
-		iface_settings.underlay = Underlay::WaterMountains;  update_indicators!();
+		disp.state.iface_settings.underlay = Underlay::WaterMountains;  update_indicators!();
 		
 	}else if m("V|iew", "|S|tructures"){
-		iface_settings.show_structures ^= true;  update_indicators!();
+		disp.state.iface_settings.show_structures ^= true;  update_indicators!();
 	
 	}else if m("V|iew", "|U|nits"){
-		iface_settings.show_units ^= true;  update_indicators!();
+		disp.state.iface_settings.show_units ^= true;  update_indicators!();
 	
 	}else if m("V|iew", "|B|uildings"){
-		iface_settings.show_bldgs ^= true;  update_indicators!();
+		disp.state.iface_settings.show_bldgs ^= true;  update_indicators!();
 	
 	}else if m("V|iew", "|Z|ones"){
-		iface_settings.show_zones ^= true;  update_indicators!();
+		disp.state.iface_settings.show_zones ^= true;  update_indicators!();
 		
 	}else if m("V|iew", "|R|esources"){
-		iface_settings.show_resources ^= true;  update_indicators!();
+		disp.state.iface_settings.show_resources ^= true;  update_indicators!();
 	
 	}else if m("V|iew", "Zone |d|emands"){
-		iface_settings.zone_overlay_map = 
-			if iface_settings.zone_overlay_map == ZoneOverlayMap::ZoneDemands {
+		disp.state.iface_settings.zone_overlay_map = 
+			if disp.state.iface_settings.zone_overlay_map == ZoneOverlayMap::ZoneDemands {
 				ZoneOverlayMap::None
 			}else{
 				ZoneOverlayMap::ZoneDemands
@@ -560,8 +566,8 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, m
 		update_indicators!();
 	
 	}else if m("V|iew", "Happi|n|ess"){
-		iface_settings.zone_overlay_map = 
-			if iface_settings.zone_overlay_map == ZoneOverlayMap::Happiness {
+		disp.state.iface_settings.zone_overlay_map = 
+			if disp.state.iface_settings.zone_overlay_map == ZoneOverlayMap::Happiness {
 				ZoneOverlayMap::None
 			}else{
 				ZoneOverlayMap::Happiness
@@ -569,8 +575,8 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, m
 		update_indicators!();
 	
 	}else if m("V|iew", "Crime (|k|)"){
-		iface_settings.zone_overlay_map = 
-			if iface_settings.zone_overlay_map == ZoneOverlayMap::Crime {
+		disp.state.iface_settings.zone_overlay_map = 
+			if disp.state.iface_settings.zone_overlay_map == ZoneOverlayMap::Crime {
 				ZoneOverlayMap::None
 			}else{
 				ZoneOverlayMap::Crime
@@ -578,171 +584,171 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, m
 		update_indicators!();
 	
 	}else if m("V|iew", "Show un|c|onnected bldgs"){
-		iface_settings.show_unconnected_bldgs ^= true;  update_indicators!();
+		disp.state.iface_settings.show_unconnected_bldgs ^= true;  update_indicators!();
 	
 	}else if m("V|iew", "Show unoccup|i|ed bldgs"){
-		iface_settings.show_unoccupied_bldgs ^= true;  update_indicators!();
+		disp.state.iface_settings.show_unoccupied_bldgs ^= true;  update_indicators!();
 		
 	}else if m("V|iew", "Show sectors"){
-		iface_settings.show_sectors ^= true;  update_indicators!();
+		disp.state.iface_settings.show_sectors ^= true;  update_indicators!();
 		
 	}else if m("V|iew", "|T|ech tree"){
-		iface_settings.create_tech_window(false, d);
+		disp.create_tech_window(false);
 		return None;
 	
 	}else if m("V|iew", "Doctrine tree (|1|)"){
-		iface_settings.create_spirituality_window(d);
+		disp.create_spirituality_window();
 		return None;
 	}else if m("V|iew", "Noble pedigree") {
-		iface_settings.create_pedigree_window(d);
+		disp.create_pedigree_window();
 		return None;
 	}else if m("V|iew", "W|orld") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::WorldHistoryWindow {scroll_first_line: 0};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::HistoryWindow(HistoryWindowState {scroll_first_line: 0, htype: HistoryType::World});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("V|iew", "Battle (|h|)") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::BattleHistoryWindow {scroll_first_line: 0};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::HistoryWindow(HistoryWindowState {scroll_first_line: 0, htype: HistoryType::Battle});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("V|iew", "Econo|m|ic") {
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::EconomicHistoryWindow {scroll_first_line: 0};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::HistoryWindow(HistoryWindowState {scroll_first_line: 0, htype: HistoryType::Economic});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 
 	}else if m("G|o", "Ctr |o|n cursor (Space)"){
-		iface_settings.ctr_on_cur(map_data);
+		disp.state.iface_settings.ctr_on_cur(map_data);
 		
 	}else if m("G|o", "N|ext unmoved unit"){
-		iface_settings.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, relations, players, logs, *turn, d);
+		disp.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, gstate, players);
 	}else if m("G|o", "Next |C|ity Hall"){
-		iface_settings.center_on_next_unmoved_menu_item(true, FindType::CityHall, map_data, exs, units, bldgs, relations, players, logs, *turn, d);
+		disp.center_on_next_unmoved_menu_item(true, FindType::CityHall, map_data, exs, units, bldgs, gstate, players);
 	}else if m("G|o", "T|o coordinate"){
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
 	
-		let c = iface_settings.cursor_to_map_coord(map_data);
+		let c = disp.state.iface_settings.cursor_to_map_coord(map_data);
 		let coordinate = format!("{}, {}", c.y, c.x);
-		iface_settings.ui_mode = UIMode::GoToCoordinateWindow {
-					curs_col: coordinate.len() as isize,
-					coordinate
-		};
+		disp.ui_mode = UIMode::GoToCoordinateWindow(GoToCoordinateWindowState {
+			curs_col: coordinate.len() as isize,
+			coordinate
+		});
 		
 		return None;
 	}else if m("G|o", "To map |s|ector"){
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::SectorsWindow {mode: 0, sector_action: SectorAction::GoTo};
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::SectorsWindow(SectorsWindowState {mode: 0, sector_action: SectorAction::GoTo});
 		return None;
 	}else if m("G|o", "C|r|eate sector"){
-		let txt = players[iface_settings.cur_player as usize].stats.new_sector_nm(&temps.nms);
-		iface_settings.reset_auto_turn(d);
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		let txt = players[disp.state.iface_settings.cur_player as usize].stats.new_sector_nm(&temps.nms);
+		disp.reset_auto_turn();
+		disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
 		
-		iface_settings.ui_mode = UIMode::GetTextWindow {
+		disp.ui_mode = UIMode::GetTextWindow(GetTextWindowState {
 			curs_col: txt.len() as isize,
 			txt_type: TxtType::SectorNm,
 			txt
-		};
+		});
 		return None;
 	
 	}else if m("G|o", "|A|dd to sector"){
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::SectorsWindow {mode: 0, sector_action: SectorAction::AddTo};
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::SectorsWindow(SectorsWindowState {mode: 0, sector_action: SectorAction::AddTo});
 		return None;
 
 	}else if m("G|o", "|D|elete sector"){
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::SectorsWindow {mode: 0, sector_action: SectorAction::Delete};
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::SectorsWindow(SectorsWindowState {mode: 0, sector_action: SectorAction::Delete});
 		return None;
 
 	}else if m("P|references", "|A|void special chars"){
-		disp_settings.limit_schars ^= true;  update_indicators!();
-		*disp_chars = init_color_pairs(disp_settings, d);
+		disp.state.terminal.limit_schars ^= true;  update_indicators!();
+		disp.state.chars = init_color_pairs(&disp.state.terminal, &mut disp.state.renderer);
 	}else if m("P|references", "|U|se only 8 colors"){
-		disp_settings.limit_colors ^= true;  update_indicators!();
-		*disp_chars = init_color_pairs(disp_settings, d);
+		disp.state.terminal.limit_colors ^= true;  update_indicators!();
+		disp.state.chars = init_color_pairs(&disp.state.terminal, &mut disp.state.renderer);
 	}else if m("P|references", "Toggle fullscreen m|o|de (F11)") {
-		d.toggle_fullscreen();
+		disp.state.renderer.toggle_fullscreen();
 	}else if m("P|references", "Increase font ") {
-		d.inc_font_sz();
+		disp.state.renderer.inc_font_sz();
 	}else if m("P|references", "Decrease font ") {
-		d.dec_font_sz();
+		disp.state.renderer.dec_font_sz();
 	}else if m("P|references", "Show full |m|ap"){
-		iface_settings.show_fog ^= true;  update_indicators!();
+		disp.state.iface_settings.show_fog ^= true;  update_indicators!();
 	}else if m("P|references", "Show all unit ac|t|ions"){
-		iface_settings.show_actions ^= true;  update_indicators!();
+		disp.state.iface_settings.show_actions ^= true;  update_indicators!();
 	}else if m("P|references", "|D|iscover all civs"){
-		relations.discover_all_civs(iface_settings.cur_player as usize);
+		gstate.relations.discover_all_civs(disp.state.iface_settings.cur_player as usize);
 	
 	}else if m("P|references", "S|ave auto-frequency"){
-		let freq = format!("{}", iface_settings.checkpoint_freq);
-		iface_settings.reset_auto_turn(d);
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		let freq = format!("{}", disp.state.iface_settings.checkpoint_freq);
+		disp.reset_auto_turn();
+		disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
 		
-		iface_settings.ui_mode = UIMode::SaveAutoFreqWindow {
+		disp.ui_mode = UIMode::SaveAutoFreqWindow(SaveAutoFreqWindowState {
 			curs_col: freq.len() as isize,
 			freq
-		};
+		});
 		return None;
 	}else if m("P|references", "|A|uto turn increment"){	
 		// toggle auto turn
-		if let UIMode::Menu {prev_auto_turn, ..} = iface_settings.ui_mode {
-			iface_settings.set_auto_turn(match prev_auto_turn {
+		if let UIMode::Menu {prev_auto_turn, ..} = disp.ui_mode {
+			disp.state.set_auto_turn(match prev_auto_turn {
 				AutoTurn::On => AutoTurn::Off,
 				AutoTurn::Off | AutoTurn::FinishAllActions => AutoTurn::On,
 				AutoTurn::N => {panicq!("invalid auto turn");}
-			}, d);
+			});
 		}else{panicq!("invalid UI mode setting");}
 		
 		// clear so that end_window() does not reset auto turn increment
-		iface_settings.ui_mode = UIMode::None;
+		disp.ui_mode = UIMode::None;
 		
 		update_indicators!();
 	}else if m("P|references", "Workers create city sectors"){
-		iface_settings.workers_create_city_sectors ^= true; update_indicators!();
+		disp.state.iface_settings.workers_create_city_sectors ^= true; update_indicators!();
 	}else if m("P|references", "|I|nterrupt auto turn for important events"){
-		iface_settings.interrupt_auto_turn ^= true; update_indicators!();
+		disp.state.iface_settings.interrupt_auto_turn ^= true; update_indicators!();
 	}else if m("P|references", "Show all zon|e| information"){
-		iface_settings.show_all_zone_information ^= true; update_indicators!();
+		disp.state.iface_settings.show_all_zone_information ^= true; update_indicators!();
 
 	}else if m("P|references", "|P|lace unit at cursor"){
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlaceUnitWindow {mode: 0};
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlaceUnitWindow(PlaceUnitWindowState {mode: 0});
 		return None;
 	
 	}else if m("P|references", "S|w|itch to player"){
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::SwitchToPlayerWindow {mode: iface_settings.cur_player as usize};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::SwitchToPlayerWindow(SwitchToPlayerWindowState {mode: disp.state.iface_settings.cur_player as usize});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("P|references", "Disco|v|er specific technology"){
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::DiscoverTechWindow {mode: 0};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::DiscoverTechWindow(DiscoverTechWindowState {mode: 0});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 		
 	}else if m("P|references", "Discover al|l| technology"){
-		let pstats = &mut players[iface_settings.cur_player as usize].stats;
+		let pstats = &mut players[disp.state.iface_settings.cur_player as usize].stats;
 		for tech_ind in 0..temps.techs.len() {
-			pstats.force_discover_undiscov_tech(tech_ind as SmSvType, temps, production_options, l);
+			pstats.force_discover_undiscov_tech(tech_ind as SmSvType, temps, &mut disp.state);
 		}
 	
 	}else if m("P|references", "Obtain |r|esource"){
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::ObtainResourceWindow {mode: 0};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::ObtainResourceWindow(ObtainResourceWindowState {mode: 0});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("P|references", "Free mone|y|"){
-		players[iface_settings.cur_player as usize].stats.gold += 300_000.;
+		players[disp.state.iface_settings.cur_player as usize].stats.gold += 300_000.;
 		
 	}else if m("P|references", "|C|hange game difficulty"){
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::SetDifficultyWindow {
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::SetDifficultyWindow(SetDifficultyWindowState {
 			mode: game_difficulties.cur_difficulty_ind(players)
-		};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("P|references", "Pause current AI's actio|n|s"){
-		match players[iface_settings.cur_player as usize].ptype {
+		match players[disp.state.iface_settings.cur_player as usize].ptype {
 			PlayerType::Empire(EmpireState {ref mut ai_state, ..}) |
 			PlayerType::Nobility(NobilityState {ref mut ai_state, ..}) => {
 				ai_state.paused ^= true; update_indicators!();
@@ -751,31 +757,29 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, m
 		}
 	
 	}else if m("H|elp", "E|ncyclopedia"){
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::EncyclopediaWindow {
-			state: EncyclopediaState::CategorySelection {mode: 0}
-		};
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::EncyclopediaWindow(EncyclopediaWindowState::CategorySelection {mode: 0});
 		return None;
 	
 	}else if m("H|elp", "M|PD vs time"){	
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::PlotWindow {data: PlotData::MPD};
-		return None; // return because end_menu() will overwrite iface_settings.ui_mode
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::MPD});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("H|elp", "A|bout"){
-		iface_settings.reset_auto_turn(d);
-		iface_settings.ui_mode = UIMode::AboutWindow;
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::AboutWindow(AboutWindowState {});
 		return None;
 	}
 
-	iface_settings.end_menu(d);
+	disp.end_menu();
 	None
 }
 
 #[derive(PartialEq)]
 enum SubDirection {Down, Up}
 
-fn sel_next_submenu_entry(direction: SubDirection, sub_options: &OptionsUI, iface_settings: &mut IfaceSettings){
+fn sel_next_submenu_entry(direction: SubDirection, sub_options: &OptionsUI, ui_mode: &mut UIMode){
 	let n_sub_items = sub_options.options.len();
 	if n_sub_items == 0 {return;}
 	
@@ -783,7 +787,7 @@ fn sel_next_submenu_entry(direction: SubDirection, sub_options: &OptionsUI, ifac
 	if n_sub_items == 1 && sub_options.options[0].dyn_str.chars().nth(0) == Some(MENU_INACTIVEC) {return;}
 	
 	loop{
-		if let UIMode::Menu {ref mut sub_mode, ..} = iface_settings.ui_mode {
+		if let UIMode::Menu {ref mut sub_mode, ..} = ui_mode {
 			*sub_mode = Some(
 				if sub_mode.is_none() {
 					if direction == SubDirection::Down {0} else {n_sub_items - 1}
@@ -801,74 +805,69 @@ fn sel_next_submenu_entry(direction: SubDirection, sub_options: &OptionsUI, ifac
 		}else {panicq!("UI mode not set to menu");}
 		
 		// only break when we are no longer on a grayed entry
-		if let UIMode::Menu{sub_mode: Some(sub_mode), .. } = iface_settings.ui_mode {
-			if sub_options.options[sub_mode].dyn_str.chars().nth(0) != Some(MENU_INACTIVEC)
+		if let UIMode::Menu{sub_mode: Some(sub_mode), .. } = ui_mode {
+			if sub_options.options[*sub_mode].dyn_str.chars().nth(0) != Some(MENU_INACTIVEC)
 				{return;}
 		}else{panicq!("sub_mode not set");}
 	}
 }
 
 #[derive(PartialEq)]
-pub enum UIRet {Active, Inactive, ChgGameState}
+pub enum UIRet {Active, Inactive, ChgGameControl}
 
 // return true if menu remains active, false if not active any more or was not initially
-pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event_opt: &Option<MEVENT>, main_options: &mut OptionsUI, map_data: &mut MapData<'rt>, 
+pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(disp: &mut Disp<'f,'bt,'ut,'rt,'dt>, map_data: &mut MapData<'rt>, 
 		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
-		iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>, 
-		disp_settings: &mut DispSettings, lang: &Localization,
-		disp_chars: &mut DispChars,
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
-		temps: &Templates<'bt,'ut,'rt,'dt,'_>, turn: &mut usize, relations: &mut Relations, logs: &mut Vec<Log>,
-		production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>, frame_stats: &FrameStats,
-		game_state: &mut GameState, game_opts: &mut GameOptions, game_difficulties: &GameDifficulties,
-		l: &Localization, buttons: &mut Buttons, rng: &mut XorState, d: &mut DispState) -> UIRet {
+		temps: &Templates<'bt,'ut,'rt,'dt,'_>, gstate: &mut GameState, frame_stats: &FrameStats,
+		game_control: &mut GameControl, game_opts: &mut GameOptions, game_difficulties: &GameDifficulties) -> UIRet {
 	
 	macro_rules! exec_sub{($mode: expr, $sub:expr) => {
-		return if let Some(g) = execute_submenu($mode, $sub, main_options, map_data, exs, players, iface_settings, disp_settings, lang, disp_chars, units, bldgs, 
-				temps, turn, relations, logs, production_options, frame_stats, game_opts, game_difficulties, l, buttons, rng, d) {
-			*game_state = g;
-			UIRet::ChgGameState
+		return if let Some(g) = execute_submenu($mode, $sub, disp, map_data, exs, players, units, bldgs, temps, gstate, frame_stats, game_opts, game_difficulties) {
+			*game_control = g;
+			UIRet::ChgGameControl
 		}else{
 			UIRet::Active
 		};
 	};};
 	
 	// mouse selection (ignore scrolling)
-	if !scroll_down(mouse_event_opt) && !scroll_up(mouse_event_opt) {
-	if let Some(mouse_event) = &mouse_event_opt {
+	if !scroll_down(&disp.state.mouse_event) && !scroll_up(&disp.state.mouse_event) {
+	if let Some(mouse_event) = &disp.state.mouse_event {
+		let mouse_event = (*mouse_event).clone();
 		// main menu
 		if mouse_event.y == 0 {
 			let mut prev_item_lcol = 1 + MENU_1STR.len() as i32;
 			
 			// left most part of menu clicked ("Menu: ") -- close if menu already active, open if it isn't
 			if mouse_event.x < prev_item_lcol {
-				if lbutton_clicked(mouse_event_opt) || lbutton_pressed(mouse_event_opt) {
-					if let UIMode::Menu {mode: None, ..} = iface_settings.ui_mode {
-						iface_settings.end_menu(d);
+				if lbutton_clicked(&disp.state.mouse_event) || lbutton_pressed(&disp.state.mouse_event) {
+					if let UIMode::Menu {mode: None, ..} = disp.ui_mode {
+						disp.end_menu();
 					}else{
-						iface_settings.start_menu(d);
+						disp.start_menu();
 					}
 				}
 				return UIRet::Active;
 			}
 			
-			let prev_mode = if let UIMode::Menu {mode, ..} = iface_settings.ui_mode {mode} else {None};
+			let prev_mode = if let UIMode::Menu {mode, ..} = disp.ui_mode {mode} else {None};
 			
 			// specific menu item clicked
-			for (menu_ind, menu_item) in main_options.options.iter().enumerate() {
+			for (menu_ind, menu_item) in disp.state.menu_options.options.iter().enumerate() {
 				if mouse_event.x >= prev_item_lcol &&
 				   mouse_event.x < (3 + prev_item_lcol + menu_item.strlen as i32) {
 					// open menu if not already opened
-					if lbutton_clicked(mouse_event_opt) || lbutton_pressed(mouse_event_opt) {
-						if let UIMode::Menu {..} = iface_settings.ui_mode {} else {iface_settings.start_menu(d);}
+					if lbutton_clicked(&disp.state.mouse_event) || lbutton_pressed(&disp.state.mouse_event) {
+						if let UIMode::Menu {..} = &disp.ui_mode {} else {start_menu_sep(&mut disp.ui_mode, &mut disp.state.iface_settings, &mut disp.state.renderer);}
 					}
 					
 					// set menu item or close menu if it's already been clicked
-					if let UIMode::Menu {ref mut mode, ref mut sub_mode, ..} = iface_settings.ui_mode {
+					if let UIMode::Menu {ref mut mode, ref mut sub_mode, ..} = disp.ui_mode {
 						// close menu because it was previously selected
 						if Some(menu_ind) == prev_mode {
-							if lbutton_clicked(mouse_event_opt) || lbutton_pressed(mouse_event_opt) {
-								iface_settings.end_menu(d);
+							if lbutton_clicked(&disp.state.mouse_event) || lbutton_pressed(&disp.state.mouse_event) {
+								disp.end_menu();
 								return UIRet::Inactive;
 							}
 						}
@@ -877,7 +876,7 @@ pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event_opt: &
 					}else{continue;}
 					
 					if let ArgOptionUI::MainMenu {sub_options, ..} = &menu_item.arg {
-						sel_next_submenu_entry(SubDirection::Down, &sub_options, iface_settings);
+						sel_next_submenu_entry(SubDirection::Down, &sub_options, &mut disp.ui_mode);
 					} else {panicq!("main menu had no arguments set");}
 					
 					return UIRet::Active;
@@ -885,12 +884,12 @@ pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event_opt: &
 				prev_item_lcol += 3 + menu_item.strlen as i32;
 			}
 			
-			iface_settings.end_menu(d);
+			disp.end_menu();
 			return UIRet::Inactive;
 			
 		// sub menu (the one which has already been selected)
-		}else if let UIMode::Menu {mode: Some(mode), sub_mode: Some(ref mut sub_mode), ..} = &mut iface_settings.ui_mode {
-			if let ArgOptionUI::MainMenu {sub_options, col_start} = &main_options.options[*mode].arg {
+		}else if let UIMode::Menu {mode: Some(mode), sub_mode: Some(ref mut sub_mode), ..} = &mut disp.ui_mode {
+			if let ArgOptionUI::MainMenu {sub_options, col_start} = &disp.state.menu_options.options[*mode].arg {
 				if mouse_event.x >= (*col_start) as i32 && 
 				   mouse_event.x < (*col_start + sub_options.max_strlen) as i32 &&
 				   mouse_event.y >= 2 &&
@@ -903,7 +902,7 @@ pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event_opt: &
 					}
 					
 					*sub_mode = sub_mode_candidate;
-					if lbutton_clicked(mouse_event_opt) || lbutton_released(mouse_event_opt) {
+					if lbutton_clicked(&disp.state.mouse_event) || lbutton_released(&disp.state.mouse_event) {
 						exec_sub!(*mode, *sub_mode);
 					}
 				}
@@ -911,58 +910,58 @@ pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event_opt: &
 		}
 		
 		// clicked outside of menu, end menu mode (only if we're already in menu mode)
-		if let UIMode::Menu {..} = iface_settings.ui_mode {
-			if lbutton_clicked(mouse_event_opt) {
-				iface_settings.end_menu(d);
+		if let UIMode::Menu {..} = disp.ui_mode {
+			if lbutton_clicked(&disp.state.mouse_event) {
+				disp.end_menu();
 				return UIRet::Inactive;
 			}
 		}
 	}}
 	
 	// return if not in menu mode
-	match iface_settings.ui_mode {
+	match disp.ui_mode {
 		UIMode::Menu {..} => {},
 		_ => {return UIRet::Inactive;}
 	}
 	
-	if key_pressed == KEY_ESC { 
-		iface_settings.end_menu(d);
+	if disp.state.key_pressed == KEY_ESC { 
+		disp.end_menu();
 		return UIRet::Active;
 	}
 	
 	// inc/dec submenu selection
-	if key_pressed == KEY_DOWN || key_pressed == KEY_UP {
-		if let UIMode::Menu {mode: Some(mode), ..} = iface_settings.ui_mode {
-			if let ArgOptionUI::MainMenu {sub_options, ..} = &main_options.options[mode].arg {
+	if disp.state.key_pressed == KEY_DOWN || disp.state.key_pressed == KEY_UP {
+		if let UIMode::Menu {mode: Some(mode), ..} = disp.ui_mode {
+			if let ArgOptionUI::MainMenu {sub_options, ..} = &disp.state.menu_options.options[mode].arg {
 				
-				let direction = if key_pressed == KEY_DOWN {SubDirection::Down} else {SubDirection::Up};
+				let direction = if disp.state.key_pressed == KEY_DOWN {SubDirection::Down} else {SubDirection::Up};
 				
-				sel_next_submenu_entry(direction, &sub_options, iface_settings);
+				sel_next_submenu_entry(direction, &sub_options, &mut disp.ui_mode);
 				
 			} else {panicq!("main menu arguments not set");}
 		} else {return UIRet::Active;} // not on a menu item
 	}
 	
 	// inc/dec menu selection
-	let n_menus = main_options.options.len();
-	if key_pressed == KEY_RIGHT || key_pressed == KEY_LEFT {
-		if let UIMode::Menu {ref mut mode, ref mut sub_mode, ..} = iface_settings.ui_mode {
+	let n_menus = disp.state.menu_options.options.len();
+	if disp.state.key_pressed == KEY_RIGHT || disp.state.key_pressed == KEY_LEFT {
+		if let UIMode::Menu {ref mut mode, ref mut sub_mode, ..} = disp.ui_mode {
 			*mode = Some(
 				if mode.is_none() {
-					if key_pressed == KEY_RIGHT {0} else {n_menus - 1}
-				}else if key_pressed == KEY_LEFT && *mode == Some(0) {
+					if disp.state.key_pressed == KEY_RIGHT {0} else {n_menus - 1}
+				}else if disp.state.key_pressed == KEY_LEFT && *mode == Some(0) {
 					n_menus - 1
-				}else if key_pressed == KEY_RIGHT && *mode == Some(n_menus-1) {
+				}else if disp.state.key_pressed == KEY_RIGHT && *mode == Some(n_menus-1) {
 					0
 				}else{
-					mode.unwrap() + ((key_pressed == KEY_RIGHT) as usize)*2 - 1
+					mode.unwrap() + ((disp.state.key_pressed == KEY_RIGHT) as usize)*2 - 1
 				});
 			
 			*sub_mode = None;
 			
-			let option = &main_options.options[mode.unwrap()];
+			let option = &disp.state.menu_options.options[mode.unwrap()];
 			if let ArgOptionUI::MainMenu {sub_options, ..} = &option.arg {
-				sel_next_submenu_entry(SubDirection::Down, &sub_options, iface_settings);
+				sel_next_submenu_entry(SubDirection::Down, &sub_options, &mut disp.ui_mode);
 			
 			}else {panicq!("main menu arguments not set");}
 		}else {panicq!("menu ui not set");}
@@ -971,52 +970,52 @@ pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(key_pressed: i32, mouse_event_opt: &
 	}
 	
 	// return to center on cursor
-	if key_pressed == ' ' as i32 {
-		iface_settings.end_menu(d);
+	if disp.state.key_pressed == ' ' as i32 {
+		disp.end_menu();
 		return UIRet::Inactive;
 	}
 	
 	// sub menu active -- execute command if enter or shortcut key pressed
-	if let UIMode::Menu {mode: Some(mode), sub_mode: Some(sub_mode), ..} = iface_settings.ui_mode {
+	if let UIMode::Menu {mode: Some(mode), sub_mode: Some(sub_mode), ..} = disp.ui_mode {
 		macro_rules! exec_sub{($mode: expr, $sub:expr) => {
-			return if let Some(g) = execute_submenu($mode, $sub, main_options, map_data, exs, players, iface_settings, disp_settings, lang, disp_chars, units, bldgs, temps, turn, relations, logs, production_options, frame_stats, game_opts, game_difficulties, l, buttons, rng, d) {
-				*game_state = g;
-				UIRet::ChgGameState
+			return if let Some(g) = execute_submenu($mode, $sub, disp, map_data, exs, players, units, bldgs, temps, gstate, frame_stats, game_opts, game_difficulties) {
+				*game_control = g;
+				UIRet::ChgGameControl
 			}else{
 				UIRet::Active
 			};
 		};};
 		
 		// pressed enter on selected item
-		if key_pressed == KEY_ENTER || key_pressed == ('\n' as i32) {
+		if disp.state.key_pressed == KEY_ENTER || disp.state.key_pressed == ('\n' as i32) {
 			exec_sub!(mode, sub_mode);
 		}
 		
 		// needed to get shortcut keys so the for loop below doesn't have borrow checking issues
-		let sub_options = if let ArgOptionUI::MainMenu {sub_options, ..} = &main_options.options[mode].arg {
+		let sub_options = if let ArgOptionUI::MainMenu {sub_options, ..} = &disp.state.menu_options.options[mode].arg {
 			sub_options.clone()
 		}else{panicq!("main menu arguments not set")};
 		
 		// shortcut key pressed?
 		for (sub_mode, sub_option) in sub_options.options.iter().enumerate() {
-			if sub_option.key == Some(key_pressed as u8 as char) {
+			if sub_option.key == Some(disp.state.key_pressed as u8 as char) {
 				exec_sub!(mode, sub_mode);
 			}
 		}
-	}else if let UIMode::Menu {mode: Some(_), sub_mode: None, ..} = iface_settings.ui_mode {
+	}else if let UIMode::Menu {mode: Some(_), sub_mode: None, ..} = disp.ui_mode {
 		panicq!("menu mode set, but not sub_mode");
 	}
 	
 	//////////// main menu active: select submenu based on shortcut key
-	for (mode_val, option) in main_options.options.iter().enumerate() {
-		if option.key == Some(key_pressed as u8 as char) {
-			if let UIMode::Menu {ref mut mode, ref mut sub_mode, ..} = &mut iface_settings.ui_mode {
+	for (mode_val, option) in disp.state.menu_options.options.iter().enumerate() {
+		if option.key == Some(disp.state.key_pressed as u8 as char) {
+			if let UIMode::Menu {ref mut mode, ref mut sub_mode, ..} = &mut disp.ui_mode {
 				*mode = Some(mode_val);
 				*sub_mode = None;
 			}else{panicq!("invalid setting for UI mode");}
 			
 			if let ArgOptionUI::MainMenu {sub_options, ..} = &option.arg {
-				sel_next_submenu_entry(SubDirection::Down, &sub_options, iface_settings);
+				sel_next_submenu_entry(SubDirection::Down, &sub_options, &mut disp.ui_mode);
 			} else {panicq!("main menu had no arguments set");}
 			return UIRet::Active;
 		}
@@ -1060,8 +1059,7 @@ pub fn register_shortcuts(nms: &[&str], mut options: &mut OptionsUI){
 	}
 }
 
-pub fn init_menus<'f,'bt,'ut,'rt,'dt>(iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>, players: &Vec<Player<'bt,'ut,'rt,'dt>>,
-		disp_settings: &DispSettings) -> OptionsUI<'bt,'ut,'rt,'dt> {
+pub fn init_menus<'f,'bt,'ut,'rt,'dt>(dstate: &mut DispState<'f,'bt,'ut,'rt,'dt>, players: &Vec<Player<'bt,'ut,'rt,'dt>>) {
 	let mut main_options = OptionsUI {
 		options: Vec::with_capacity(MENU_NMS.len()),
 		max_strlen: 0
@@ -1088,70 +1086,74 @@ pub fn init_menus<'f,'bt,'ut,'rt,'dt>(iface_settings: &mut IfaceSettings<'f,'bt,
 		register_shortcuts(SUB_MENU_NMS_INIT[i], &mut sub_options); 
 		
 		// set arguments of main menu
-		main_options.options[i].arg = ArgOptionUI::MainMenu {col_start, sub_options};				
+		main_options.options[i].arg = ArgOptionUI::MainMenu {col_start, sub_options};
 	}
-	update_menu_indicators(&mut main_options, iface_settings, iface_settings.cur_player_paused(players), disp_settings);
-	main_options
+	dstate.menu_options = main_options;
+	dstate.update_menu_indicators(dstate.iface_settings.cur_player_paused(players));
 }
 
 ///////// update indicators, ex. overlays, "* Arability"
 // if current player is not an AI, `cur_ai_player_is_paused` should be none
-pub fn update_menu_indicators(main_options: &mut OptionsUI, iface_settings: &IfaceSettings, cur_ui_ai_player_is_paused: Option<bool>,
-		disp_settings: &DispSettings){
-	let get_menu_ind = |nm, main_options: &OptionsUI| {
-		for (i, option) in main_options.options.iter().enumerate() {
-			if option.dyn_str.contains(nm) {
-				return i;
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+	pub fn update_menu_indicators(&mut self, cur_ui_ai_player_is_paused: Option<bool>){
+		let get_menu_ind = |nm, main_options: &OptionsUI| {
+			for (i, option) in main_options.options.iter().enumerate() {
+				if option.dyn_str.contains(nm) {
+					return i;
+				}
 			}
-		}
-		panicq!("menu {} not found in dyn_strs", nm);
-	};
-	
-	macro_rules! set_indicator{($sub_match: expr, $cond: expr, $sub_option: expr) => {
-		if $sub_option.dyn_str.contains($sub_match) {
-			let mut r = $sub_option.dyn_str.clone().into_bytes();
-			r[1] = if $cond {'*'} else {' '} as u8;
-			$sub_option.dyn_str = String::from_utf8(r).unwrap();
-		}}}
+			panicq!("menu {} not found in dyn_strs", nm);
+		};
 		
-	let menu_ind = get_menu_ind("V|iew", main_options);
-	if let ArgOptionUI::MainMenu { ref mut sub_options, .. } = &mut main_options.options[menu_ind].arg {
-		for sub_opt in sub_options.options.iter_mut() {
-			set_indicator!("|A|rability", iface_settings.underlay == Underlay::Arability, sub_opt);
-			set_indicator!("|E|levation", iface_settings.underlay == Underlay::Elevation, sub_opt);
-			set_indicator!("Water & mountains |o|nly", iface_settings.underlay == Underlay::WaterMountains, sub_opt);
+		macro_rules! set_indicator{($sub_match: expr, $cond: expr, $sub_option: expr) => {
+			if $sub_option.dyn_str.contains($sub_match) {
+				let mut r = $sub_option.dyn_str.clone().into_bytes();
+				r[1] = if $cond {'*'} else {' '} as u8;
+				$sub_option.dyn_str = String::from_utf8(r).unwrap();
+			}}}
 			
-			set_indicator!("|S|tructures", iface_settings.show_structures, sub_opt);
-			set_indicator!("|U|nits", iface_settings.show_units, sub_opt);
-			set_indicator!("|B|uildings", iface_settings.show_bldgs, sub_opt);
-			set_indicator!("|Z|ones", iface_settings.show_zones, sub_opt);
-			set_indicator!("|R|esources", iface_settings.show_resources, sub_opt);
-			set_indicator!("Zone |d|emands", iface_settings.zone_overlay_map == ZoneOverlayMap::ZoneDemands, sub_opt);
-			set_indicator!("Happi|n|ess", iface_settings.zone_overlay_map == ZoneOverlayMap::Happiness, sub_opt);
-			set_indicator!("Crime (|k|)", iface_settings.zone_overlay_map == ZoneOverlayMap::Crime, sub_opt);
-			set_indicator!("Show un|c|onnected bldgs", iface_settings.show_unconnected_bldgs, sub_opt);
-			set_indicator!("Show unoccup|i|ed bldgs", iface_settings.show_unoccupied_bldgs, sub_opt);
-			set_indicator!("Show sectors (|2|)", iface_settings.show_sectors, sub_opt);
-		}
-	}else{panicq!("main menu arguments not set");}
-	
-	let menu_ind = get_menu_ind("P|references", main_options);
-	if let ArgOptionUI::MainMenu { sub_options, .. } = &mut main_options.options[menu_ind].arg {
-		for sub_opt in sub_options.options.iter_mut() {
-			set_indicator!("|A|void special chars", disp_settings.limit_schars, sub_opt);
-			set_indicator!("Workers create city sectors", iface_settings.workers_create_city_sectors, sub_opt);
-			set_indicator!("|U|se only 8 colors", disp_settings.limit_colors, sub_opt);
-			set_indicator!("Show full |m|ap", !iface_settings.show_fog, sub_opt);
-			set_indicator!("Show all unit ac|t|ions", iface_settings.show_actions, sub_opt);
-			set_indicator!("|A|uto turn increment", iface_settings.auto_turn == AutoTurn::On, sub_opt);
-			set_indicator!("|I|nterrupt auto turn for important events", iface_settings.interrupt_auto_turn, sub_opt);
-			set_indicator!("Show all zon|e| information", iface_settings.show_all_zone_information, sub_opt);
-			
-			if let Some(paused) = cur_ui_ai_player_is_paused {
-				set_indicator!("Pause current AI's actio|n|s", paused, sub_opt);
+		let menu_ind = get_menu_ind("V|iew", &self.menu_options);
+		if let ArgOptionUI::MainMenu { ref mut sub_options, .. } = &mut self.menu_options.options[menu_ind].arg {
+			let iface_settings = &mut self.iface_settings;
+			for sub_opt in sub_options.options.iter_mut() {
+				set_indicator!("|A|rability", iface_settings.underlay == Underlay::Arability, sub_opt);
+				set_indicator!("|E|levation", iface_settings.underlay == Underlay::Elevation, sub_opt);
+				set_indicator!("Water & mountains |o|nly", iface_settings.underlay == Underlay::WaterMountains, sub_opt);
+				
+				set_indicator!("|S|tructures", iface_settings.show_structures, sub_opt);
+				set_indicator!("|U|nits", iface_settings.show_units, sub_opt);
+				set_indicator!("|B|uildings", iface_settings.show_bldgs, sub_opt);
+				set_indicator!("|Z|ones", iface_settings.show_zones, sub_opt);
+				set_indicator!("|R|esources", iface_settings.show_resources, sub_opt);
+				set_indicator!("Zone |d|emands", iface_settings.zone_overlay_map == ZoneOverlayMap::ZoneDemands, sub_opt);
+				set_indicator!("Happi|n|ess", iface_settings.zone_overlay_map == ZoneOverlayMap::Happiness, sub_opt);
+				set_indicator!("Crime (|k|)", iface_settings.zone_overlay_map == ZoneOverlayMap::Crime, sub_opt);
+				set_indicator!("Show un|c|onnected bldgs", iface_settings.show_unconnected_bldgs, sub_opt);
+				set_indicator!("Show unoccup|i|ed bldgs", iface_settings.show_unoccupied_bldgs, sub_opt);
+				set_indicator!("Show sectors (|2|)", iface_settings.show_sectors, sub_opt);
 			}
-		}
-	}else{panicq!("main menu arguments not set");}
+		}else{panicq!("main menu arguments not set");}
+		
+		let menu_ind = get_menu_ind("P|references", &self.menu_options);
+		if let ArgOptionUI::MainMenu { sub_options, .. } = &mut self.menu_options.options[menu_ind].arg {
+			let iface_settings = &mut self.iface_settings;
+			let terminal_settings = &mut self.terminal;
+			for sub_opt in sub_options.options.iter_mut() {
+				set_indicator!("|A|void special chars", terminal_settings.limit_schars, sub_opt);
+				set_indicator!("Workers create city sectors", iface_settings.workers_create_city_sectors, sub_opt);
+				set_indicator!("|U|se only 8 colors", terminal_settings.limit_colors, sub_opt);
+				set_indicator!("Show full |m|ap", !iface_settings.show_fog, sub_opt);
+				set_indicator!("Show all unit ac|t|ions", iface_settings.show_actions, sub_opt);
+				set_indicator!("|A|uto turn increment", iface_settings.auto_turn == AutoTurn::On, sub_opt);
+				set_indicator!("|I|nterrupt auto turn for important events", iface_settings.interrupt_auto_turn, sub_opt);
+				set_indicator!("Show all zon|e| information", iface_settings.show_all_zone_information, sub_opt);
+				
+				if let Some(paused) = cur_ui_ai_player_is_paused {
+					set_indicator!("Pause current AI's actio|n|s", paused, sub_opt);
+				}
+			}
+		}else{panicq!("main menu arguments not set");}
+	}
 }
 
 /////////////////////////////////////////////////////
@@ -1161,7 +1163,7 @@ pub fn update_menu_indicators(main_options: &mut OptionsUI, iface_settings: &Ifa
 // prints nm with one space before & after, will highlight if entry_active = True
 // used for both top-menu, sub-menu, and building production displays
 // returns the row and col the text starts at
-fn print_menu_item(nm: &String, entry_active: bool, menu_active: bool, owner_opt: Option<&Player>, d: &mut DispState) -> (i32, i32) {
+fn print_menu_item(nm: &String, entry_active: bool, menu_active: bool, owner_opt: Option<&Player>, d: &mut Renderer) -> (i32, i32) {
 	if nm.chars().nth(0).unwrap() == MENU_INACTIVEC {
 		d.attron(COLOR_PAIR(CGRAY)); //A_DIM());
 		d.addstr(format!(" {} ", &nm[1..]).as_ref());
@@ -1237,12 +1239,11 @@ fn print_menu_item(nm: &String, entry_active: bool, menu_active: bool, owner_opt
 // if owners_opt supplied, print owner colors
 // sel_loc is set to the location of the selected text
 pub fn print_menu_vstack(sub_options: &OptionsUI, row: i32, col: i32, w: usize, 
-		ind_active: usize, disp_chars: &DispChars, show_ai_pause: bool,
-		owners_opt: Option<&Vec<Player>>, start_ind: usize,
-		sel_loc: &mut Option<&mut (i32, i32)>,
-		buttons: &mut Buttons, d: &mut DispState){
+		ind_active: usize, show_ai_pause: bool, owners_opt: Option<&Vec<Player>>, start_ind: usize,
+		sel_loc: &mut Option<&mut (i32, i32)>, chars: &DispChars, buttons: &mut Buttons,
+		renderer: &mut Renderer){
 	
-	macro_rules! sub_ln_s{($row_add: expr) => {d.mv($row_add as i32 + row, col);};};
+	macro_rules! sub_ln_s{($row_add: expr) => {renderer.mv($row_add as i32 + row, col);};};
 	let mut rows_added = 0;
 	
 	///////// sub menu entries
@@ -1253,19 +1254,19 @@ pub fn print_menu_vstack(sub_options: &OptionsUI, row: i32, col: i32, w: usize,
 		}
 		
 		sub_ln_s!(i);
-		d.addch(disp_chars.vline_char);
+		renderer.addch(chars.vline_char);
 		
-		let button_start = cursor_pos(d);
+		let button_start = cursor_pos(renderer);
 		let entry_active = i == ind_active;
 		
 		// print menu item
 		let cur_sel_loc = (|| {
 			if let Some(owners) = owners_opt {
 				if let ArgOptionUI::OwnerInd(owner_ind) = sub_opt.arg {
-					return print_menu_item(&sub_opt.dyn_str, entry_active, true, Some(&owners[owner_ind]), d);
+					return print_menu_item(&sub_opt.dyn_str, entry_active, true, Some(&owners[owner_ind]), renderer);
 				}
 			}
-			print_menu_item(&sub_opt.dyn_str, entry_active, true, None, d)
+			print_menu_item(&sub_opt.dyn_str, entry_active, true, None, renderer)
 		})();
 		
 		// for screen readers
@@ -1276,31 +1277,30 @@ pub fn print_menu_vstack(sub_options: &OptionsUI, row: i32, col: i32, w: usize,
 		}
 		
 		// have menu end at same spot for all entries
-		if entry_active { d.attron(A_REVERSE()); }
+		if entry_active { renderer.attron(A_REVERSE()); }
 		if w > (sub_opt.strlen + 4) {
 			let gap = w - sub_opt.strlen - 4;
-			for _ in 0..gap { d.addch(' ' as chtype); }
+			for _ in 0..gap { renderer.addch(' ' as chtype); }
 		}
-		if entry_active { d.attroff(A_REVERSE()); }
+		if entry_active { renderer.attroff(A_REVERSE()); }
 		
-		buttons.add(button_start, i + start_ind, d);
+		buttons.add(button_start, i + start_ind, renderer);
 		
-		d.addch(disp_chars.vline_char);
+		renderer.addch(chars.vline_char);
 		rows_added += 1;
 	}
 	
 	// last line
 	sub_ln_s!(rows_added);
-	d.addch(disp_chars.llcorner_char);
-	for _ in 0..(w-2) { d.addch(disp_chars.hline_char); }
-	d.addch(disp_chars.lrcorner_char);
+	renderer.addch(chars.llcorner_char);
+	for _ in 0..(w-2) { renderer.addch(chars.hline_char); }
+	renderer.addch(chars.lrcorner_char);
 }
 
 // prints top menu and expanded submenus
 // inputs: iface_settings: menu_active, menu_mode, sub_menu_mode
-impl IfaceSettings<'_,'_,'_,'_,'_> {
-	pub fn print_menus(&mut self, disp_chars: &DispChars, main_options: &OptionsUI, show_ai_pause: bool, kbd: &KeyboardMap, 
-			buttons: &mut Buttons, l: &Localization, d: &mut DispState){
+impl Disp<'_,'_,'_,'_,'_> {
+	pub fn print_menus(&mut self, show_ai_pause: bool){
 		let menu_active = match self.ui_mode {
 			UIMode::Menu {ref mut sel_loc, ..} => {
 				*sel_loc = (0,0); // cursor location for screen readers, this will be set below if a particular item is active
@@ -1309,72 +1309,72 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		};
 		
 		/////////////// top menu
-		d.mv(0,0);
-		if menu_active { d.attron(A_REVERSE()); }
-		if kbd.open_top_menu as chtype == 'm' as chtype || kbd.open_top_menu as chtype == 'M' as chtype {
-			d.addch(kbd.open_top_menu as chtype | shortcut_indicator());
-			d.addstr(MENU_1STR);
+		self.state.renderer.mv(0,0);
+		if menu_active { self.state.renderer.attron(A_REVERSE()); }
+		if self.state.kbd.open_top_menu as chtype == 'm' as chtype || self.state.kbd.open_top_menu as chtype == 'M' as chtype {
+			self.state.renderer.addch(self.state.kbd.open_top_menu as chtype | shortcut_indicator());
+			self.state.renderer.addstr(MENU_1STR);
 		}else{
-			d.addch(kbd.open_top_menu as chtype | shortcut_indicator());
-			d.addch(':');
+			self.state.renderer.addch(self.state.kbd.open_top_menu as chtype | shortcut_indicator());
+			self.state.renderer.addch(':');
 			for _ in 0..MENU_1STR.len()-1 {
-				d.addch(' ');
+				self.state.renderer.addch(' ');
 			}
 		}
-		if menu_active { d.attroff(A_REVERSE()); }
+		if menu_active { self.state.renderer.attroff(A_REVERSE()); }
 		
-		debug_assertq!(MENU_NMS.len() == main_options.options.len());
+		debug_assertq!(MENU_NMS.len() == self.state.menu_options.options.len());
 		
 		// print top-level menu items
-		for (i, option) in main_options.options.iter().enumerate() {
+		for (i, option) in self.state.menu_options.options.iter().enumerate() {
 			let entry_active = if let UIMode::Menu {mode: Some(mode), sub_mode, ref mut sel_loc, ..} = self.ui_mode {
 				if mode == i {
 					// set cursor location for screen readers
 					if sub_mode.is_none() {
-						let cur = cursor_pos(d);
+						let cur = cursor_pos(&self.state.renderer);
 						*sel_loc = (cur.y as i32, cur.x as i32);
 					}
 					true
 				}else{false}
 			}else {false};
 			
-			print_menu_item(&option.dyn_str, entry_active, menu_active, None, d);
+			print_menu_item(&option.dyn_str, entry_active, menu_active, None, &mut self.state.renderer);
 			
-			if i != (MENU_NMS.len()-1) {d.addch(disp_chars.vline_char);}	
+			if i != (MENU_NMS.len()-1) {self.state.renderer.addch(self.state.chars.vline_char);}
 		}
 		
 		if menu_active {
-			d.attron(COLOR_PAIR(ESC_COLOR));
-			d.addstr("   ");
-			d.addstr(&l.Esc_to_exit_menu);
-			d.attroff(COLOR_PAIR(ESC_COLOR));
+			self.state.renderer.attron(COLOR_PAIR(ESC_COLOR));
+			self.state.renderer.addstr("   ");
+			self.state.renderer.addstr(&self.state.local.Esc_to_exit_menu);
+			self.state.renderer.attroff(COLOR_PAIR(ESC_COLOR));
 		}else{ 
-			d.addch('\n' as chtype); }
+			self.state.renderer.addch('\n' as chtype); }
 		
 		const SUB_MENU_LN_OFFSET: usize = 2;
 		
 		////// show submenu
 		if let UIMode::Menu {mode: Some(mode), sub_mode: Some(sub_mode), ref mut sel_loc, ..} = self.ui_mode {
-			let main_opt = &main_options.options[mode];
+			let main_opt = &self.state.menu_options.options[mode];
 			if let ArgOptionUI::MainMenu {col_start, sub_options} = &main_opt.arg {
-				macro_rules! sub_ln_s{($row: expr) => {d.mv($row as i32, *col_start as i32);};};
+				macro_rules! sub_ln_s{($row: expr) => {self.state.renderer.mv($row as i32, *col_start as i32);};};
 				
 				///// first line
 				sub_ln_s!(1);
-				d.addch(disp_chars.vline_char);
+				self.state.renderer.addch(self.state.chars.vline_char);
 				
 				// spaces
 				for _ in 0..(main_opt.strlen + 2) {
-					d.addch(' ' as chtype); }
+					self.state.renderer.addch(' ' as chtype); }
 				
-				d.addch(disp_chars.llcorner_char);
+				self.state.renderer.addch(self.state.chars.llcorner_char);
 				
 				// top horizontal lines
 				if sub_options.max_strlen > (main_opt.strlen + 3) {
 					let gap = sub_options.max_strlen - main_opt.strlen - 2;
-					for _ in 0..gap { d.addch(disp_chars.hline_char); }
+					for _ in 0..gap { self.state.renderer.addch(self.state.chars.hline_char); }
 				}
-				d.addch(disp_chars.urcorner_char);
+				self.state.renderer.addch(self.state.chars.urcorner_char);
 				
 				// width to show submenu
 				let w_use = if sub_options.max_strlen > main_opt.strlen {
@@ -1385,8 +1385,8 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 				
 				// print stack of submenu options
 				print_menu_vstack(sub_options, SUB_MENU_LN_OFFSET as i32, *col_start as i32, 
-						w_use + 2, sub_mode, disp_chars, show_ai_pause, None, 0,
-						&mut Some(sel_loc), buttons, d);
+						w_use + 2, sub_mode, show_ai_pause, None, 0, &mut Some(sel_loc),
+						&self.state.chars, &mut self.state.buttons, &mut self.state.renderer);
 			
 			}else{panicq!("main menu arguments not set");}
 		}else if let UIMode::Menu {mode: Some(_), sub_mode: None, ..} = self.ui_mode { 

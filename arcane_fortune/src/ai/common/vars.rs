@@ -4,7 +4,7 @@ use crate::buildings::*;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::saving::*;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 use crate::disp::Coord;
 use crate::movement::{manhattan_dist};//, manhattan_dist_inds};
 use crate::containers::Templates;
@@ -509,15 +509,13 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 }
 
 use crate::zones::{set_owner, set_all_adj_owner};
-use crate::gcore::Log;
 
 // `population_center_ind`: city hall bldg ind to transfer (previously owned by `frm_owner_id`
 // returns the transfered CityState set to be owned by `to_owner_id`
 pub fn transfer_city_ai_state<'bt,'ut,'rt,'dt>(population_center_ind: usize, frm_owner_id: usize, to_owner_id: usize, cur_player: usize,
 		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 		temps: &Templates<'bt,'ut,'rt,'dt,'_>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, map_data: &mut MapData,
-		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
-		logs: &mut Vec<Log>, map_sz: MapSz, turn: usize) -> Option<CityState<'bt,'ut,'rt,'dt>> {
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, map_sz: MapSz) -> Option<CityState<'bt,'ut,'rt,'dt>> {
 	// remove entry from sender
 	let player_frm = &mut players[frm_owner_id];
 	let pstats_frm = &mut player_frm.stats;
@@ -545,7 +543,7 @@ pub fn transfer_city_ai_state<'bt,'ut,'rt,'dt>(population_center_ind: usize, frm
 			// transfer wall ownerships
 			for wall_coord in city_state.wall_coords.iter() {
 				//printlnq!("transfering wall {}", wall_coord);
-				set_owner(wall_coord.to_ind(map_sz) as u64, to_owner_id, frm_owner_id, cur_player, &mut None, units, bldgs, temps, exs, players, map_data, relations, logs, map_sz, turn);
+				set_owner(wall_coord.to_ind(map_sz) as u64, to_owner_id, frm_owner_id, cur_player, &mut None, units, bldgs, temps, exs, players, map_data, gstate, map_sz);
 			}
 			
 			//printlnq!("transfering city from {} to {}", frm_owner_id, to_owner_id);
@@ -560,19 +558,19 @@ pub fn transfer_city_ai_state<'bt,'ut,'rt,'dt>(population_center_ind: usize, frm
 				{
 					if let Some(boot_camp_ind) = city_state.boot_camp_ind {
 						let b = &bldgs[boot_camp_ind];
-						set_all_adj_owner(vec![b.coord], to_owner_id, frm_owner_id, cur_player, &mut Some(&mut city_state), units, bldgs, temps, exs, players, map_data, relations, logs, map_sz, turn);
+						set_all_adj_owner(vec![b.coord], to_owner_id, frm_owner_id, cur_player, &mut Some(&mut city_state), units, bldgs, temps, exs, players, map_data, gstate, map_sz);
 					}
 					
 					if let Some(academy_ind) = city_state.academy_ind {
 						let b = &bldgs[academy_ind];
-						set_all_adj_owner(vec![b.coord], to_owner_id, frm_owner_id, cur_player, &mut Some(&mut city_state), units, bldgs, temps, exs, players, map_data, relations, logs, map_sz, turn);
+						set_all_adj_owner(vec![b.coord], to_owner_id, frm_owner_id, cur_player, &mut Some(&mut city_state), units, bldgs, temps, exs, players, map_data, gstate, map_sz);
 					}
 					
 					let mut bonus_coords = Vec::with_capacity(city_state.bonus_bldg_inds.len());
 					for bonus_bldg_ind in city_state.bonus_bldg_inds.iter() {
 						bonus_coords.push(bldgs[*bonus_bldg_ind].coord);
 					}
-					set_all_adj_owner(bonus_coords, to_owner_id, frm_owner_id, cur_player, &mut Some(&mut city_state), units, bldgs, temps, exs, players, map_data, relations, logs, map_sz, turn);
+					set_all_adj_owner(bonus_coords, to_owner_id, frm_owner_id, cur_player, &mut Some(&mut city_state), units, bldgs, temps, exs, players, map_data, gstate, map_sz);
 				}
 				
 				return Some(city_state);

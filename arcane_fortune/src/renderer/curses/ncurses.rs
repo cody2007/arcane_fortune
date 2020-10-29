@@ -13,8 +13,7 @@ use std::ffi::CString;
 use std::convert::TryInto;
 use super::*;
 use super::direct_ncurses;
-use crate::disp_lib::MAX_DELAY_FRAMES;
-use crate::disp_lib::CWHITE;
+use crate::renderer::*;
 pub use super::direct_ncurses::{CInt, CShort, chtype,
 	WINDOW, mousemask};
 
@@ -52,7 +51,7 @@ macro_rules! wrap_try_into{($nm: ident) => {
 	}
 };}
 
-impl DispState {
+impl Renderer {
 	wrap!(clrtoeol);
 	wrap!(refresh);
 	wrap!(clear);
@@ -196,7 +195,7 @@ pub fn ACS_VLINE() -> chtype {NCURSES_ACS('x')}
 pub fn ACS_CKBOARD() -> chtype {NCURSES_ACS('a')}
 
 //use std::io::{self, Write};
-pub fn setup_disp_lib() -> DispState {
+pub fn setup_disp_lib() -> Renderer {
 	unsafe{
 		direct_ncurses::setlocale(direct_ncurses::LC_ALL, &direct_ncurses::LC_VARS);
 		initscr();
@@ -220,7 +219,7 @@ pub fn setup_disp_lib() -> DispState {
 		//   reporting button1 pressed, released, and clicked events
 		//   when the mouse is moved
 	}
-	DispState {}
+	Renderer {}
 }
 
 pub fn COLOR_PAIRS() -> CInt { unsafe{direct_ncurses::COLOR_PAIRS}}

@@ -1,14 +1,11 @@
 use crate::movement::*;
 use crate::units::*;
 use crate::map::*;
-use crate::gcore::*;
-use crate::keyboard::KeyboardMap;
-use crate::disp::menus::{OptionsUI};
 use crate::containers::Templates;
 use crate::player::Player;
 use super::*;
 
-impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 	// Step 2:
 	// called when adding action to: `individual unit` or `all in brigade`.
 	// *not called when adding an action to the brigade list* because no unit (and thus action_iface)
@@ -16,13 +13,9 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	pub fn assign_action_iface_to_unit(&mut self, action_iface: ActionInterfaceMeta<'f,'bt,'ut,'rt,'dt>,
 			cur_mi: u64, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
 			bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			relations: &mut Relations, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
-			map_data: &mut MapData<'rt>, map_sz: MapSz,
-			disp_settings: &DispSettings, disp_chars: &DispChars, menu_options: &mut OptionsUI,
-			logs: &mut Vec<Log>, turn: usize, rng: &mut XorState, frame_stats: &mut FrameStats,
-			kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons,
-			txt_list: &mut TxtList, d: &mut DispState) -> bool {
-		if !self.pre_process_action_chk_valid(cur_mi, units, bldgs, exs.last().unwrap(), map_data) {return false;}
+			gstate: &mut GameState, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+			map_data: &mut MapData<'rt>, map_sz: MapSz, frame_stats: &mut FrameStats) -> bool {
+		if !self.state.iface_settings.pre_process_action_chk_valid(cur_mi, units, bldgs, exs.last().unwrap(), map_data) {return false;}
 		let unit_ind = action_iface.unit_ind.unwrap();
 		let u = &mut units[unit_ind];
 		let u_coord = u.return_coord();
@@ -34,7 +27,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		
 		#[cfg(any(feature="opt_debug", debug_assertions))]
 		{
-			debug_assertq!(u.owner_id == self.cur_player);
+			debug_assertq!(u.owner_id == self.state.iface_settings.cur_player);
 			debug_assertq!(!u.actions_used.is_none());
 			debug_assertq!(u.actions_used.unwrap() < u.template.actions_per_turn);
 			
@@ -92,7 +85,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				
 				// set action if destination is not owned by attacking player
 				macro_rules! set_action{($dest_owner:expr) => {
-					if $dest_owner != self.cur_player || contains_rioters() { // not attacking self
+					if $dest_owner != self.state.iface_settings.cur_player || contains_rioters() { // not attacking self
 						units[unit_ind].action.last_mut().unwrap().action_type = 
 							ActionType::Attack {
 									attack_coord: Some(dest_coord), 
@@ -131,7 +124,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				// convert original unit's action to a standard Mv
 				// 	(GroupMv should not be used aside from UI selection of units)
 				action.action_type = ActionType::Mv;
-				mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, relations, map_sz, DelAction::Delete, logs, turn);
+				mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Delete);
 				
 				// mv group
 				{
@@ -180,7 +173,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 									u.action.pop();
 									u.action.push(action_iface.action);
 									
-									mv_unit(*group_unit_ind, true, units, map_data, exs, bldgs, players, relations, map_sz, DelAction::Delete, logs, turn);
+									mv_unit(*group_unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Delete);
 								}
 							}
 						}}
@@ -188,7 +181,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				}
 				
 				self.reset_unit_subsel();
-				self.update_all_player_pieces_mvd_flag(units);
+				self.state.iface_settings.update_all_player_pieces_mvd_flag(units);
 				return true;
 				
 			// no path computed -- remove action
@@ -200,7 +193,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		
 		// req there be a building that's unfinished  
 		}else if let ActionType::WorkerContinueBuildBldg = action.action_type {
-			if let Some(bldg_ind) = worker_can_continue_bldg(true, bldgs, map_data, exs.last().unwrap(), self) {
+			if let Some(bldg_ind) = worker_can_continue_bldg(true, bldgs, map_data, exs.last().unwrap(), &self.state.iface_settings) {
 				action.action_type = ActionType::WorkerBuildBldg {
 					valid_placement: true,
 					template: bldgs[bldg_ind].template,
@@ -222,14 +215,13 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		if action.path_coords.len() > 0 {
 			match action.action_type {
 				ActionType::WorkerBuildStructure {..} => {},
-				_ => {mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, relations, map_sz, DelAction::Record(&mut disband_unit_inds), logs, turn);}
+				_ => {mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds));}
 			}
 		}
 		
 		// attacks (if relevant and not disbanded (ex. boarding boat))
-		do_attack_action(unit_ind, &mut disband_unit_inds, units, bldgs, temps, players, relations,
-			map_data, exs, logs, self, disp_chars, disp_settings, menu_options, self.cur_player_paused(players),
-			map_sz, frame_stats, turn, rng, kbd, l, buttons, txt_list, d);
+		do_attack_action(unit_ind, &mut disband_unit_inds, units, bldgs, temps, players, gstate,
+			map_data, exs, self, self.state.iface_settings.cur_player_paused(players),	map_sz, frame_stats);
 		
 		// do not allow repeat attacking
 		if !disband_unit_inds.contains(&unit_ind) {
@@ -242,11 +234,13 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 		}
 		
 		// could occur even when not attacking due to boarding boat
-		disband_units(disband_unit_inds, self.cur_player, units, map_data, exs, players, relations, map_sz, logs, turn);
+		disband_units(disband_unit_inds, self.state.iface_settings.cur_player, units, map_data, exs, players, gstate, map_sz);
 		
 		return true;
 	}
-	
+}
+
+impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	// Step 1:
 	// returns true if the action can be executed now, false if additional information needed
 	// from the player (mostly used w/ building actions, to check and set the start and end locations)
@@ -254,8 +248,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	// `cur`_mi is the cursor map location
 	// ***Note: not run when AddActionTo::AllInBrigade
 	pub fn pre_process_action_chk_valid(&mut self, cur_mi: u64, units: &Vec<Unit<'bt,'ut,'rt,'dt>>,
-			bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>,
-			exf: &HashedMapEx, map_data: &mut MapData) -> bool {
+			bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, exf: &HashedMapEx, map_data: &mut MapData) -> bool {
 		debug_assert!(self.add_action_to.is_build_list() || self.add_action_to.is_individual_unit());
 		
 		// the start coordinate was not set, prevent the action from being set in the unit or build list
@@ -317,8 +310,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	// used w/ actions requiring rectangular selection (ex. zones)
 	// returns true if the start coordinate was already set (or not needed), false if 
 	// it was either set in this function or the coordinate is invalid
-	pub fn set_action_start_coord_if_not_set(&mut self, cur_mi: u64, units: &Vec<Unit<'bt,'ut,'rt,'dt>>,
-			exf: &HashedMapEx, map_data: &mut MapData) -> bool {
+	pub fn set_action_start_coord_if_not_set(&mut self, cur_mi: u64, units: &Vec<Unit<'bt,'ut,'rt,'dt>>, exf: &HashedMapEx, map_data: &mut MapData) -> bool {
 		return if let Some(action) = self.add_action_to.first_action_mut() {
 			match &mut action.action_type {
 				// check if the proposed start coordinate is clear

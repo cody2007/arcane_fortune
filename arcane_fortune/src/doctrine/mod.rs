@@ -5,7 +5,7 @@ use crate::resources::ResourceTemplate;
 use crate::buildings::BldgTemplate;
 use crate::units::UnitTemplate;
 use crate::localization::Localization;
-use crate::disp_lib::{endwin};//, CInt};
+use crate::renderer::{endwin};//, CInt};
 
 pub mod disp; pub use disp::*;
 

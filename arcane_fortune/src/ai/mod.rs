@@ -9,7 +9,7 @@ use crate::player::Stats;
 use crate::disp::*;
 use crate::units::*;
 use crate::buildings::*;
-use crate::disp_lib::*;
+use crate::renderer::*;
 use crate::map::MapData;
 use crate::gcore::hashing::HashedMapEx;
 use crate::gcore::*;

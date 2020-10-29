@@ -1,6 +1,17 @@
 {
 	peace_treaty_min_years: 5
-	declare_war_mood_drop: 1.0
-	threaten_mood_drop: 0.25
+	friendship_threshold: 0.1
+	enemy_threshold: -0.1
+	mood_you_declared_war_on_us: -1.0
+	mood_we_declared_war_on_you: -0.5
+	mood_we_are_sympathetic_to_the_unjust_war_against_you: 0.15
+	mood_you_declared_war_on_our_friend: -0.25
+	mood_you_declared_war_on_our_enemy: 0.25
+	mood_you_threatened_us: -0.25
+	mood_common_doctrine: 2
+	mood_differing_doctrine: -1
+	mood_fiefdom: 0.5
+	mood_fiefdom_we_do_not_support_the_war: -0.5
+	mood_fiefdom_we_demand_war: -0.3
 }
 

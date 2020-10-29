@@ -7,9 +7,8 @@ use crate::saving::*;
 use crate::gcore::rand::XorState;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::doctrine::DoctrineTemplate;
-use crate::gcore::Log;
-use crate::disp_lib::endwin;
-use crate::containers::Templates;
+use crate::renderer::endwin;
+use crate::containers::*;
 use crate::player::*;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
@@ -294,15 +293,15 @@ pub fn return_effective_tax_rate(coord: u64, map_data: &mut MapData, exs: &mut V
 // run at end of turn for new taxable constructions moving in for each zone type
 pub fn create_taxable_constructions<'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
-		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, logs: &mut Vec<Log>, map_sz: MapSz, turn: usize, rng: &mut XorState){
+		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, map_sz: MapSz, gstate: &mut GameState){
 	#[cfg(feature="profile")]
 	let _g = Guard::new("create_taxable_constructions");
 	
-	if rng.gen_f32b() < 0.25 {return;}
+	if gstate.rng.gen_f32b() < 0.25 {return;}
 	
 	let exf = exs.last_mut().unwrap();
 	
-	if let Some(coord) = SampleType::ZoneDemand.coord_frm_turn_computed(players, exf, map_sz, turn, rng) {
+	if let Some(coord) = SampleType::ZoneDemand.coord_frm_turn_computed(players, exf, map_sz, gstate) {
 		if let Some(ex) = exf.get(&coord) {
 			if !land_clear_ign_zone_ign_owner(coord, &map_data.get(ZoomInd::Full, coord), exf) {
 				return;
@@ -322,7 +321,7 @@ pub fn create_taxable_constructions<'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>
 				};
 				
 				let mut zone_demand: Option<f32> = None;
-				let bldg_template_inds = rng.inds(temps.bldgs.len());
+				let bldg_template_inds = gstate.rng.inds(temps.bldgs.len());
 				
 				// loop over bldgs
 				'bldg_loop: for bldg_template_ind in bldg_template_inds.iter() {
@@ -350,18 +349,18 @@ pub fn create_taxable_constructions<'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>
 					
 					///////////
 					let player = &mut players[owner_id as usize];
-					let effective_tax = return_effective_tax_rate(coord, map_data, exs, player, bldgs, temps.doctrines, map_sz, turn);
+					let effective_tax = return_effective_tax_rate(coord, map_data, exs, player, bldgs, temps.doctrines, map_sz, gstate.turn);
 					assert!(effective_tax >= 0.);
 					
 					// prevent re-computing unnecessarily
 					if zone_demand.is_none() {
-						zone_demand = Some(return_potential_demand(coord, map_data, exs, player, bldgs, map_sz, turn));
+						zone_demand = Some(return_potential_demand(coord, map_data, exs, player, bldgs, map_sz, gstate.turn));
 					}
 					
 					// add bldg
-					if ((rng.gen_f32b() < 2.*(4.*zone_demand.unwrap() - effective_tax)) || // add based on zone demand
-						(resource_present && (rng.gen_f32b() < 1.))) && // add based on a resource being present
-							add_bldg(coord, owner_id, bldgs, bt, None, temps, map_data, exs, players, turn, logs, rng) {
+					if ((gstate.rng.gen_f32b() < 2.*(4.*zone_demand.unwrap() - effective_tax)) || // add based on zone demand
+						(resource_present && (gstate.rng.gen_f32b() < 1.))) && // add based on a resource being present
+							add_bldg(coord, owner_id, bldgs, bt, None, temps, map_data, exs, players, gstate) {
 						
 						let ind = bldgs.len()-1;
 						bldgs[ind].construction_done = None;

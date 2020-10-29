@@ -6,9 +6,10 @@ pub struct RatioEntry {
 
 use std::f32::consts::PI;
 pub fn print_circle_plot(radius: i32, pos: Coord, ratios: &Vec<RatioEntry>,
-		disp_chars: &DispChars, d: &mut DispState) {
+		dstate: &mut DispState) {
 	debug_assertq!(ratios.iter().fold(0., |sum, i| sum + i.frac) == 1.);
 	
+	let d = &mut dstate.renderer;
 	let quad = |y: f32, x: f32| {
 		if y >= 0. && x >= 0. {1} else
 		if y >= 0. && x <= 0. {2} else
@@ -81,7 +82,7 @@ pub fn print_circle_plot(radius: i32, pos: Coord, ratios: &Vec<RatioEntry>,
 				} {continue;}
 				
 				d.mv(pos.y as i32 + y + radius, pos.x as i32 + radius*X_EXPANSION as i32+ x);
-				d.addch(disp_chars.land_char);
+				d.addch(dstate.chars.land_char);
 			} // x
 		} // y
 		d.attroff(ratio.color);

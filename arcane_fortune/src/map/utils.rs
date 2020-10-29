@@ -7,7 +7,7 @@ use crate::doctrine::DoctrineTemplate;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::map::ZoomInd;
 use crate::zones::{ZoneEx};
-use crate::disp_lib::endwin;
+use crate::renderer::*;
 
 impl MapSz {
 	pub fn coord_wrap(&self, i: isize, j: isize) -> Option<u64> {

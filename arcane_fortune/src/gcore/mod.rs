@@ -6,12 +6,10 @@ use crate::disp::*;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::zones::{HappinessCategory, PacifismMilitarism};
-use crate::disp_lib::DispState;
+use crate::renderer::*;
 use crate::saving::*;
-use crate::disp_lib::endwin;
 use crate::ai::*;
-use crate::localization::Localization;
-use crate::containers::Templates;
+use crate::containers::*;
 use crate::player::{Stats, Player, PlayerType};
 
 pub const HUMAN_PLAYER_IND: usize = 0; // assumed to be one because new_game() adds barbarians interspersed with AI/Human players
@@ -62,17 +60,17 @@ impl Stats<'_,'_,'_,'_> {
 }
 
 // either from collapse or take-over
-pub fn civ_destroyed(player: &mut Player, relations: &mut Relations, iface_settings: &mut IfaceSettings, turn: usize, d: &mut DispState) {
+pub fn civ_destroyed(player: &mut Player, gstate: &mut GameState, disp: &mut Disp) {
 	player.stats.alive = false;
 	player.stats.gold = 0.;
 	
-	for war_enemy in relations.at_war_with(player.id as usize) {
-		relations.declare_peace_wo_logging(war_enemy, player.id as usize, turn);
+	for war_enemy in gstate.relations.at_war_with(player.id as usize) {
+		gstate.relations.declare_peace_wo_logging(war_enemy, player.id as usize, gstate.turn);
 	}
 	
 	// human player end game
-	if player.id == iface_settings.cur_player {
-		iface_settings.player_end_game(relations, d);
+	if player.id == disp.state.iface_settings.cur_player {
+		disp.player_end_game(&mut gstate.relations);
 	
 	// ai end game -- clear attack fronts
 	}else{

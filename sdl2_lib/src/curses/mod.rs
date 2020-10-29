@@ -61,14 +61,14 @@ impl ColorPair {
 		}
 	}
 	
-	pub fn texture_from_cache(&mut self, ch: char, font: &Font, invert: bool, renderer: &Renderer) -> &Texture {
+	pub fn texture_from_cache(&mut self, ch: char, font: &Font, invert: bool, sdl_renderer: &SDLRenderer) -> &Texture {
 		macro_rules! get_or_set_cache{($ch: expr, $cache: expr, $color: expr) => {
 			let font_cache_entry = &mut $cache[$ch as usize];
 			return if let Some(texture) = font_cache_entry {
 				texture
 			}else{
 				*font_cache_entry = Some(
-					Texture::from_font(renderer, font, &String::from($ch), $color)
+					Texture::from_font(sdl_renderer, font, &String::from($ch), $color)
 				);
 				font_cache_entry.as_ref().unwrap()
 			};
@@ -91,7 +91,7 @@ impl ColorPair {
 }
 
 pub struct TxtState {
-	pub renderer: Renderer,
+	pub sdl_renderer: SDLRenderer,
 	
 	x: c_int,
 	y: c_int,
@@ -168,13 +168,13 @@ impl TxtState {
 				bg.g /= 2;
 			}
 			
-			self.renderer.set_draw_color(bg.r, bg.g, bg.b, bg.a);
-			self.renderer.fill_rect(rect);
+			self.sdl_renderer.set_draw_color(bg.r, bg.g, bg.b, bg.a);
+			self.sdl_renderer.fill_rect(rect);
 		}
 		
 		// foreground
 		macro_rules! set_fg{() => {
-			self.renderer.set_draw_color(fg.r, fg.g, fg.b, fg.a);
+			self.sdl_renderer.set_draw_color(fg.r, fg.g, fg.b, fg.a);
 		};};
 		
 		let half = |val| { // also takes the ceil
@@ -184,12 +184,12 @@ impl TxtState {
 		match self.special_char {
 			SpecialChar::None => {
 				if ch != ' ' {
-					let font_texture = color_pair.texture_from_cache(ch, &self.font, invert, &self.renderer);
-					self.renderer.copy(&font_texture, &rect);
+					let font_texture = color_pair.texture_from_cache(ch, &self.font, invert, &self.sdl_renderer);
+					self.sdl_renderer.copy(&font_texture, &rect);
 					
 					// underline
 					if self.underline {set_fg!();
-						self.renderer.fill_rect(SDL_Rect {
+						self.sdl_renderer.fill_rect(SDL_Rect {
 							w,
 							h: 1,
 							x: self.x*w,
@@ -198,14 +198,14 @@ impl TxtState {
 					}
 				}
 			} SpecialChar::VLine => {set_fg!();
-				self.renderer.fill_rect(SDL_Rect {
+				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: 1,
 					h,
 					x: self.x*w + half(w),
 					y: self.y*h
 				});
 			} SpecialChar::HLine => {set_fg!();
-				self.renderer.fill_rect(SDL_Rect {
+				self.sdl_renderer.fill_rect(SDL_Rect {
 					w,
 					h: 1,
 					x: self.x*w,
@@ -213,7 +213,7 @@ impl TxtState {
 				});
 			} SpecialChar::LLCorner => {set_fg!();
 				// h -
-				self.renderer.fill_rect(SDL_Rect {
+				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: half(w),
 					h: 1,
 					x: self.x*w + half(w),
@@ -221,7 +221,7 @@ impl TxtState {
 				});
 				
 				// v |
-				self.renderer.fill_rect(SDL_Rect {
+				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: 1,
 					h: half(h),
 					x: self.x*w + half(w),
@@ -229,7 +229,7 @@ impl TxtState {
 				});
 			} SpecialChar::LRCorner => {set_fg!();
 				// h -
-				self.renderer.fill_rect(SDL_Rect {
+				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: half(w),
 					h: 1,
 					x: self.x*w,
@@ -237,7 +237,7 @@ impl TxtState {
 				});
 				
 				// v |
-				self.renderer.fill_rect(SDL_Rect {
+				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: 1,
 					h: half(h),
 					x: self.x*w + half(w),
@@ -245,7 +245,7 @@ impl TxtState {
 				});
 			} SpecialChar::URCorner => {set_fg!();
 				// h -
-				self.renderer.fill_rect(SDL_Rect {
+				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: half(w),
 					h: 1,
 					x: self.x*w,
@@ -253,7 +253,7 @@ impl TxtState {
 				});
 				
 				// v |
-				self.renderer.fill_rect(SDL_Rect {
+				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: 1,
 					h: half(h),
 					x: self.x*w + half(w),
@@ -261,7 +261,7 @@ impl TxtState {
 				});
 			} SpecialChar::ULCorner => {set_fg!();
 				// h -
-				self.renderer.fill_rect(SDL_Rect {
+				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: half(w),
 					h: 1,
 					x: self.x*w + half(w),
@@ -269,7 +269,7 @@ impl TxtState {
 				});
 				
 				// v |
-				self.renderer.fill_rect(SDL_Rect {
+				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: 1,
 					h: half(h),
 					x: self.x*w + half(w),
@@ -292,7 +292,7 @@ pub struct Cursors {
 	crosshair: Cursor
 }
 
-pub struct DispState {
+pub struct Renderer {
 	pub txt_state: TxtState,
 	fullscreen: bool,
 	window: Window,
@@ -311,13 +311,13 @@ enum SpecialChar {
 	None, VLine, HLine, LLCorner, LRCorner, ULCorner, URCorner
 }
 
-impl DispState {
-	fn new(window: Window, font_sz: c_int) -> DispState {
-		let renderer = Renderer::new(&window);
+impl Renderer {
+	fn new(window: Window, font_sz: c_int) -> Renderer {
+		let sdl_renderer = SDLRenderer::new(&window);
 		let font = Font::new(Path::new(FONT_FILE).as_os_str().to_str().unwrap(), font_sz);
 		let fg = SDL_Color::from(COLOR_WHITE);
 		let bg = SDL_Color::from(COLOR_BLACK);
-		let font_ch_sz = Texture::from_font(&renderer, &font, "W", fg).size();
+		let font_ch_sz = Texture::from_font(&sdl_renderer, &font, "W", fg).size();
 		
 		let color_pairs = {
 			const N_COLOR_PAIRS: usize = 256;
@@ -328,9 +328,9 @@ impl DispState {
 			color_pairs
 		};
 		
-		DispState {
+		Renderer {
 			txt_state: TxtState {
-				renderer,
+				sdl_renderer,
 				
 				x: 0,
 				y: 0,
@@ -498,7 +498,7 @@ impl DispState {
 		#[cfg(feature="profile")]
 		let _g = Guard::new("getmaxyx");
 		
-		let screen_sz = self.txt_state.renderer.get_viewport();
+		let screen_sz = self.txt_state.sdl_renderer.get_viewport();
 		*y = screen_sz.h / self.txt_state.font_ch_sz.h;
 		*x = screen_sz.w / self.txt_state.font_ch_sz.w;
 	}
@@ -541,8 +541,8 @@ impl DispState {
 				};
 				
 				let c = def_color_pair.fg;
-				renderer.set_draw_color(c.r, c.b, c.g, c.a);
-				renderer.fill_rect(rect);*/
+				sdl_renderer.set_draw_color(c.r, c.b, c.g, c.a);
+				sdl_renderer.fill_rect(rect);*/
 			} CURSOR_VISIBILITY::CURSOR_INVISIBLE => {}
 		}
 		
@@ -558,13 +558,13 @@ impl DispState {
 		}
 		
 		{ // update display
-			let renderer = &self.txt_state.renderer;
+			let sdl_renderer = &self.txt_state.sdl_renderer;
 			let def_color_pair = &self.color_pairs[0];
 			
-			renderer.present();
+			sdl_renderer.present();
 			let c = def_color_pair.bg;
-			renderer.set_draw_color(c.r, c.b, c.g, c.a);
-			renderer.clear();
+			sdl_renderer.set_draw_color(c.r, c.b, c.g, c.a);
+			sdl_renderer.clear();
 		}
 	}
 	
@@ -647,17 +647,18 @@ impl DispState {
 						self.clear();
 						return KEY_WINDOW;
 					} Event::MouseMotion(motion_event) => { // SDL_MouseMotionEvent
-						let bstate = if (motion_event.state & SDL_BUTTON_LMASK) == 0 {
-							MouseState::Motion
-						}else{
-							MouseState::LeftDragging
-						};
+						let bstate = 
+							if (motion_event.state & SDL_BUTTON_LMASK) != 0 {MouseState::LeftDragging
+							}else if (motion_event.state & SDL_BUTTON_RMASK) != 0 {MouseState::RightDragging
+							}else if (motion_event.state & SDL_BUTTON_MMASK) != 0 {MouseState::MiddleDragging
+							}else{MouseState::Motion};
 						
 						self.set_mouse_event(bstate, motion_event.x, motion_event.y);
 						return KEY_MOUSE;
 					} Event::MouseButtonDown(button_event) => { // SDL_MouseButtonEvent
 						let bstate = match button_event.button {
 							ButtonInd::SDL_BUTTON_LEFT => MouseState::LeftPressed,
+							ButtonInd::SDL_BUTTON_MIDDLE => MouseState::MiddlePressed,
 							ButtonInd::SDL_BUTTON_RIGHT => MouseState::RightPressed,
 							_ => {continue 'event_loop;}
 						};
@@ -667,6 +668,7 @@ impl DispState {
 					} Event::MouseButtonUp(button_event) => { // SDL_MouseButtonEvent
 						let bstate = match button_event.button {
 							ButtonInd::SDL_BUTTON_LEFT => MouseState::LeftReleased,
+							ButtonInd::SDL_BUTTON_MIDDLE => MouseState::MiddleReleased,
 							ButtonInd::SDL_BUTTON_RIGHT => MouseState::RightReleased,
 							_ => {continue 'event_loop;}
 						};
@@ -741,7 +743,7 @@ impl DispState {
 		
 		let txt_state = &mut self.txt_state;
 		txt_state.font = Font::new(FONT_FILE, font_sz);
-		txt_state.font_ch_sz = Texture::from_font(&txt_state.renderer, &txt_state.font, "W", SDL_Color::from(COLOR_WHITE)).size();
+		txt_state.font_ch_sz = Texture::from_font(&txt_state.sdl_renderer, &txt_state.font, "W", SDL_Color::from(COLOR_WHITE)).size();
 		
 		// invalidate caches
 		for color_pair in self.color_pairs.iter_mut() {
@@ -752,7 +754,7 @@ impl DispState {
 	pub fn clrtoeol(&mut self) {
 		let txt_state = &self.txt_state;
 		let cur_x = txt_state.x;
-		let sz = txt_state.renderer.get_viewport();
+		let sz = txt_state.sdl_renderer.get_viewport();
 		let chars_per_line = sz.w / txt_state.font_ch_sz.w;
 		
 		// we are already at the edge of the line
@@ -768,10 +770,10 @@ impl DispState {
 	}
 	
 	pub fn clear(&mut self) {
-		let renderer = &self.txt_state.renderer;
+		let sdl_renderer = &self.txt_state.sdl_renderer;
 		let c = self.color_pairs[0].bg;
-		renderer.set_draw_color(c.r, c.b, c.b, c.a);
-		renderer.clear();
+		sdl_renderer.set_draw_color(c.r, c.b, c.b, c.a);
+		sdl_renderer.clear();
 		self.txt_state.char_buf = vec![' ' as chtype; CHAR_BUF_SZ*CHAR_BUF_SZ];
 	}
 	pub fn timeout(&mut self, t: CInt) {self.key_timeout = t;}
@@ -1068,13 +1070,13 @@ impl SDL_Color {
 	}
 }
 
-pub fn setup_disp_lib() -> DispState {
+pub fn setup_disp_lib() -> Renderer {
 	sdl_init();
 	ttf_init();
 	
 	let window = Window::new("Arcane Fortune", Some(ICON_FILE));
 	unsafe {SDL_StartTextInput();}
-	DispState::new(window, 14)
+	Renderer::new(window, 14)
 }
 
 #[derive(Clone, PartialEq)]
@@ -1083,8 +1085,12 @@ pub enum MouseState {
 	LeftDragging, // motion w/ left button pressed
 	LeftReleased,
 	LeftPressed,
+	RightDragging,
 	RightReleased,
 	RightPressed,
+	MiddleDragging,
+	MiddleReleased,
+	MiddlePressed,
 	ScrollUp,
 	ScrollDown,
 	CtrlScroll
@@ -1099,6 +1105,7 @@ pub struct MEVENT {
 }
 
 pub fn rbutton_clicked(_mouse_event: &Option<MEVENT>) -> bool {false}
+pub fn mbutton_clicked(_mouse_event: &Option<MEVENT>) -> bool {false}
 pub fn lbutton_clicked(_mouse_event: &Option<MEVENT>) -> bool {false}
 
 pub fn rbutton_released(mouse_event: &Option<MEVENT>) -> bool {
@@ -1111,6 +1118,22 @@ pub fn rbutton_released(mouse_event: &Option<MEVENT>) -> bool {
 
 pub fn rbutton_pressed(mouse_event: &Option<MEVENT>) -> bool {
 	if let Some(MEVENT {bstate: MouseState::RightPressed, ..}) = mouse_event {
+		true
+	}else{
+		false
+	}
+}
+
+pub fn mbutton_released(mouse_event: &Option<MEVENT>) -> bool {
+	if let Some(MEVENT {bstate: MouseState::MiddleReleased, ..}) = mouse_event {
+		true
+	}else{
+		false
+	}
+}
+
+pub fn mbutton_pressed(mouse_event: &Option<MEVENT>) -> bool {
+	if let Some(MEVENT {bstate: MouseState::MiddlePressed, ..}) = mouse_event {
 		true
 	}else{
 		false
@@ -1133,12 +1156,16 @@ pub fn lbutton_pressed(mouse_event: &Option<MEVENT>) -> bool {
 	}
 }
 
-pub fn dragging(mouse_event: &Option<MEVENT>) -> bool {
-	if let Some(MEVENT {bstate: MouseState::LeftDragging, ..}) = mouse_event {
-		true
-	}else{
-		false
-	}
+pub fn ldragging(mouse_event: &Option<MEVENT>) -> bool {
+	if let Some(MEVENT {bstate: MouseState::LeftDragging, ..}) = mouse_event {true} else {false}
+}
+
+pub fn rdragging(mouse_event: &Option<MEVENT>) -> bool {
+	if let Some(MEVENT {bstate: MouseState::RightDragging, ..}) = mouse_event {true} else {false}
+}
+
+pub fn mdragging(mouse_event: &Option<MEVENT>) -> bool {
+	if let Some(MEVENT {bstate: MouseState::MiddleDragging, ..}) = mouse_event {true} else {false}
 }
 
 pub fn motion(mouse_event: &Option<MEVENT>) -> bool {

@@ -21,7 +21,7 @@ pub struct Personalization {
 	
 	pub city_nm_theme: usize, // index into nms.cities[city_nm_theme]
 	pub motto: String,
-	pub founded: usize
+	pub founded: usize // turn
 }
 
 impl_saving!{Personalization {color, nm, gender_female,

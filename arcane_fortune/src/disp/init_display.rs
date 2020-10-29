@@ -1,30 +1,60 @@
 use super::*;
+use crate::disp::menus::*;
+use crate::keyboard::KeyboardMap;
+use crate::localization::Localization;
 
-pub fn init_display() -> (DispState, DispSettings) {
-	let d = setup_disp_lib();
-	
-	#[cfg(target_os = "windows")]
-	{ // should support 256 colors, the code below doesn't seem to detect correctly that it does
-		return (d, DispSettings {limit_colors: false, limit_schars: false });
-	}
-	
-	#[cfg(target_os = "linux")]
-	{
-		if !has_colors()|| !can_change_color() || COLOR_PAIRS() < 256 {
-			(d, DispSettings { limit_colors: true, limit_schars: false })
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
+	pub fn new() -> Self {
+		// should support 256 colors, the code below doesn't seem to detect correctly that it does
+		#[cfg(target_os = "windows")]
+		let terminal = TerminalSettings {limit_colors: false, limit_schars: false };
+		
+		#[cfg(target_os = "linux")]
+		let terminal = if !has_colors()|| !can_change_color() || COLOR_PAIRS() < 256 {
+			TerminalSettings { limit_colors: true, limit_schars: false }
 		}else{
-			(d, DispSettings { limit_colors: false, limit_schars: false })
-		}
-	}
-	
-	#[cfg(target_os = "macos")]
-	{
-		if !has_colors()|| !can_change_color() || COLOR_PAIRS() < 256 {
-			(d, DispSettings { limit_colors: true, limit_schars: true })
+			TerminalSettings { limit_colors: false, limit_schars: false }
+		};
+		
+		#[cfg(target_os = "macos")]
+		let terminal = if !has_colors()|| !can_change_color() || COLOR_PAIRS() < 256 {
+			TerminalSettings { limit_colors: true, limit_schars: true }
 		}else{
-			(d, DispSettings { limit_colors: false, limit_schars: true })
-		}
+			TerminalSettings { limit_colors: false, limit_schars: true }
+		};
+		
+		let mut renderer = setup_disp_lib();
+		let chars = init_color_pairs(&terminal, &mut renderer);
+		let mut iface_settings = IfaceSettings::default("".to_string(), 0);
+		let kbd = KeyboardMap::new();
+		let local = Localization::new();
+		let buttons = Buttons::new(&kbd, &local);
+		
+		let mut disp = Disp {
+			ui_mode: UIMode::None,
+			state: DispState {
+				iface_settings,
+				terminal,
+				chars,
+				menu_options: OptionsUI {options: Vec::new(), max_strlen: 0},
+				production_options: ProdOptions {
+					bldgs: Box::new([]),
+					worker: OptionsUI {options: Vec::new(), max_strlen: 0}
+				},
+				txt_list: TxtList::new(),
+				buttons,
+				local,
+				kbd,
+				
+				key_pressed: 0_i32,
+				mouse_event: None,
+				
+				renderer
+			}
+		};
+		
+		init_menus(&mut disp.state, &Vec::new());
+		disp
 	}
-
 }
 

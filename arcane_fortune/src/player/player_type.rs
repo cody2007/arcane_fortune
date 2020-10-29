@@ -1,5 +1,4 @@
-use crate::gcore::{XorState};
-use crate::ai::*;
+use super::*;
 
 #[derive(Clone, PartialEq)]
 pub enum PlayerType<'bt,'ut,'rt,'dt> {
@@ -21,6 +20,22 @@ impl PlayerType<'_,'_,'_,'_> {
 
 	pub fn is_human(&self) -> bool {
 		if let PlayerType::Human(_) = &self {true} else {false}
+	}
+}
+
+impl Player<'_,'_,'_,'_> {
+	pub fn req_population_center(&self, turn: usize) -> bool {
+		const NO_CITY_HALL_GRACE_TURNS: usize = 100;
+		const NO_MANOR_GRACE_TURNS: usize = NO_CITY_HALL_GRACE_TURNS + NOBILITY_TURN_DELAY;
+		match &self.ptype {
+			PlayerType::Human(_) | PlayerType::Empire(_) => {
+				turn > (GAME_START_TURN + NO_CITY_HALL_GRACE_TURNS)
+			}
+			PlayerType::Nobility(_) => {
+				turn > (self.personalization.founded + NO_MANOR_GRACE_TURNS)
+			}
+			PlayerType::Barbarian(_) => false
+		}
 	}
 }
 

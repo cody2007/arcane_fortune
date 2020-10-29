@@ -10,7 +10,7 @@ use crate::map::{ArabilityType, MapData, ZoneType, TechProg};
 use crate::player::Stats;
 use crate::disp::{ScreenSz, DispChars};
 use crate::localization::Localization;
-//use crate::disp_lib::endwin;
+use crate::renderer::*;
 
 pub const N_RESOURCES_DISCOV_LOG: usize = 20; // # of locations to log for each resource type
 
@@ -114,7 +114,6 @@ impl Stats<'_,'_,'_,'_> {
 }
 
 use crate::disp::{Coord};
-use crate::disp_lib::{endwin, chtype};
 use crate::map::{ZoomInd, MapSz, Map};
 
 impl <'rt>Map<'rt> {

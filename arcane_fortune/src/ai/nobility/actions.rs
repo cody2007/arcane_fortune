@@ -1,21 +1,19 @@
 use super::*;
 use crate::map::{MapSz};
-use crate::gcore::Relations;
-use crate::disp_lib::*;
-use crate::disp::{UIMode, IfaceSettings};
+use crate::renderer::*;
 
-const DELAY_TURNS_BEFORE_JOIN_REQ: usize = 4 * TURNS_PER_YEAR;
+const DELAY_TURNS_BEFORE_JOIN_REQ: usize = 8 * TURNS_PER_YEAR;
 
 const MARRIAGE_PROB_PER_TURN: f32 = 1./(TURNS_PER_YEAR as f32*10.);
 const CHILD_PROB_PER_TURN: f32 = 1./(TURNS_PER_YEAR as f32*10.);
 
 // req to join empire, nobility management
 impl House {
-	pub fn plan_actions<'bt,'ut,'rt,'dt>(player_ind: usize, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, relations: &mut Relations, map_sz: MapSz, 
-			logs: &mut Vec<Log>, nms: &Nms, iface_settings: &mut IfaceSettings<'_, 'bt,'ut,'rt,'dt>, turn: usize, rng: &mut XorState, d: &mut DispState) {
+	pub fn plan_actions<'bt,'ut,'rt,'dt>(player_ind: usize, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, map_sz: MapSz, 
+			nms: &Nms, disp: &mut Disp<'_, 'bt,'ut,'rt,'dt>) {
 		// join empire?
 		let player = &players[player_ind];
-		if turn > (player.personalization.founded + DELAY_TURNS_BEFORE_JOIN_REQ) {
+		if gstate.turn > (player.personalization.founded + DELAY_TURNS_BEFORE_JOIN_REQ) {
 			if let Some(
 				NobilityState {
 					house: House {
@@ -30,14 +28,14 @@ impl House {
 						
 						// join automatically
 						if empire.ptype.is_empire() {
-							relations.join_as_fiefdom(player_ind, empire_ind, players, logs, turn);
+							gstate.relations.join_as_fiefdom(player_ind, empire_ind, players, &mut gstate.logs, gstate.turn);
 							
 						// ask to join human player
 						}else if empire.ptype.is_human() {
-							iface_settings.create_interrupt_window(UIMode::AcceptNobilityIntoEmpire {
+							disp.create_interrupt_window(UIMode::AcceptNobilityIntoEmpire(AcceptNobilityIntoEmpireState {
 								mode: 0,
 								house_ind: player_ind
-							}, d);
+							}));
 						}
 						
 						// set flag
@@ -57,22 +55,22 @@ impl House {
 			for noble_pair in house.noble_pairs.iter_mut() {
 				// add new child to marriage?
 				if let Some(marriage) = &mut noble_pair.marriage {
-					if rng.gen_f32b() > CHILD_PROB_PER_TURN {continue;}
+					if gstate.rng.gen_f32b() > CHILD_PROB_PER_TURN {continue;}
 					
 					child_ind += 1;
 					marriage.children.push(child_ind);
 					
 				// add marriage?
 				}else{
-					if rng.gen_f32b() > MARRIAGE_PROB_PER_TURN {continue;}
-					noble_pair.marriage = Marriage::new(&noble_pair.noble, nms, rng, turn);
+					if gstate.rng.gen_f32b() > MARRIAGE_PROB_PER_TURN {continue;}
+					noble_pair.marriage = Marriage::new(&noble_pair.noble, nms, gstate);
 				}
 			}
 			
 			// add children to noble_pairs
 			for _ in (house.noble_pairs.len()-1)..child_ind {
 				house.noble_pairs.push(NoblePair {
-					noble: Noble::new(nms, 0, None, rng, turn),
+					noble: Noble::new(nms, 0, None, gstate),
 					marriage: None
 				});
 			}
@@ -83,16 +81,15 @@ impl House {
 impl <'bt,'ut,'rt,'dt>NobilityState<'bt,'ut,'rt,'dt> {
 	pub fn plan_actions(player_ind: usize, is_cur_player: bool, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
 			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, map_data: &mut MapData<'rt>,
-			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, disband_unit_inds: &mut Vec<usize>, relations: &mut Relations, map_sz: MapSz, rng: &mut XorState, 
-			logs: &mut Vec<Log>, nms: &Nms, iface_settings: &mut IfaceSettings<'_, 'bt,'ut,'rt,'dt>, turn: usize, 
-			temps: &Templates<'bt,'ut,'rt,'dt,'_>, d: &mut DispState) {
-		House::plan_actions(player_ind, players, relations, map_sz, logs, nms, iface_settings, turn, rng, d);
+			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, disband_unit_inds: &mut Vec<usize>, gstate: &mut GameState, map_sz: MapSz, 
+			temps: &Templates<'bt,'ut,'rt,'dt,'_>, disp: &mut Disp<'_, 'bt,'ut,'rt,'dt>) {
+		House::plan_actions(player_ind, players, gstate, map_sz, &temps.nms, disp);
 		
 		/////////////////////////// AIState common actions
 		let player = &mut players[player_ind];
 		match &mut player.ptype {
 			PlayerType::Nobility(NobilityState {house, ai_state}) => {
-				ai_state.common_actions(player_ind, is_cur_player, &mut player.stats, &house.head_personality(), units, bldgs, relations, map_data, exs, disband_unit_inds, map_sz, temps, rng, logs, turn);
+				ai_state.common_actions(player_ind, is_cur_player, &mut player.stats, &house.head_personality(), units, bldgs, gstate, map_data, exs, disband_unit_inds, map_sz, temps);
 			}
 			PlayerType::Empire(_) | PlayerType::Human(_) | PlayerType::Barbarian(_) => {}
 		}

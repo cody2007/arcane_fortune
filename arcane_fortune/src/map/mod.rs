@@ -4,7 +4,7 @@ use std::io::prelude::*;
 use std::path::Path;*/
 
 use crate::gcore::XorState;
-use crate::disp_lib::*;
+use crate::renderer::*;
 
 #[macro_use]
 pub mod vars;
@@ -20,7 +20,7 @@ pub use utils::*;
 use gen_utils::*;
 
 use crate::disp::*;
-use crate::localization::Localization;
+use crate::containers::*;
 
 const MAX_VAL: f32 = 50000.;
 const ARABILITY_RANGE: isize = 255;
@@ -32,9 +32,9 @@ const SNOW_SPREAD_THRESH: u8 = 2*(ARABILITY_STEP as u8);
 const ELEVATION_RANGE:isize = 24;//32 ;//+ 8; //(32+16);
 pub const ELEVATION_STEP:isize = ELEVATION_RANGE / (2+N_ARABILITY_LVLS);
 
-pub fn map_gen<'rt>(map_sz: MapSz, disp_chars: &DispChars, l: &Localization, rng: &mut XorState, d: &mut DispState) -> Vec<Map<'rt>> {
-	d.clear();
-	let mut screen_sz = getmaxyxu(d);
+pub fn map_gen<'rt>(map_sz: MapSz, rng: &mut XorState, dstate: &mut DispState) -> Vec<Map<'rt>> {
+	dstate.renderer.clear();
+	let mut screen_sz = getmaxyxu(&dstate.renderer);
 	
 	let map_szg = MapSz {h: map_sz.h/2, w: map_sz.w/2, sz: map_sz.sz/4};
 	
@@ -54,7 +54,7 @@ pub fn map_gen<'rt>(map_sz: MapSz, disp_chars: &DispChars, l: &Localization, rng
 		}
 		
 		for ind in 0..map_szg.sz {
-			print_map_status(Some(ind), None, None, None, None, &mut screen_sz, map_szg, ind, disp_chars, l, d);
+			print_map_status(Some(ind), None, None, None, None, &mut screen_sz, map_szg, ind, dstate);
 			
 			debug_assertq!(ind < ind_stack_sz);
 			let rand_ind = ind_stack[ind];
@@ -114,7 +114,7 @@ pub fn map_gen<'rt>(map_sz: MapSz, disp_chars: &DispChars, l: &Localization, rng
 		}
 	}
 	
-	smooth_map(&mut elevation_g, map_szg, rng, None, &mut screen_sz, disp_chars, l, d);
+	smooth_map(&mut elevation_g, map_szg, rng, None, &mut screen_sz, dstate);
 	
 	///////////// threshold land and mountains
 	let mut type_g = vec![MapType::DeepWater; map_szg.sz];
@@ -147,7 +147,7 @@ pub fn map_gen<'rt>(map_sz: MapSz, disp_chars: &DispChars, l: &Localization, rng
 				let ind = i*map_szg.w + j;
 				debug_assertq!(ind < map_szg.sz);
 				
-				print_map_status(Some(map_szg.sz), Some(map_szg.sz), Some(ind), None, None, &mut screen_sz, map_szg, ind, disp_chars, l, d);
+				print_map_status(Some(map_szg.sz), Some(map_szg.sz), Some(ind), None, None, &mut screen_sz, map_szg, ind, dstate);
 				
 				if type_g[ind] != MapType::Land { continue; }
 				
@@ -225,7 +225,7 @@ pub fn map_gen<'rt>(map_sz: MapSz, disp_chars: &DispChars, l: &Localization, rng
 			} // j
 		} // i
 		
-		smooth_map(&mut arability_f, map_szg, rng, Some(&type_g), &mut screen_sz, disp_chars, l, d);
+		smooth_map(&mut arability_f, map_szg, rng, Some(&type_g), &mut screen_sz, dstate);
 		
 		for (ind, ag) in arability_g.iter_mut().enumerate() {
 			*ag = arability_f[ind].round() as u8;

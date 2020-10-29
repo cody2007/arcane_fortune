@@ -1,4 +1,3 @@
-use crate::gcore::{Log, Relations};
 use crate::gcore::hashing::*;
 use crate::buildings::*;
 use crate::units::Unit;
@@ -8,14 +7,13 @@ use crate::saving::SmSvType;
 use super::{return_zone_coord};
 use crate::map::utils::ZoneExFns;
 use crate::ai::CityState;
-use crate::containers::Templates;
+use crate::containers::*;
 use crate::disp::Coord;
 //use crate::disp_lib::endwin;
 
 pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize, cur_player: usize, to_city_state_opt: &mut Option<&mut CityState>,
 		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_data: &mut MapData,
-		relations: &mut Relations, logs: &mut Vec<Log>, map_sz: MapSz, turn: usize) {
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, gstate: &mut GameState, map_sz: MapSz) {
 	
 	if let Some(ref mut ex) = exs.last_mut().unwrap().get_mut(&coord) {
 		if ex.actual.owner_id == Some(to_owner as SmSvType) {return;}
@@ -143,8 +141,8 @@ pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize,
 		
 		compute_zooms_coord(coord, bldgs, temps.bldgs, map_data, exs, players);
 		
-		compute_active_window(coord, cur_player == to_owner, PresenceAction::SetPresentAndDiscover, map_data, exs, &mut players[to_owner].stats, map_sz, relations, units, logs, turn);
-		compute_active_window(coord, cur_player == frm_owner, PresenceAction::SetAbsent, map_data, exs, &mut players[frm_owner].stats, map_sz, relations, units, logs, turn);
+		compute_active_window(coord, cur_player == to_owner, PresenceAction::SetPresentAndDiscover, map_data, exs, &mut players[to_owner].stats, map_sz, gstate, units);
+		compute_active_window(coord, cur_player == frm_owner, PresenceAction::SetAbsent, map_data, exs, &mut players[frm_owner].stats, map_sz, gstate, units);
 	}
 }
 
@@ -152,8 +150,7 @@ pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize,
 // registers bldgs in to_city_state_opt, if provided
 pub fn set_all_adj_owner<'bt,'ut,'rt,'dt>(mut adj_stack: Vec<u64>, to_owner: usize, frm_owner: usize, cur_player: usize, to_city_state_opt: &mut Option<&mut CityState>,
 		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_data: &mut MapData,
-		relations: &mut Relations, logs: &mut Vec<Log>, map_sz: MapSz, turn: usize) {
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, gstate: &mut GameState, map_sz: MapSz) {
 	if adj_stack.len() == 0 {return;}
 	
 	let mut adj_stack_ind = 0;
@@ -162,7 +159,7 @@ pub fn set_all_adj_owner<'bt,'ut,'rt,'dt>(mut adj_stack: Vec<u64>, to_owner: usi
 		let prev_coord = Coord::frm_ind(coord, map_sz);
 		
 		///////////// update owner
-		set_owner(coord, to_owner, frm_owner, cur_player, to_city_state_opt, units, bldgs, temps, exs, players, map_data, relations, logs, map_sz, turn);
+		set_owner(coord, to_owner, frm_owner, cur_player, to_city_state_opt, units, bldgs, temps, exs, players, map_data, gstate, map_sz);
 		let exf = &exs.last().unwrap();
 		
 		//////////// add all neighbors to list to be updated

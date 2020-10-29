@@ -1,15 +1,10 @@
 use std::cmp::Ordering;
 use crate::gcore::Brigade;
-use crate::disp_lib::*;
-use crate::disp::{COLOR_PAIR, CGREEN, DispChars, IfaceSettings, ScreenSz, Coord, Buttons};
-use crate::tech::TechTemplate;
+use crate::disp::*;
 use crate::units::{UnitTemplate, MovementType, WORKER_NM, Unit};
-use crate::buildings::*;
 use crate::map::{METERS_PER_TILE, ZoneType, ArabilityType};
 use crate::player::Stats;
-use super::{EncyclopediaCategory, print_window};
-use crate::localization::Localization;
-use crate::containers::Templates;
+use super::*;
 
 pub enum OffsetOrPos {
 	Offset(usize),
@@ -17,13 +12,13 @@ pub enum OffsetOrPos {
 }
 
 #[derive(PartialEq)]
-pub enum InfoLevel<'b> {
-	Full {buttons: &'b mut Buttons},
+pub enum InfoLevel {
+	Full,
 	Abbrev,
 	AbbrevNoCostNoProdTime
 }
 
-impl InfoLevel<'_> {
+impl InfoLevel {
 	pub fn is_not_full(&self) -> bool {
 		match self {
 			InfoLevel::Full {..} => false,
@@ -36,14 +31,12 @@ impl InfoLevel<'_> {
 // `mode` is the index into the template vector
 // `w_offset` = Offset(_) is the column offset to start the window at (relative to the center of the screen)
 // `info_level` when Abbrev or AbbrevNo..., used as infobox (for showing unit & bldg production options), else as main, full encyclopedia view
-impl IfaceSettings<'_,'_,'_,'_,'_> {
-	pub fn show_exemplar_info(&self, mode: usize, category: EncyclopediaCategory,
-			w_offset_or_pos: OffsetOrPos, window_w: Option<i32>,
-			h_offset_or_pos: OffsetOrPos, mut info_level: InfoLevel<'_>,
-			temps: &Templates, pstats: &Stats, disp_chars: &DispChars, l: &Localization,
-			d: &mut DispState) {
-		
-		let w = self.screen_sz.w as i32;
+impl DispState<'_,'_,'_,'_,'_> {
+	pub fn show_exemplar_info(&mut self, mode: usize, category: EncyclopediaCategory, w_offset_or_pos: OffsetOrPos, window_w: Option<i32>,
+			h_offset_or_pos: OffsetOrPos, mut info_level: InfoLevel, temps: &Templates, pstats: &Stats) {
+		let d = &mut self.renderer;
+		let w = self.iface_settings.screen_sz.w as i32;
+		let l = &self.local;
 		
 		let window_w = if let Some(window_w) = window_w {
 			window_w
@@ -59,7 +52,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		let col = (w - window_w) / 2 + w_offset as i32;
 		
 		let mut row = {
-			let h = self.screen_sz.h as i32;
+			let h = self.iface_settings.screen_sz.h as i32;
 			
 			// get number of rows of window for centering on screen
 			let window_h = match category {
@@ -137,15 +130,15 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		macro_rules! clr_ln{() => {
 				d.mv(row,col);
-				d.addch(disp_chars.vline_char);
+				d.addch(self.chars.vline_char);
 				for _ in 0..window_w {d.addch(' ');}
-				d.addch(disp_chars.vline_char);
+				d.addch(self.chars.vline_char);
 			};
 			($i: expr) => {
 				d.mv(row-$i, col);
-				d.addch(disp_chars.vline_char);
+				d.addch(self.chars.vline_char);
 				for _ in 0..window_w {d.addch(' ');}
-				d.addch(disp_chars.vline_char);
+				d.addch(self.chars.vline_char);
 			};
 		};
 		
@@ -170,9 +163,9 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			($l_txt: expr, $r_txt: expr, $row: expr) => {
 				// clear line
 				d.mv($row,col);
-				d.addch(disp_chars.vline_char);
+				d.addch(self.chars.vline_char);
 				for _ in 0..window_w {d.addch(' ');}
-				d.addch(disp_chars.vline_char);
+				d.addch(self.chars.vline_char);
 				
 				// print txt
 				d.mv($row,col+2);
@@ -201,22 +194,22 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		// print window top line
 		{
 			d.mv(row- if let InfoLevel::Full {..} = info_level {4} else {1}, col);
-			d.addch(disp_chars.ulcorner_char);
-			for _ in 0..window_w {d.addch(disp_chars.hline_char);}
-			d.addch(disp_chars.urcorner_char);
+			d.addch(self.chars.ulcorner_char);
+			for _ in 0..window_w {d.addch(self.chars.hline_char);}
+			d.addch(self.chars.urcorner_char);
 		}
 		
 		// print key instructions
-		if let InfoLevel::Full {buttons} = &mut info_level {
+		if let InfoLevel::Full = info_level {
 			clr_ln!(3);
 			
 			d.mv(row-3, col+2);
-			buttons.Esc_to_close.print(None, l, d);
+			self.buttons.Esc_to_close.print(None, l, d);
 			
 			clr_ln!(2);
 			
 			d.mv(row-2, col+2);
-			buttons.to_go_back.print(None, l, d);
+			self.buttons.to_go_back.print(None, l, d);
 			
 			clr_ln!(1);
 		}
@@ -561,147 +554,16 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		// print window bottom line
 		{
 			d.mv(row,col);
-			d.addch(disp_chars.llcorner_char);
-			for _ in 0..window_w {d.addch(disp_chars.hline_char);}
-			d.addch(disp_chars.lrcorner_char);
+			d.addch(self.chars.llcorner_char);
+			for _ in 0..window_w {d.addch(self.chars.hline_char);}
+			d.addch(self.chars.lrcorner_char);
 		}
 	}
 	
-	// show when tech is discovered
-	pub fn show_tech_discovered(&self, tech_discov: &TechTemplate, temps: &Templates,
-			disp_chars: &DispChars, l: &Localization, buttons: &mut Buttons, d: &mut DispState) {
-		let tech_id = tech_discov.id as usize;
+	pub fn show_brigade_units(&mut self, brigade: &Brigade, pos: Coord, units: &Vec<Unit>) {
+		let d = &mut self.renderer;
+		let l = &self.local;
 		
-		// find units that require this technology
-		let units_discov = {
-			let mut units_discov = Vec::with_capacity(temps.units.len());
-			for ut in temps.units.iter() {
-				if let Some(tech_req) = &ut.tech_req {
-					if tech_req.contains(&tech_id) {
-						units_discov.push(ut.nm[l.lang_ind].clone());
-					}
-				}
-			}
-			units_discov
-		};
-		
-		// find buildings that require this technology
-		let bldgs_discov = {
-			let mut bldgs_discov = Vec::with_capacity(temps.bldgs.len());
-			for bt in temps.bldgs.iter() {
-				if let Some(tech_req) = &bt.tech_req {
-					if tech_req.contains(&tech_id) {
-						bldgs_discov.push(bt.nm[l.lang_ind].clone());
-					}
-				}
-			}
-			bldgs_discov
-		};
-		
-		// find buildings that require this technology
-		let resources_discov = {
-			let mut resources_discov = Vec::with_capacity(temps.resources.len());
-			for rt in temps.resources.iter() {
-				if rt.tech_req.contains(&tech_id) {
-					resources_discov.push(rt.nm[l.lang_ind].clone());
-				}
-			}
-			resources_discov
-		};
-		
-		let additional_ln = |list: &Vec<String>| {
-			if list.len() == 0 {0} else {1}
-		};
-		
-		let window_sz = ScreenSz {
-			h: 6 + units_discov.len() + bldgs_discov.len() + resources_discov.len() + 
-				 additional_ln(&units_discov) + additional_ln(&bldgs_discov) +
-				 additional_ln(&resources_discov),
-			w: "You have discovered .".len() + tech_discov.nm.len() + 8,
-			sz: 0
-		};
-		
-		let pos = print_window(window_sz, self.screen_sz, disp_chars, d);
-		
-		let mut row = pos.y as i32 + 1;
-		
-		macro_rules! ctr_txt{($txt: expr) => {
-			if $txt.len() < window_sz.w { // text too long
-				d.mv(row, (window_sz.w - $txt.len()) as i32/2 + pos.x as i32);
-				d.addstr($txt);
-				row += 1;
-			}
-		};};
-		
-		macro_rules! l_txt{($r_txt: expr) => {
-			d.mv(row, pos.x as i32 + 2);
-			d.addstr($r_txt);
-			row += 1;
-		};};
-		
-		macro_rules! r_txt{($r_txt: expr) => {
-			d.mv(row, pos.x as i32 + (window_sz.w - $r_txt.len() - 2) as i32);
-			d.addstr($r_txt);
-			row += 1;
-		};};
-		
-		// esc to close
-		{
-			d.mv(row, pos.x as i32 + 2); row += 2;
-			buttons.Esc_to_close.print(None, l, d);
-		}
-		
-		// 'You have discovered ...'
-		{
-			d.attron(COLOR_PAIR(CGREEN));
-			ctr_txt!(&format!("You have discovered {}!", tech_discov.nm[l.lang_ind]));
-			d.attroff(COLOR_PAIR(CGREEN));
-			row += 1;
-		}
-		
-		let mut intro_printed = false;
-		
-		// if first list print "This technology allows us to"
-		macro_rules! print_intro_txt{
-			($txt:expr) => {
-				if intro_printed {
-					l_txt!(&format!("...and {}:", $txt));
-				}else{
-					l_txt!(&format!("You can now {}:", $txt));
-					intro_printed = true;
-				}
-			};
-			($txt:expr, $flag:expr) => {
-				if intro_printed {
-					l_txt!(&format!("...and {}:", $txt));
-				}else{
-					l_txt!(&format!("You can now {}:", $txt));
-				}
-		};};
-		
-		if units_discov.len() != 0 {
-			print_intro_txt!(&l.create);
-			for unit_discov in units_discov.iter() {
-				r_txt!(unit_discov);
-			}
-		}
-		
-		if bldgs_discov.len() != 0 {
-			print_intro_txt!(&l.build);
-			for bldg_discov in bldgs_discov.iter() {
-				r_txt!(&bldg_discov);
-			}
-		}
-		
-		if resources_discov.len() != 0 {
-			print_intro_txt!(&l.locate_and_use, true);
-			for resource_discov in resources_discov.iter() {
-				r_txt!(resource_discov);
-			}
-		}
-	}
-	
-	pub fn show_brigade_units(&self, brigade: &Brigade, pos: Coord, units: &Vec<Unit>, disp_chars: &DispChars, l: &Localization, d: &mut DispState) {
 		// create text to show
 		let mut disp_txt = Vec::with_capacity(brigade.unit_inds.len());
 		for unit_ind in brigade.unit_inds.iter() {
@@ -711,7 +573,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		}
 		
 		let window_w = if let Some(txt) = disp_txt.iter().max_by_key(|txt| txt.len()) {txt.len() as i32} else {return;} + 2;
-		let w = self.screen_sz.w as i32;
+		let w = self.iface_settings.screen_sz.w as i32;
 		if w < window_w {return;} // screen not wide enough
 		
 		let w_offset = (pos.x as i32 - (w - window_w) / 2) as usize;
@@ -719,7 +581,7 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		let col = (w - window_w) / 2 + w_offset as i32;
 		
 		let mut row = {
-			let h = self.screen_sz.h as i32;
+			let h = self.iface_settings.screen_sz.h as i32;
 			
 			// get number of rows of window for centering on screen
 			let window_h = (2 + brigade.unit_inds.len()) as i32;
@@ -735,17 +597,17 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		
 		macro_rules! clr_ln{() => {
 				d.mv(row,col);
-				d.addch(disp_chars.vline_char);
+				d.addch(self.chars.vline_char);
 				for _ in 0..window_w {d.addch(' ');}
-				d.addch(disp_chars.vline_char);
+				d.addch(self.chars.vline_char);
 			};};
 		
 		// print window top line
 		{
 			d.mv(row-1, col);
-			d.addch(disp_chars.ulcorner_char);
-			for _ in 0..window_w {d.addch(disp_chars.hline_char);}
-			d.addch(disp_chars.urcorner_char);
+			d.addch(self.chars.ulcorner_char);
+			for _ in 0..window_w {d.addch(self.chars.hline_char);}
+			d.addch(self.chars.urcorner_char);
 		}
 		
 		//////////////// print text of window
@@ -758,9 +620,9 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 		// print window bottom line
 		{
 			d.mv(row,col);
-			d.addch(disp_chars.llcorner_char);
-			for _ in 0..window_w {d.addch(disp_chars.hline_char);}
-			d.addch(disp_chars.lrcorner_char);
+			d.addch(self.chars.llcorner_char);
+			for _ in 0..window_w {d.addch(self.chars.hline_char);}
+			d.addch(self.chars.lrcorner_char);
 		}
 	}
 }

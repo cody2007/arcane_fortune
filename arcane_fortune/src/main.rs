@@ -1,3 +1,4 @@
+//#![allow(warnings)]
 use std::time::*;
 use std::path::Path;
 use std::fs;
@@ -7,7 +8,7 @@ use std::fs;
 
 #[macro_use]
 mod debug;
-mod disp_lib;
+mod renderer;
 #[macro_use]
 mod config_load;
 #[macro_use]
@@ -31,7 +32,7 @@ mod localization;
 mod player;
 mod containers;
 
-use disp_lib::*;
+use renderer::*;
 use map::*;
 use disp::*;
 use disp::menus::{init_menus, do_menu_shortcut, UIRet, FindType};
@@ -54,19 +55,14 @@ use containers::*;
 fn main(){
 	disp::show_version_status_console();
 	
-	let mut lang = Localization::new();
-	let (mut d, mut disp_settings) = init_display();
-	let mut disp_chars = init_color_pairs(&disp_settings, &mut d);
-	
-	let mut game_state = GameState::TitleScreen;
+	let mut game_control = GameControl::TitleScreen;
 	let mut game_opts = GameOptions {
-			zoom_in_depth: 2,
-			n_players: PLAYER_COLORS.len(),
-			
-			ai_bonuses: Default::default()
+		zoom_in_depth: 2,
+		n_players: PLAYER_COLORS.len(),
+		
+		ai_bonuses: Default::default()
 	};
 	let game_difficulties = load_game_difficulties();
-	let kbd = KeyboardMap::new();
 	
 	let doctrine_templates_junk = Vec::new();
 	let resource_templates_junk = Vec::new();
@@ -78,43 +74,41 @@ fn main(){
 	'outer_loop: loop {
 		///////////////////////
 		//// placeholders
-		let mut unit_templates = Vec::new();
-		let mut bldg_templates = Vec::new();
 		
-		let mut iface_settings = IfaceSettings::default("".to_string(), 0);
-		let mut menu_options = init_menus(&mut iface_settings, &Vec::new(), &disp_settings);
-		let mut map_data = MapData::default(Vec::new(), 0, 0, 7, 0, &resource_templates_junk);
-		let mut relations = Relations::default();
-		let mut nms = Nms::default(); // city names
-		let mut exs = Vec::new(); // vec indexed by zoom
+		// temps
+		let mut bldg_templates = Vec::new();
+		let mut unit_templates = Vec::new();
+		let mut doctrine_templates = Vec::new();
+		let mut resource_templates = Vec::new();
+		let mut tech_templates = Vec::new();
+		let mut ai_config = AIConfig::default();
 		let mut bldg_config = BldgConfig::default();
+		let mut nms = Nms::default(); // city names
+		
+		let mut disp = Disp::new();
+		
+		let mut gstate = GameState::default();
+		let mut map_data = MapData::default(Vec::new(), 0, 0, 7, 0, &resource_templates_junk);
+		let mut exs = Vec::new(); // vec indexed by zoom
 		let mut bldgs = Vec::new();
 		let mut units = Vec::new();
-		let mut doctrine_templates = Vec::new();
-		let mut tech_templates = Vec::new();
-		let mut resource_templates = Vec::new();
-		let mut ai_config = AIConfig::default();
 		let mut players = Vec::new();
-		let mut logs = Vec::new();
 		let mut frame_stats = disp::FrameStats::init();
-		let mut turn = 0;
-		let mut rng = XorState::clock_init();
-		let mut buttons = Buttons::new(&kbd, &lang);
 		let temps;
 		
 		//////////////////////////
 		// (1) create new game or load
-		match &game_state {
-			GameState::NewOptions => {
-				game_state = if new_game_options(&mut game_opts, &game_difficulties, &lang, &disp_chars, &mut buttons, &mut d) {GameState::New} else {GameState::TitleScreen};
+		match &game_control {
+			GameControl::NewOptions => {
+				game_control = if disp.state.new_game_options(&mut game_opts, &game_difficulties) {GameControl::New} else {GameControl::TitleScreen};
 				continue 'outer_loop;
-			} GameState::New => {
+			} GameControl::New => {
 				{ // setup templates (static variables)
-					doctrine_templates = init_doctrine_templates(&lang);
-					tech_templates = init_tech_templates(&lang);
-					resource_templates = init_resource_templates(&tech_templates, &disp_chars, &lang);
-					unit_templates = init_unit_templates(&tech_templates, &resource_templates, &lang);
-					bldg_templates = init_bldg_templates(&tech_templates, &unit_templates, &doctrine_templates, &disp_chars, &lang);
+					doctrine_templates = init_doctrine_templates(&disp.state.local);
+					tech_templates = init_tech_templates(&disp.state.local);
+					resource_templates = init_resource_templates(&tech_templates, &disp.state.chars, &disp.state.local);
+					unit_templates = init_unit_templates(&tech_templates, &resource_templates, &disp.state.local);
+					bldg_templates = init_bldg_templates(&tech_templates, &unit_templates, &doctrine_templates, &disp.state.chars, &disp.state.local);
 					
 					bldg_config = BldgConfig::from_config_file();
 					ai_config = init_ai_config(&resource_templates);
@@ -152,16 +146,15 @@ fn main(){
 						techs: &tech_templates,
 						ai_config: ai_config.clone(),
 						bldg_config: bldg_config.clone(),
-						kbd: kbd.clone(),
-						nms: nms.clone(),
-						l: lang.clone(),
+						nms,
+						//kbd: disp.state.kbd.clone(),
+						//l: disp.state.lang.clone(),
 					};
 				}
 				
-				new_game(&mut menu_options, &mut disp_settings, &mut turn, &mut map_data, &mut exs, &mut players, &temps, &mut bldgs, &mut units, &mut relations,
-						&mut iface_settings, &mut disp_chars, &mut logs, &lang, &game_opts, &mut rng, &mut d);
-			} GameState::Load(file_nm) => {
-				print_clear_centered_logo_txt(&lang.Loading_game, &disp_chars, &mut d);
+				new_game(&mut gstate, &mut map_data, &mut exs, &mut players, &temps, &mut bldgs, &mut units, &game_opts, &mut disp);
+			} GameControl::Load(file_nm) => {
+				disp.state.print_clear_centered_logo_txt(disp.state.local.Loading_game.clone());
 				
 				let buf = read_file_decompress(&file_nm);
 				
@@ -184,27 +177,25 @@ fn main(){
 					techs: &tech_templates,
 					ai_config: ai_config.clone(),
 					bldg_config: bldg_config.clone(),
-					kbd: kbd.clone(),
 					nms: nms.clone(),
-					l: lang.clone(),
+					//kbd: kbd.clone(),
+					//l: lang.clone(),
 				};
 				
-				load_game(buf, offset, &mut menu_options, &mut disp_settings, &mut turn, &mut map_data, &mut exs, &temps, &mut bldgs, &mut units, 
-						&mut relations, &mut iface_settings, &mut players, &mut disp_chars, &mut logs, &mut frame_stats, &mut rng, &mut d);
+				load_game(buf, offset, &mut disp, &mut gstate, &mut map_data, &mut exs, &temps, &mut bldgs, &mut units, &mut players, &mut frame_stats);
 				
-			} GameState::TitleScreen => {
-				game_state = show_title_screen(&disp_chars, &kbd, &mut buttons, &mut lang, &mut d);
+			} GameControl::TitleScreen => {
+				game_control = disp.state.show_title_screen();
 				continue 'outer_loop;
 			}
 		}
 		
-		let mut production_options = init_bldg_prod_windows(&bldg_templates, &players[iface_settings.cur_player as usize].stats, &lang);
+		disp.state.production_options = init_bldg_prod_windows(&bldg_templates, &players[disp.state.iface_settings.cur_player as usize].stats, &disp.state.local);
 		
 		const KEY_PRESSED_PAUSE: u32 = 450;
 		let mut t_last_key_pressed = Instant::now(); // temporarily pause game if key pressed within KEY_PRESS_PAUSE
-		let mut key_pressed = 0_i32;
-		iface_settings.set_screen_sz(&mut d);
-		let mut screen_sz_prev = iface_settings.screen_sz.clone();
+		disp.state.set_screen_sz();
+		let mut screen_sz_prev = disp.state.iface_settings.screen_sz.clone();
 		
 		const IDLE_TIMEOUT: usize = 1000; // n_frames when we stop refreshing the screen
 		let mut n_idle = 0; // n_frames no keys were pressed
@@ -212,11 +203,10 @@ fn main(){
 		const ALT_RESET: usize = 5000;
 		let mut alt_ind = 0; // for multiple units on the same land plot
 		let mut last_alt_time = Instant::now(); // when we last changed alt_ind
-		let mut txt_list = TxtList::new();
 		
-		match &iface_settings.ui_mode {
-			UIMode::InitialGameWindow => {}
-			_ => {d.curs_set(CURSOR_VISIBILITY::CURSOR_VISIBLE);}
+		match &disp.ui_mode {
+			UIMode::InitialGameWindow(_) => {}
+			_ => {disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VISIBLE);}
 		}
 		
 		///////////////////
@@ -226,15 +216,15 @@ fn main(){
 			let _g = Guard::new("main frame loop");
 			
 			for b in bldgs.iter_mut() {
-				b.update_fire(&mut rng);
+				b.update_fire(&mut gstate.rng);
 			}
 			
 			// clear screen if terminal size changes
-			iface_settings.set_screen_sz(&mut d);
-			if iface_settings.screen_sz != screen_sz_prev {
-					d.clear();
-					screen_sz_prev = iface_settings.screen_sz.clone();
-					iface_settings.chk_cursor_bounds(&mut map_data);
+			disp.state.set_screen_sz();
+			if disp.state.iface_settings.screen_sz != screen_sz_prev {
+					disp.state.renderer.clear();
+					screen_sz_prev = disp.state.iface_settings.screen_sz.clone();
+					disp.state.iface_settings.chk_cursor_bounds(&mut map_data);
 			}
 			
 			// unit flashing indicator (for multiple units on the same land plot)
@@ -254,9 +244,9 @@ fn main(){
 			}else{false};
 			
 			// no key was pressed
-			let mouse_event = if key_pressed == ERR && iface_settings.auto_turn == AutoTurn::Off {
+			disp.state.mouse_event = if disp.state.key_pressed == ERR && disp.state.iface_settings.auto_turn == AutoTurn::Off {
 				macro_rules! get_another_key_and_skip_drawing{() => {
-					key_pressed = d.getch();
+					disp.state.key_pressed = disp.state.renderer.getch();
 					continue;
 				};};
 				
@@ -273,14 +263,14 @@ fn main(){
 			// a key was pressed
 			}else{
 				n_idle = 0;
-				d.getmouse(key_pressed) // mouse event
+				disp.state.renderer.getmouse(disp.state.key_pressed) // mouse event
 			};
 			
 			// cursor
-			if iface_settings.add_action_to.is_none() {
-				d.set_mouse_to_arrow();
+			if disp.state.iface_settings.add_action_to.is_none() {
+				disp.state.renderer.set_mouse_to_arrow();
 			}else{
-				d.set_mouse_to_crosshair();
+				disp.state.renderer.set_mouse_to_crosshair();
 			}
 			
 			////////////////////////////
@@ -289,21 +279,22 @@ fn main(){
 				#[cfg(feature="profile")]
 				let _g = Guard::new("main frame loop -> all key actions");
 				
-				match do_window_keys(key_pressed, &mouse_event, &mut map_data, &mut exs, &mut units, &mut bldgs, &mut production_options, &mut iface_settings, &mut players, &mut relations, &temps, &mut logs, &mut disp_settings, &mut menu_options, turn, &mut game_state, &game_difficulties, &mut rng, &kbd, &lang, &mut buttons, &mut d) {
+				match do_window_keys(&mut map_data, &mut exs, &mut units, &mut bldgs, &mut disp, &mut players, &mut gstate, &temps, &mut game_control, &frame_stats, &game_difficulties) {
 					UIRet::Active => {}
-					UIRet::ChgGameState => {break;}
+					UIRet::ChgGameControl => {break;}
 					UIRet::Inactive => {
-						match do_menu_shortcut(key_pressed, &mouse_event, &mut menu_options, &mut map_data, &mut exs, &mut players, &mut iface_settings, &mut disp_settings, &lang, &mut disp_chars, &mut units, &mut bldgs, &temps, &mut turn, &mut relations, &mut logs, &mut production_options, &frame_stats, &mut game_state, &mut game_opts, &game_difficulties, &lang, &mut buttons, &mut rng, &mut d) {
+						match do_menu_shortcut(&mut disp, &mut map_data, &mut exs, &mut players, &mut units, &mut bldgs, &temps, &mut gstate, &frame_stats, &mut game_control, &mut game_opts, &game_difficulties) {
 							UIRet::Active => {}
-							UIRet::ChgGameState => {break;}
+							UIRet::ChgGameControl => {break;}
 							UIRet::Inactive => {
-								non_menu_keys(key_pressed, &mouse_event, &mut turn, &mut map_data, &mut exs, &mut units, &mut bldgs, &temps, &disp_chars, &disp_settings, &mut players, &mut relations, &mut iface_settings, &mut production_options, &mut logs, &mut menu_options, &mut frame_stats, &mut buttons, &mut txt_list, &mut rng, &mut d);
+								non_menu_keys(&mut map_data, &mut exs, &mut units, &mut bldgs, &temps, &mut players, &mut gstate, &mut frame_stats, &mut disp);
 							}
 						}
 					}
 				}
 			}
-			buttons.clear_positions();
+			disp.state.buttons.clear_positions();
+			disp.state.txt_list.clear();
 			
 			// chk if bldg placement valid, if it isn't clear worker's computed path
 			{
@@ -311,8 +302,8 @@ fn main(){
 				let _g = Guard::new("main frame loop -> chk bldg placement valid");
 				
 				///// make sure building placement is valid (before printing any paths...)				
-				if iface_settings.zoom_ind == map_data.max_zoom_ind() {
-					let cur_mc = iface_settings.cursor_to_map_coord(&map_data);
+				if disp.state.iface_settings.zoom_ind == map_data.max_zoom_ind() {
+					let cur_mc = disp.state.iface_settings.cursor_to_map_coord(&map_data);
 					
 					macro_rules! chk_if_bldg_is_in_valid_position{($valid_placement: expr, $template: expr,
 							$path_coords: expr, $actions_req: expr, $chk_dock: lifetime, $adj_chk: lifetime,
@@ -334,7 +325,7 @@ fn main(){
 							for j_off in 0..w {
 								if let Some(coord) = map_sz.coord_wrap(cur_mc.y + i_off, cur_mc.x + j_off + 1) {
 									let mzo = if let BldgType::Taxable(zone) = $template.bldg_type {
-										Some(MatchZoneOwner {zone, owner_id: iface_settings.cur_player})
+										Some(MatchZoneOwner {zone, owner_id: disp.state.iface_settings.cur_player})
 									}else{
 										None
 									};
@@ -380,7 +371,7 @@ fn main(){
 							for j_off in 0..w {
 								if let Some(coord) = map_sz.coord_wrap(cur_mc.y + i_off, cur_mc.x + j_off + 1) {
 									let mzo = if let BldgType::Taxable(zone) = $template.bldg_type {
-										Some(MatchZoneOwner {zone, owner_id: iface_settings.cur_player})
+										Some(MatchZoneOwner {zone, owner_id: disp.state.iface_settings.cur_player})
 									}else{
 										None
 									};
@@ -397,7 +388,7 @@ fn main(){
 						}
 					};};
 					
-					match &mut iface_settings.add_action_to {
+					match &mut disp.state.iface_settings.add_action_to {
 						AddActionTo::BrigadeBuildList {
 							action: Some(
 								ActionMeta {
@@ -440,13 +431,18 @@ fn main(){
 				} // action present at full zoom
 			}
 			
+			///////////////
+			// screen reader cleanup display
+			//	clear the screen if we are not supposed to show the map
+			if disp.ui_mode.hide_map() {disp.state.renderer.clear();}
+			
 			/////////////// show map, windows, update cursor
 			{
 				#[cfg(feature="profile")]
 				let _g = Guard::new("main frame loop -> map/screen printing");
 				
-				iface_settings.print_map(&mut menu_options, &disp_chars, &mut map_data, &units, &bldgs, &players, &temps, &exs, &relations, &logs, &mut frame_stats, alt_ind, turn, &kbd, &lang, &mut buttons, &mut txt_list, &mut d);
-				iface_settings.print_windows(&mut map_data, exs.last().unwrap(), &units, &bldgs, &production_options, &disp_chars, &temps, &players, &relations, &game_difficulties, &logs, turn, &kbd, &lang, &mut buttons, &mut d);
+				disp.print_map(&mut map_data, &units, &bldgs, &players, &temps, &exs, &gstate, &mut frame_stats, alt_ind);
+				disp.print_windows(&mut map_data, exs.last().unwrap(), &units, &bldgs, &temps, &players, &gstate, &game_difficulties);
 				
 				// dbg, show cursor coordinates
 				/*{
@@ -461,31 +457,31 @@ fn main(){
 				/*d.mv(30,0);
 				addstr(&num_format(map_data.deque_zoom_in.len()));*/
 				
-				if !iface_settings.show_expanded_submap {
-					buttons.print_tool_tip(&disp_chars, &mut d);
+				if !disp.state.iface_settings.show_expanded_submap {
+					disp.state.buttons.print_tool_tip(&disp.state.chars, &mut disp.state.renderer);
 				}else{
-					d.set_mouse_to_arrow();
+					disp.state.renderer.set_mouse_to_arrow();
 				}
 				
-				iface_settings.update_cursor(&players[iface_settings.cur_player as usize].stats, &mut map_data, &disp_chars, &txt_list, &mut d);
+				disp.update_cursor(&players[disp.state.iface_settings.cur_player as usize].stats, &mut map_data);
 			}
 			
 			/////////////// auto turn increment (if key hasn't been pressed)
 			if t_last_key_pressed.elapsed().as_millis() as u32 > KEY_PRESSED_PAUSE {
-				match iface_settings.auto_turn {
+				match disp.state.iface_settings.auto_turn {
 					AutoTurn::On | AutoTurn::FinishAllActions => {
 						for _ in 0..frame_stats.days_per_frame() {
-							end_turn(&mut turn, &mut units, &mut bldgs, &temps, &disp_chars, &disp_settings, &mut map_data, &mut exs, &mut players, &mut relations, &mut iface_settings, &mut production_options, &mut logs, &mut menu_options, &mut frame_stats, &mut rng, &mut buttons, &mut txt_list, &mut d);
+							end_turn(&mut gstate, &mut units, &mut bldgs, &temps, &mut disp, &mut map_data, &mut exs, &mut players, &mut frame_stats);
 							
 							// ex if the the game has ended or we now show the tech tree from discovering tech, then
 							// stop progressing turns (also end_turn() will clear any open windows)
-							if iface_settings.auto_turn == AutoTurn::Off {break;}
+							if disp.state.iface_settings.auto_turn == AutoTurn::Off {break;}
 							
 							// break if there are unmoved units and auto turn increment is on FinishAllActions
-							if !iface_settings.all_player_pieces_mvd &&
-							   iface_settings.auto_turn == AutoTurn::FinishAllActions {
-								iface_settings.auto_turn = AutoTurn::Off;
-								iface_settings.center_on_next_unmoved_menu_item(false, FindType::Units, &mut map_data, &mut exs, &mut units, &mut bldgs, &mut relations, &mut players, &mut logs, turn, &mut d);
+							if !disp.state.iface_settings.all_player_pieces_mvd &&
+							   disp.state.iface_settings.auto_turn == AutoTurn::FinishAllActions {
+								disp.state.iface_settings.auto_turn = AutoTurn::Off;
+								disp.center_on_next_unmoved_menu_item(false, FindType::Units, &mut map_data, &mut exs, &mut units, &mut bldgs, &mut gstate, &mut players);
 								break;
 							}
 						}
@@ -496,10 +492,10 @@ fn main(){
 			
 			//d.addstr(&format!("{:#?}", txt_list));
 			
-			d.refresh();
+			disp.state.renderer.refresh();
 			
-			key_pressed = d.getch();
-			if key_pressed != ERR {
+			disp.state.key_pressed = disp.state.renderer.getch();
+			if disp.state.key_pressed != ERR {
 				t_last_key_pressed = Instant::now();
 			}
 			flushinp();

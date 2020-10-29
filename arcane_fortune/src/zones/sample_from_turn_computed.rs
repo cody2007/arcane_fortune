@@ -4,6 +4,7 @@ use crate::gcore::rand::XorState;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::zones::ZONE_SPACING;
 use crate::player::Player;
+use crate::containers::*;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 
@@ -13,8 +14,7 @@ impl SampleType {
 	// prioritizes uncomputed coords & then ones which were computed long ago
 	// output is used for recomputing zone demands and happiness
 	pub fn coord_frm_turn_computed(&self, players: &Vec<Player>,
-			exf: &HashedMapEx, map_sz: MapSz, turn: usize,
-			rng: &mut XorState) -> Option<u64> {
+			exf: &HashedMapEx, map_sz: MapSz, gstate: &mut GameState) -> Option<u64> {
 		let n_zone_coords = {
 			let mut n_zone_coords = 0;
 			for player in players.iter() {
@@ -61,7 +61,7 @@ impl SampleType {
 					
 					if turn_computed == 0 {n_not_computed += 1;}
 					
-					let t_computed_elapsed = turn - turn_computed;
+					let t_computed_elapsed = gstate.turn - turn_computed;
 					turn_sum += t_computed_elapsed;
 					
 					zone_coords.push(ZoneComputeTurn {t_computed_elapsed, coord: *coord});
@@ -74,7 +74,7 @@ impl SampleType {
 		if n_not_computed == n_zone_coords {
 			const N_TRIES: usize = 10;
 			for _ in 0..N_TRIES {
-				let (coord, _ex) = exf.iter().nth(rng.usize_range(0, exf.len())).unwrap();
+				let (coord, _ex) = exf.iter().nth(gstate.rng.usize_range(0, exf.len())).unwrap();
 				return_if_zoned!(*coord);
 			}
 		// some zone demands have been computed
@@ -82,7 +82,7 @@ impl SampleType {
 			#[cfg(feature="profile")]
 			let _g = Guard::new("sample_zone_coord_frm_turn_computed select coord");
 			
-			let prob_val = rng.gen_f32b();
+			let prob_val = gstate.rng.gen_f32b();
 			let turn_sum = turn_sum as f32;
 			let mut val_sum = 0.;
 			
@@ -92,8 +92,8 @@ impl SampleType {
 					const N_TRIES: usize = 5;
 					for _ in 0..N_TRIES {
 						let mut coord = Coord::frm_ind(zone_coord.coord, map_sz);
-						coord.y += rng.usize_range(0, ZONE_SPACING as usize) as isize;
-						coord.x += rng.usize_range(0, ZONE_SPACING as usize) as isize;
+						coord.y += gstate.rng.usize_range(0, ZONE_SPACING as usize) as isize;
+						coord.x += gstate.rng.usize_range(0, ZONE_SPACING as usize) as isize;
 						if let Some(coord) = map_sz.coord_wrap(coord.y, coord.x) {
 							return_if_zoned!(coord);
 						}

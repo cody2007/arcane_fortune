@@ -9,15 +9,14 @@ const TURNS_RECHECK_FORTIFY: usize = 15;
 impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 	pub fn common_actions(&mut self, ai_ind: usize, is_cur_player: bool, pstats: &mut Stats<'bt,'ut,'rt,'dt>,
 			personality: &AIPersonality, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
-			relations: &mut Relations, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			disband_unit_inds: &mut Vec<usize>, map_sz: MapSz,
-			temps: &Templates<'bt,'ut,'rt,'dt,'_>, rng: &mut XorState, logs: &mut Vec<Log>, turn: usize) {
+			gstate: &mut GameState, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
+			disband_unit_inds: &mut Vec<usize>, map_sz: MapSz, temps: &Templates<'bt,'ut,'rt,'dt,'_>) {
 		{ // city unit actions (produce new buildings and improvements)
 			let boot_camp_template = &BldgTemplate::frm_str(BOOT_CAMP_NM, temps.bldgs);
 			let academy_template = &BldgTemplate::frm_str(ACADEMY_NM, temps.bldgs);
 			let net_income = pstats.net_income();
 			
-			if self.next_bonus_bldg.is_none() {self.set_next_bonus_bldg(pstats, personality, temps.bldgs, rng);}
+			if self.next_bonus_bldg.is_none() {self.set_next_bonus_bldg(pstats, personality, temps.bldgs, &mut gstate.rng);}
 			
 			let mut next_bonus_bldg = self.next_bonus_bldg.as_ref().unwrap_or_else(|| panicq!("next bonus bldg unset"));
 			let is_offense_strong_enough = self.is_offense_strong_enough(pstats, personality, units, bldgs);
@@ -26,9 +25,9 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 			for city_ind in 0..self.city_states.len() {
 				let city = &mut self.city_states[city_ind];
 				
-				city.execute_defense_actions(ai_ind, is_cur_player, units, bldgs, pstats, relations, map_data, exs, disband_unit_inds, map_sz, turn, logs);
-				if rng.gen_f32b() < 0.25 {
-					city.execute_worker_actions(is_cur_player, units, pstats, bldgs, map_data, exs, relations, logs, map_sz, turn);
+				city.execute_defense_actions(ai_ind, is_cur_player, units, bldgs, pstats, gstate, map_data, exs, disband_unit_inds, map_sz);
+				if gstate.rng.gen_f32b() < 0.25 {
+					city.execute_worker_actions(is_cur_player, units, pstats, bldgs, map_data, exs, gstate, map_sz);
 				}
 				
 				/////////// worker actions
@@ -58,8 +57,8 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 							if !already_planned {
 								const CH_DIST: isize = 20;
 								let mut search_start = Coord::frm_ind(city.coord, map_sz);
-								search_start.y += rng.isize_range(-CH_DIST, CH_DIST);
-								search_start.x += rng.isize_range(-CH_DIST, CH_DIST);
+								search_start.y += gstate.rng.isize_range(-CH_DIST, CH_DIST);
+								search_start.x += gstate.rng.isize_range(-CH_DIST, CH_DIST);
 								
 								if let Some(boot_camp_coord) = find_square_buildable(search_start, $bldg_template, map_data, exf, map_sz) {
 									city.worker_actions.push( ActionMeta {
@@ -119,7 +118,7 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 						// bonus bldg
 						}else if is_offense_strong_enough && net_income >= next_bonus_bldg.upkeep {
 							add_bldg_action!(next_bonus_bldg);
-							self.set_next_bonus_bldg(pstats, personality, temps.bldgs, rng);
+							self.set_next_bonus_bldg(pstats, personality, temps.bldgs, &mut gstate.rng);
 							next_bonus_bldg = self.next_bonus_bldg.as_ref().unwrap_or_else(|| panicq!("next bonus bldg unset"));
 							//printlnq!("next bonus bldg {}", next_bonus_bldg.nm[0]);
 						}
@@ -182,12 +181,12 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 			} // building productions
 		}
 		
-		self.attack_fronts.execute_actions(ai_ind, units, bldgs, map_data, exs, relations, map_sz, rng, logs);//, iface_settings);
+		self.attack_fronts.execute_actions(ai_ind, units, bldgs, map_data, exs, gstate, map_sz);//, iface_settings);
 		
 		//////////////////////////////
 		// icbm actions
-		if self.icbm_inds.len() > 0 && rng.gen_f32b() < (1./10.){
-			let war_enemies = relations.at_war_with(ai_ind);
+		if self.icbm_inds.len() > 0 && gstate.rng.gen_f32b() < (1./10.){
+			let war_enemies = gstate.relations.at_war_with(ai_ind);
 			
 			if war_enemies.len() != 0 {
 				'icbm_loop: for icbm_ind in self.icbm_inds.iter() {
@@ -223,9 +222,8 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 // defensive & worker actions
 impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 	pub fn execute_defense_actions(&mut self, ai_ind: usize, is_cur_player: bool, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>,
-			pstats: &mut Stats<'bt,'ut,'rt,'dt>, relations: &mut Relations, map_data: &mut MapData,
-			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, disband_unit_inds: &mut Vec<usize>,
-			map_sz: MapSz, turn: usize, logs: &mut Vec<Log>) {
+			pstats: &mut Stats<'bt,'ut,'rt,'dt>, gstate: &mut GameState, map_data: &mut MapData,
+			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, disband_unit_inds: &mut Vec<usize>, map_sz: MapSz) {
 		#[cfg(feature="profile")]
 		let _g = Guard::new("execute_defense_actions");
 		
@@ -235,7 +233,7 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 			#[cfg(feature="profile")]
 			let _g = Guard::new("execute_defense_actions (nearby enemies)");
 			
-			let war_enemies = relations.at_war_with(ai_ind);
+			let war_enemies = gstate.relations.at_war_with(ai_ind);
 			
 			let mut ordered_defenders = Vec::with_capacity(self.defenders.len()); // index into self.defenders NOT units[]
 			
@@ -262,7 +260,7 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 						for (list_ind, defender) in self.defenders.iter().enumerate() {
 							if let Some(action) = &units[defender.unit_ind].action.last() {
 								if let ActionType::Fortify {turn: turn_fortified} = &action.action_type {
-									if (*turn_fortified + TURNS_RECHECK_FORTIFY) < turn {
+									if (*turn_fortified + TURNS_RECHECK_FORTIFY) < gstate.turn {
 										ordered_defenders.push(list_ind);
 									}
 								}
@@ -295,7 +293,7 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 								if !self.exit_city(&mut max_search_depth, defender_unit_ind, is_cur_player, false,
 									Coord::frm_ind(attack_coord, map_sz),
 									Coord::frm_ind(units[defender_unit_ind].return_coord(), map_sz),
-									pstats, map_data, exs, units, bldgs, relations, logs, map_sz, turn) {
+									pstats, map_data, exs, units, bldgs, gstate, map_sz) {
 								continue 'defender_loop;
 							}}
 							
@@ -343,7 +341,7 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 					
 					// if fortified, only check so often
 					if let Some(ActionMeta {action_type: ActionType::Fortify {turn: turn_fortified}, ..}) = u.action.last() {
-						if (*turn_fortified + TURNS_RECHECK_FORTIFY) > turn {return false;}
+						if (*turn_fortified + TURNS_RECHECK_FORTIFY) > gstate.turn {return false;}
 					}
 					
 					// if a new defense position is available, include units that are:
@@ -352,7 +350,7 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 					if let Some(next_defense_pos_ind) = next_defense_pos_ind_opt {
 						if let Some(ActionMeta {action_type: ActionType::Fortify {turn: turn_fortified}, ..}) = u.action.last() {
 							// only check every so often
-							if (*turn_fortified + TURNS_RECHECK_FORTIFY) < turn {
+							if (*turn_fortified + TURNS_RECHECK_FORTIFY) < gstate.turn {
 								// unit already at a defensive position
 								if let Some(cur_defense_pos_ind) = self.current_defense_pos_ind(u.return_coord()) {
 									// higher priority, move to next defense pos
@@ -375,7 +373,7 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 				
 				// fortify (pushed first, executed last if movement is pushed after)
 				u.action.clear();
-				u.action.push(ActionMeta::new(ActionType::Fortify {turn}));
+				u.action.push(ActionMeta::new(ActionType::Fortify {turn: gstate.turn}));
 				
 				// move unit to next defense position
 				if let Some(next_defense_pos_ind) = next_defense_pos_ind_opt {
@@ -407,7 +405,7 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 							// ^ cannot do this here because it requires a mutable copy of ai_states
 							disband_unit_inds.push(defender.unit_ind);
 						}else{
-							units[defender.unit_ind].action.push(ActionMeta::new(ActionType::Fortify {turn}));
+							units[defender.unit_ind].action.push(ActionMeta::new(ActionType::Fortify {turn: gstate.turn}));
 						}
 					}
 				}
@@ -417,8 +415,7 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 	
 	pub fn execute_worker_actions(&mut self, is_cur_player: bool, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, pstats: &mut Stats<'bt,'ut,'rt,'dt>,
 			bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, map_data: &mut MapData,
-			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
-			logs: &mut Vec<Log>, map_sz: MapSz, turn: usize) {
+			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, map_sz: MapSz) {
 		if self.worker_actions.len() == 0 {return;}
 		#[cfg(feature="profile")]
 		let _g = Guard::new("execute_worker_actions");
@@ -431,15 +428,14 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 			u.actions_used == Some(0.) &&
 			u.action.len() == 0
 		}) {
-			self.set_worker_action(unit_ind, is_cur_player, units, pstats, bldgs, map_data, exs, relations, logs, map_sz, turn);
+			self.set_worker_action(unit_ind, is_cur_player, units, pstats, bldgs, map_data, exs, gstate, map_sz);
 		} // idle worker exists
 	}
 	
 	pub fn set_worker_action(&mut self, unit_ind: usize, is_cur_player: bool, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, pstats: &mut Stats<'bt,'ut,'rt,'dt>,
-			bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, map_data: &mut MapData,
-			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, relations: &mut Relations, logs: &mut Vec<Log>, map_sz: MapSz, turn: usize) {
+			bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, map_sz: MapSz) {
 		if let Some(action) = self.worker_actions.pop() {
-			action.set_action_meta(unit_ind, is_cur_player, units, pstats, bldgs, map_data, Some(self), exs, relations, logs, map_sz, turn);
+			action.set_action_meta(unit_ind, is_cur_player, units, pstats, bldgs, map_data, Some(self), exs, gstate, map_sz);
 		}
 	}
 	
@@ -450,8 +446,7 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 	//	false if we cannot exit
 	pub fn exit_city(&self, max_search_depth: &mut usize, unit_ind: usize, is_cur_player: bool, min_dist_chk: bool, 
 			start_coord: Coord, u_coord: Coord, pstats: &mut Stats<'bt,'ut,'rt,'dt>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, 
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
-			logs: &mut Vec<Log>, map_sz: MapSz, turn: usize) -> bool {
+			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, map_sz: MapSz) -> bool {
 		#[cfg(feature="profile")]
 		let _g = Guard::new("exit_city");
 		
@@ -477,7 +472,7 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 			let u_coord_ind = units[unit_ind].return_coord();
 			if movable_to(u_coord_ind, min_coord_ind, &map_data.get(ZoomInd::Full, min_coord_ind), exs.last().unwrap(), MvVarsAtZoom::NonCivil {units, start_owner: pstats.id, blind_undiscov: None},
 					bldgs, &Dest::NoAttack, units[unit_ind].template.movement_type) {
-				set_coord(min_coord_ind, unit_ind, is_cur_player, units, map_data, exs, pstats, map_sz, relations, logs, turn);
+				set_coord(min_coord_ind, unit_ind, is_cur_player, units, map_data, exs, pstats, map_sz, gstate);
 			}else {return false;} // can't travel outside city
 		}else {return false;} // can't travel outside city
 		

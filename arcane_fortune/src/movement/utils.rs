@@ -2,7 +2,7 @@ use crate::map::*;
 use crate::disp::*;
 use crate::gcore::hashing::HashedMapEx;
 use crate::zones::StructureData;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 
 pub struct DistComponents {pub h: usize, pub w: usize}
 

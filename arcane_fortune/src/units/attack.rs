@@ -3,28 +3,25 @@ use crate::gcore::*;
 use crate::map::*;
 use crate::disp::*;
 use crate::disp::menus::*;
-use crate::disp_lib::*;
+use crate::renderer::*;
 use crate::ai::*;
 use crate::zones::*;
 use crate::buildings::*;
 //use std::time::Duration;
 //use std::thread;
-use crate::disp::window::keys::end_window;
 use crate::player::{PlayerType};
-use crate::keyboard::KeyboardMap;
-use crate::localization::Localization;
-use crate::containers::Templates;
+use crate::containers::*;
 
 pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: &mut Vec<usize>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
 		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
-		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState,
 		map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		logs: &mut Vec<Log>, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>, disp_chars: &DispChars,
-		disp_settings: &DispSettings, menu_options: &mut OptionsUI, cur_ui_ai_player_is_paused: Option<bool>,
-		map_sz: MapSz, frame_stats: &mut FrameStats, turn: usize, rng: &mut XorState, kbd: &KeyboardMap, l: &Localization, buttons: &mut Buttons,
-		txt_list: &mut TxtList, d: &mut DispState) {
+		disp: &mut Disp<'f,'bt,'ut,'rt,'dt>, cur_ui_ai_player_is_paused: Option<bool>,
+		map_sz: MapSz, frame_stats: &mut FrameStats) {
 	#[cfg(feature="profile")]
 	let _g = Guard::new("do_attack_actions");
+	
+	let cur_player = disp.state.iface_settings.cur_player as usize;
 	
 	// perform attacks first (before any other action) to prevent units from constantly moving away
 	let u = &mut units[unit_ind];
@@ -53,13 +50,13 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 		}
 		
 		// log
-		logs.push(Log {turn,
+		gstate.logs.push(Log {turn: gstate.turn,
 				   val: LogType::CivDestroyed {
 				   owner_attackee_id: $owner_prev,
 				   owner_attacker_id: units[unit_ind].owner_id as usize
 				}});
 		
-		civ_destroyed(&mut players[$owner_prev], relations, iface_settings, turn, d);
+		civ_destroyed(&mut players[$owner_prev], gstate, disp);
 	};};
 
 	///////////////////////////////////////// move units
@@ -79,7 +76,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 			}*/
 			////////////////////
 			
-			mv_unit(unit_ind, u.owner_id == iface_settings.cur_player, units, map_data, exs, bldgs, players, relations, map_sz, DelAction::Record(disband_unit_inds), logs, turn);
+			mv_unit(unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(disband_unit_inds));
 			
 			//////////////////// debug
 			/*{
@@ -110,47 +107,47 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 		debug_assertq!(attack_owner != u.owner_id);
 		
 		// cannot attack due to active peace treaty
-		if let Some(_) = relations.peace_treaty_turns_remaining(u.owner_id as usize, attack_owner as usize, turn) {
+		if let Some(_) = gstate.relations.peace_treaty_turns_remaining(u.owner_id as usize, attack_owner as usize, gstate.turn) {
 			reset_cont!();
 		}
 		
 		macro_rules! disable_auto_turn{() => {
-			if iface_settings.interrupt_auto_turn && attack_owner == iface_settings.cur_player {
-				iface_settings.set_auto_turn(AutoTurn::Off, d);
-				update_menu_indicators(menu_options, iface_settings, cur_ui_ai_player_is_paused, disp_settings);
-				iface_settings.center_on_next_unmoved_menu_item(false, FindType::Coord(attack_coord), map_data, exs, units, bldgs, relations, players, logs, turn, d);
+			if disp.state.iface_settings.interrupt_auto_turn && attack_owner == disp.state.iface_settings.cur_player {
+				disp.state.set_auto_turn(AutoTurn::Off);
+				disp.state.update_menu_indicators(cur_ui_ai_player_is_paused);
+				disp.center_on_next_unmoved_menu_item(false, FindType::Coord(attack_coord), map_data, exs, units, bldgs, gstate, players);
 			}
 		};};
 		
 		// special animation & actions for ICBMs
 		if u.template.nm[0] == ICBM_NM {
 			//printlnq!("icbm dropped on {} from {}", attack_owner, u.owner_id);
-			logs.push(Log {turn, val: LogType::ICBMDetonation {owner_id: u.owner_id as usize}});
-			relations.declare_war(u.owner_id as usize, attack_owner as usize, logs, players, turn, iface_settings, cur_ui_ai_player_is_paused, disp_settings, menu_options, rng, d);
+			gstate.logs.push(Log {turn: gstate.turn, val: LogType::ICBMDetonation {owner_id: u.owner_id as usize}});
+			gstate.relations.declare_war(u.owner_id as usize, attack_owner as usize, &mut gstate.logs, players, gstate.turn, cur_ui_ai_player_is_paused, &mut gstate.rng, disp);
 			
 			// lower mood
 			{
 				const N_THREATEN_EQUIVS: usize = 10;
 				for _ in 0..N_THREATEN_EQUIVS {
-					relations.threaten(u.owner_id as usize, attack_owner as usize);
+					gstate.relations.threaten(u.owner_id as usize, attack_owner as usize, gstate.turn);
 				}
 			}
 			
 			disable_auto_turn!();
 			
-			end_window(iface_settings, d);
+			disp.end_window();
 			
 			// center on ICBM
 			let u = &mut units[unit_ind];
-			iface_settings.center_on_next_unmoved_menu_item(false, FindType::Coord(u.return_coord()), map_data, exs, units, bldgs, relations, players, logs, turn, d);
+			disp.center_on_next_unmoved_menu_item(false, FindType::Coord(u.return_coord()), map_data, exs, units, bldgs, gstate, players);
 			
-			iface_settings.print_map(menu_options, disp_chars, map_data, units, bldgs, players, temps, exs, relations, logs, frame_stats, 0, turn, kbd, l, buttons, txt_list, d);
-			iface_settings.update_cursor(&players[iface_settings.cur_player as usize].stats, map_data, disp_chars, txt_list, d);
-			d.refresh();
+			disp.print_map(map_data, units, bldgs, players, temps, exs, gstate, frame_stats, 0);
+			disp.update_cursor(&players[cur_player].stats, map_data);
+			disp.state.renderer.refresh();
 			
 			let u = &units[unit_ind];
 			let attacker_owner_id = u.owner_id as usize;
-			let attacker_is_cur_player = iface_settings.cur_player as usize == attacker_owner_id;
+			let attacker_is_cur_player = cur_player == attacker_owner_id;
 			
 			const BLAST_RADIUS: i32 = 40;
 			
@@ -162,25 +159,25 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 				for y in (-radius)..radius {
 					let x_max = (((radius*radius - y*y) as f32).sqrt() * 2.).round() as i32;
 					
-					let y_pos = iface_settings.cur.y as i32 + y;
-					if y_pos >= 0 && y_pos < iface_settings.screen_sz.h as i32 {
-						d.mv(y_pos, iface_settings.cur.x as i32 - x_max);
+					let y_pos = disp.state.iface_settings.cur.y as i32 + y;
+					if y_pos >= 0 && y_pos < disp.state.iface_settings.screen_sz.h as i32 {
+						disp.mv(y_pos, disp.state.iface_settings.cur.x as i32 - x_max);
 					}
 					for x in (-x_max)..x_max {
-						let x_pos = iface_settings.cur.x as i32 + x;
+						let x_pos = disp.state.iface_settings.cur.x as i32 + x;
 						
 						// display explosion or bomb
-						if y_pos >= 0 && y_pos < iface_settings.screen_sz.h as i32 && x_pos >= 0 && x_pos < iface_settings.screen_sz.w as i32 {
+						if y_pos >= 0 && y_pos < disp.state.iface_settings.screen_sz.h as i32 && x_pos >= 0 && x_pos < disp.state.iface_settings.screen_sz.w as i32 {
 							// show explosion
 							if y != 0 || x != 0 {
 								let cur_radius = ((y*y) as f32 + ((x*x) as f32 / 4.)).sqrt();
 								
 								let color = COLOR_PAIR(
 									// show random color
-									if rng.gen_f32b() < ((1. + cur_radius) / BLAST_RADIUS as f32) {
+									if gstate.rng.gen_f32b() < ((1. + cur_radius) / BLAST_RADIUS as f32) {
 										const N_COLORS: f32 = 3.;
 										
-										let rand = rng.gen_f32b();
+										let rand = gstate.rng.gen_f32b();
 										if rand < 1./N_COLORS {CREDSAND3}
 										else if rand < 2./N_COLORS {CREDSAND4}
 										else {CRED}
@@ -196,20 +193,20 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 										else {CWHITE}
 									});
 								
-								d.attron(color);
-								d.addch(disp_chars.land_char);
-								d.attroff(color);
+								disp.attron(color);
+								disp.addch(disp.state.chars.land_char);
+								disp.attroff(color);
 							// show bomb
 							}else{
-								set_player_color(&players[u.owner_id as usize], true, d);
-								d.addch(u.template.char_disp);
-								set_player_color(&players[u.owner_id as usize], false, d);
+								set_player_color(&players[u.owner_id as usize], true, &mut disp.state.renderer);
+								disp.addch(u.template.char_disp);
+								set_player_color(&players[u.owner_id as usize], false, &mut disp.state.renderer);
 							}
 						}
 						
 						// rm zones, units, bldgs
 						{
-							let cur_map_coord = iface_settings.screen_coord_to_map_ind(Coord {
+							let cur_map_coord = disp.state.iface_settings.screen_coord_to_map_ind(Coord {
 									y: y_pos as isize, x: x_pos as isize}, map_data);
 							
 							// already removed
@@ -251,7 +248,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 											owners_w_city_halls_rmd.push(b_owner);
 										}
 										
-										logs.push(Log {turn,
+										gstate.logs.push(Log {turn: gstate.turn,
 											   val: LogType::CityDestroyed {
 													city_attackee_nm: nm.clone(),
 													
@@ -259,23 +256,22 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 													owner_attacker_id: u.owner_id as usize,
 										}});
 									}
-									rm_bldg(bldg_ind, b.owner_id == iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, players,  UnitDelAction::Record (disband_unit_inds), map_sz);	
+									rm_bldg(bldg_ind, b.owner_id == disp.state.iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, players, UnitDelAction::Record (disband_unit_inds), map_sz);	
 								}
 							}
 						}
 					}
 				}
 				
-				iface_settings.update_cursor(&players[iface_settings.cur_player as usize].stats, map_data, disp_chars, txt_list, d);
-				d.refresh();
+				disp.update_cursor(&players[cur_player].stats, map_data);
+				disp.state.renderer.refresh();
 				//thread::sleep(Duration::from_millis(2));
 			}
 			
 			// update map
 			for coord in coords_zone_or_ex_rmd {
 				compute_zooms_coord(coord, bldgs, temps.bldgs, map_data, exs, players);
-				compute_active_window(coord, attacker_is_cur_player, PresenceAction::SetAbsent, map_data, exs, &mut players[attacker_owner_id].stats,
-							map_sz, relations, units, logs, turn);
+				compute_active_window(coord, attacker_is_cur_player, PresenceAction::SetAbsent, map_data, exs, &mut players[attacker_owner_id].stats, map_sz, gstate, units);
 			}
 
 			// remove ICBM
@@ -291,7 +287,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 					continue;
 				}
 				
-				let is_cur_player = owner_prev as SmSvType == iface_settings.cur_player;
+				let is_cur_player = owner_prev as SmSvType == disp.state.iface_settings.cur_player;
 				
 				// rm bldgs in reverse order to avoid index issues
 				for bldg_ind in (0..bldgs.len()).rev() {
@@ -300,8 +296,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 					
 					if (owner_prev as SmSvType) == b.owner_id {
 						rm_bldg(bldg_ind, is_cur_player, bldgs, temps.bldgs, map_data, exs, players, UnitDelAction::Record(disband_unit_inds), map_sz);
-						compute_active_window(b_coord, attacker_is_cur_player, PresenceAction::SetAbsent, map_data, exs, &mut players[attacker_owner_id].stats,
-								map_sz, relations, units, logs, turn);
+						compute_active_window(b_coord, attacker_is_cur_player, PresenceAction::SetAbsent, map_data, exs, &mut players[attacker_owner_id].stats, map_sz, gstate, units);
 					}
 				}
 				
@@ -354,7 +349,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 			let attacker_id = units[unit_ind].owner_id as usize;
 			
 			if attackee_id != attacker_id {
-				relations.declare_war(attackee_id, attacker_id, logs, players, turn, iface_settings, cur_ui_ai_player_is_paused, disp_settings, menu_options, rng, d);
+				gstate.relations.declare_war(attackee_id, attacker_id, &mut gstate.logs, players, gstate.turn, cur_ui_ai_player_is_paused, &mut gstate.rng, disp);
 			}
 			
 			let attackee_bonus = players[attackee_id].stats.bonuses.combat_factor;
@@ -373,7 +368,8 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 					{
 						let u_attackee = &units[max_health_unit_ind];
 						let u_attacker = &units[unit_ind];
-						logs.push(Log {turn,
+						let l = &disp.state.local;
+						gstate.logs.push(Log {turn: gstate.turn,
 								   val: if u_attackee.template.nm[0] != RIOTER_NM {
 								   	LogType::UnitDestroyed {
 										unit_attackee_nm: u_attackee.nm.clone(),
@@ -397,11 +393,12 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 					debug_assertq!(units[max_health_unit_ind].health > 0);
 					
 					// log unit attacked
-					if attack_owner == iface_settings.cur_player {
+					if attack_owner as usize == cur_player {
 						let u_attackee = &units[max_health_unit_ind];
 						let u_attacker = &units[unit_ind];
+						let l = &disp.state.local;
 						if u_attackee.template.nm[0] != RIOTER_NM {
-							logs.push(Log {turn,
+							gstate.logs.push(Log {turn: gstate.turn,
 									   val: LogType::UnitAttacked {
 												unit_attackee_nm: u_attackee.nm.clone(),
 												unit_attacker_nm: u_attacker.nm.clone(),
@@ -432,7 +429,8 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 						{
 							let u_attackee = &units[unit_ind];
 							let u_attacker = &units[max_health_unit_ind];
-							logs.push(Log {turn, val: LogType::UnitDestroyed {
+							let l = &disp.state.local;
+							gstate.logs.push(Log {turn: gstate.turn, val: LogType::UnitDestroyed {
 											unit_attackee_nm: u_attackee.nm.clone(),
 											unit_attacker_nm: u_attacker.nm.clone(),
 											
@@ -498,13 +496,14 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 			// log
 			{
 				let u_attacker = &units[unit_ind];
-				relations.declare_war(u_attacker.owner_id as usize, attackee_owner_id, logs, players, turn, iface_settings, cur_ui_ai_player_is_paused, disp_settings, menu_options, rng, d);
+				gstate.relations.declare_war(u_attacker.owner_id as usize, attackee_owner_id, &mut gstate.logs, players, gstate.turn, cur_ui_ai_player_is_paused, &mut gstate.rng, disp);
 				
 				// only log humans and active UI AI as having walls/structures destroyed
 				// also only log if this attacker has not attacked this wall in WALL_ATTACK_LOG_DELAY days
 				const WALL_ATTACK_LOG_DELAY: usize = 30;
-				if players[attackee_owner_id].ptype.is_human() || attackee_owner_id as SmSvType == iface_settings.cur_player {
-					let attacked_log = Log {turn,
+				if players[attackee_owner_id].ptype.is_human() || attackee_owner_id == cur_player {
+					let l = &disp.state.local;
+					let attacked_log = Log {turn: gstate.turn,
 						   val: LogType::StructureAttacked {
 							structure_coord: attack_coord,
 							unit_attacker_nm: u_attacker.nm.clone(),
@@ -517,10 +516,10 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 					}};
 					
 					// check if already logged and return from this fn so auto turn increment isn't disabled
-					let turn_threshold = if turn > WALL_ATTACK_LOG_DELAY
-						{turn - WALL_ATTACK_LOG_DELAY} else {0};
+					let turn_threshold = if gstate.turn > WALL_ATTACK_LOG_DELAY
+						{gstate.turn - WALL_ATTACK_LOG_DELAY} else {0};
 					
-					for log in logs.iter().rev() {
+					for log in gstate.logs.iter().rev() {
 						// only check so far back in time
 						if log.turn < turn_threshold {
 							break;
@@ -531,7 +530,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 						}
 					}
 					
-					logs.push(attacked_log);
+					gstate.logs.push(attacked_log);
 				}
 			}
 			
@@ -578,21 +577,20 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 				
 				//printlnq!("{} attacking {} at {}", u.owner_id, owner_prev, bldg_coord);
 				
-				relations.declare_war(u_owner_id, owner_prev, logs, players, turn, iface_settings, cur_ui_ai_player_is_paused, disp_settings, menu_options, rng, d);
+				gstate.relations.declare_war(u_owner_id, owner_prev, &mut gstate.logs, players, gstate.turn, cur_ui_ai_player_is_paused, &mut gstate.rng, disp);
 				
 				// loading screen
 				let prev_visibility = {
-					print_clear_centered_logo_txt(if (u_owner_id  as SmSvType) == iface_settings.cur_player || (owner_prev as SmSvType) == iface_settings.cur_player {
-						"A new order is being established..."
+					disp.state.print_clear_centered_logo_txt(if u_owner_id == cur_player || owner_prev == cur_player {
+						disp.state.local.A_new_order_is_being_established.clone()
 					}else{
-						"Somewhere a violent take-over is taking place. Please wait while order is restored..."
-					}, disp_chars, d);
-					d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE)
+						disp.state.local.Please_wait_violent_take_over.clone()
+					});
+					disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE)
 				};
 				
 				//printlnq!("bldg coord {} from {} to {}", Coord::frm_ind(bldgs[bldg_ind].coord, map_sz), owner_prev, u_owner_id);
-				let mut to_city_state_opt = transfer_city_ai_state(bldg_ind, owner_prev, u_owner_id, iface_settings.cur_player as usize, units, bldgs, temps, exs, map_data, 
-						players, relations, logs, map_sz, turn);
+				let mut to_city_state_opt = transfer_city_ai_state(bldg_ind, owner_prev, u_owner_id, cur_player, units, bldgs, temps, exs, map_data, players, gstate, map_sz);
 				
 				////////////////////////////////////////////
 				// set surrounding land ownership, update stats
@@ -619,14 +617,14 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 					
 					///////// update owner info/bldg info in adj_stack[]
 					if let Some(to_city_state) = &mut to_city_state_opt {
-						set_all_adj_owner(adj_stack, u_owner_id, owner_prev, iface_settings.cur_player as usize, &mut Some(to_city_state), units, bldgs, temps, exs, players, map_data, relations, logs, map_sz, turn);
+						set_all_adj_owner(adj_stack, u_owner_id, owner_prev, cur_player, &mut Some(to_city_state), units, bldgs, temps, exs, players, map_data, gstate, map_sz);
 					}else{
-						set_all_adj_owner(adj_stack, u_owner_id, owner_prev, iface_settings.cur_player as usize, &mut None, units, bldgs, temps, exs, players, map_data, relations, logs, map_sz, turn);
+						set_all_adj_owner(adj_stack, u_owner_id, owner_prev, cur_player, &mut None, units, bldgs, temps, exs, players, map_data, gstate, map_sz);
 					}
 				}
 				
 				// log
-				logs.push(Log {turn,
+				gstate.logs.push(Log {turn: gstate.turn,
 					   val: LogType::CityCaptured {
 							city_attackee_nm,
 							owner_attackee_id: owner_prev,
@@ -650,9 +648,9 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 					// set land over to attacker
 					for coord in coords {
 						if let Some(to_city_state) = &mut to_city_state_opt {
-							set_owner(coord, u_owner_id, owner_prev, iface_settings.cur_player as usize, &mut Some(to_city_state), units, bldgs, temps, exs, players, map_data, relations, logs, map_sz, turn);
+							set_owner(coord, u_owner_id, owner_prev, cur_player, &mut Some(to_city_state), units, bldgs, temps, exs, players, map_data, gstate, map_sz);
 						}else{
-							set_owner(coord, u_owner_id, owner_prev, iface_settings.cur_player as usize, &mut None, units, bldgs, temps, exs, players, map_data, relations, logs, map_sz, turn);
+							set_owner(coord, u_owner_id, owner_prev, cur_player, &mut None, units, bldgs, temps, exs, players, map_data, gstate, map_sz);
 						}
 					}
 					
@@ -668,7 +666,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 					}
 				}
 				
-				d.curs_set(prev_visibility);
+				disp.state.renderer.curs_set(prev_visibility);
 			
 			// barbarian camp
 			}else if b.template.nm[0] == BARBARIAN_CAMP_NM {
@@ -692,7 +690,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 					}
 					
 					// log
-					logs.push(Log {turn,
+					gstate.logs.push(Log {turn: gstate.turn,
 						   val: LogType::CivDestroyed {
 							owner_attackee_id: attackee_id,
 							owner_attacker_id: units[unit_ind].owner_id as usize
@@ -701,7 +699,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 				// then if the AI later takes over the city, it then owns the camp the 
 				// barbarian owned, so the AI can have the camp but no barbarian state
 				
-				rm_bldg(bldg_ind, b.owner_id == iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, players,
+				rm_bldg(bldg_ind, b.owner_id == cur_player as SmSvType, bldgs, temps.bldgs, map_data, exs, players,
 						  UnitDelAction::Record (disband_unit_inds), map_sz);
 				
 				//players[attackee_id].ptype = None;

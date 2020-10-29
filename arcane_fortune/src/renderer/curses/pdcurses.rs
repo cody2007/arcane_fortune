@@ -42,7 +42,7 @@ macro_rules! wrap_try_into{($nm: ident) => {
 	}
 };}
 
-impl DispState {
+impl Renderer {
 	wrap!(clrtoeol);
 	wrap!(refresh);
 	wrap!(clear);
@@ -153,7 +153,7 @@ pub fn ACS_HLINE() -> chtype {PDC_ACS('q')}
 pub fn ACS_VLINE() -> chtype {PDC_ACS('x')}
 pub fn ACS_CKBOARD() -> chtype {PDC_ACS('a')}
 
-pub fn setup_disp_lib() -> DispState {
+pub fn setup_disp_lib() -> Renderer {
 	unsafe{
 		direct_pdcurses::setlocale(direct_pdcurses::LC_ALL, &direct_pdcurses::LC_VARS);
 		initscr();
@@ -167,7 +167,7 @@ pub fn setup_disp_lib() -> DispState {
 			    BUTTON4_PRESSED | BUTTON5_PRESSED |
 			    REPORT_MOUSE_POSITION, ptr::null_mut());
 	}
-	DispState {}
+	Renderer {}
 }
 
 pub fn COLOR_PAIRS() -> CInt { unsafe{direct_pdcurses::COLOR_PAIRS}}

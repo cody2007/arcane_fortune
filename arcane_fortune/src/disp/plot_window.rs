@@ -1,12 +1,11 @@
 use crate::map::{MapData};
 use crate::player::*;
-use crate::disp_lib::*;
+use crate::renderer::*;
 use crate::gcore::Relations;
-use super::{float_string, set_player_color, Buttons, addstr_c};
-use super::color::{DispChars, CGREEN, ESC_COLOR};
-use super::vars::IfaceSettings;
+use super::{float_string, set_player_color, addstr_c};
+use super::color::*;
 use super::window::{center_txt};
-use crate::localization::Localization;
+use crate::containers::*;
 
 pub enum ColoringType<'o> {
 	Players,
@@ -21,14 +20,14 @@ pub enum ColoringType<'o> {
 // data format: data[owner][time]
 // ColoringType::Owners will plot each line in the color of the owners and a legend with the owner nms
 // ColoringType::Supplied will plot each line in the color supplied and create a legend with `lbls`
-pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_txt: &str, 
-		data: &Vec<Vec<T>>, disp_chars: &DispChars, iface_settings: &IfaceSettings, players: &Vec<Player>,
-		relations: &Relations, map_data: &MapData, plot_first_player_only: bool, l: &Localization,
-		buttons: &mut Buttons, d: &mut DispState) {
-	d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-
-	let h = iface_settings.screen_sz.h as i32;
-	let w = iface_settings.screen_sz.w as i32;
+pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_txt: String, 
+		data: &Vec<Vec<T>>, dstate: &mut DispState, players: &Vec<Player>,
+		relations: &Relations, map_data: &MapData, plot_first_player_only: bool) {
+	let mut r = &mut dstate.renderer;
+	r.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+	
+	let h = dstate.iface_settings.screen_sz.h as i32;
+	let w = dstate.iface_settings.screen_sz.w as i32;
 	
 	let title_c = Some(COLOR_PAIR(CGREEN));
 	
@@ -39,26 +38,26 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 	let h_use = h - ROW_TOP_GAP - ROW_BOTTOM_GAP; // height of plot
 	let w_use = w - COL_START - 1; // width of plot
 	
-	let cur_player = iface_settings.cur_player as usize;
+	let cur_player = dstate.iface_settings.cur_player as usize;
 	
 	////////// plot title and close txt
 	{
-		d.clear(); d.mv(0,0);
-		center_txt(&format!("{} {}", title_txt, l.vs_time), w, title_c, d);
-		d.mv(0,0); buttons.Esc_to_close.print(None, l, d);
+		r.clear(); r.mv(0,0);
+		center_txt(&format!("{} {}", title_txt, dstate.local.vs_time), w, title_c, r);
+		r.mv(0,0); dstate.buttons.Esc_to_close.print(None, &dstate.local, r);
 		
-		d.mv(1,0);
-		addstr_c(&format!("<{}>", l.Arrow_keys), ESC_COLOR, d);
-		d.addstr(": ");
-		d.addstr(&l.Next_prev_plot);
+		r.mv(1,0);
+		addstr_c(&format!("<{}>", dstate.local.Arrow_keys), ESC_COLOR, r);
+		r.addstr(": ");
+		r.addstr(&dstate.local.Next_prev_plot);
 	}
 	
 	if let Some(first_tseries) = data.first() {
 		let n_t_points = first_tseries.len(); // length for first player/time series
 		
 		if n_t_points < 2 {
-			d.mv(h/2, 0);
-			center_txt(&format!("In this prehistorical time, no logs exist yet. Check back after {} or so days.", 2*LOG_TURNS), w, None, d);
+			r.mv(h/2, 0);
+			center_txt(&format!("In this prehistorical time, no logs exist yet. Check back after {} or so days.", 2*LOG_TURNS), w, None, r);
 			return;
 		}
 		
@@ -105,14 +104,14 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 		/////////////////// plot scales
 		{
 			////////////// y-axis
-			d.mv(ROW_TOP_GAP, 0); // top
-			d.addstr(&float_string(max_val));
+			r.mv(ROW_TOP_GAP, 0); // top
+			r.addstr(&float_string(max_val));
 			
-			d.mv(ROW_TOP_GAP + h_use/2, 0); // mid-point
-			d.addstr(&float_string(((max_val + min_val)/2.).round()));
+			r.mv(ROW_TOP_GAP + h_use/2, 0); // mid-point
+			r.addstr(&float_string(((max_val + min_val)/2.).round()));
 			
-			d.mv(ROW_TOP_GAP + h_use, 0); // bottom
-			d.addstr(&float_string(min_val));
+			r.mv(ROW_TOP_GAP + h_use, 0); // bottom
+			r.addstr(&float_string(min_val));
 			
 			///////////// x-axis
 			let max_days_logged = n_t_points * LOG_TURNS;
@@ -120,29 +119,29 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 			// if more than 3 years logged, show y labels in years, not months
 			let y_unit_txt;
 			let y_div = if max_days_logged > (30*12*3) {
-				y_unit_txt = &l.years;
+				y_unit_txt = &dstate.local.years;
 				30*12 // scale by year
 			}else{
-				y_unit_txt = &l.months;
+				y_unit_txt = &dstate.local.months;
 				30 // scale by month
 			};
 			
 			// mid-point
-			d.mv(h-2, 0);
-			center_txt(&format!("{}", max_days_logged/(y_div*2)), w, None, d);
+			r.mv(h-2, 0);
+			center_txt(&format!("{}", max_days_logged/(y_div*2)), w, None, r);
 			
 			// left-point
-			d.mv(h-2, COL_START);
-			d.addstr("0");
+			r.mv(h-2, COL_START);
+			r.addstr("0");
 			
 			// right-point
 			let txt = format!("{}", max_days_logged/y_div);
-			d.mv(h-2, COL_START + 1 + w_use - txt.len() as i32);
-			d.addstr(&txt);
+			r.mv(h-2, COL_START + 1 + w_use - txt.len() as i32);
+			r.addstr(&txt);
 			
 			// y-label
-			d.mv(h-1, 0);
-			center_txt(&format!("{} ({})", l.Time, y_unit_txt), w, title_c, d);
+			r.mv(h-1, 0);
+			center_txt(&format!("{} ({})", dstate.local.Time, y_unit_txt), w, title_c, r);
 		}
 		
 		//////////////////// plot data
@@ -180,31 +179,31 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 							PlayerType::Human(_) | PlayerType::Empire(_) => {}
 						}
 						
-						set_player_color(player, true, d);
+						set_player_color(player, true, r);
 						// loop over time
 						for (x_d, (y_d, _alive)) in player_data.iter()
 										.zip(player.stats.alive_log.iter()).enumerate()
 										.filter(|(_, (_, &alive))| plot_first_player_only || alive) {
-							d.mv(y(*y_d), x(x_d));
-							d.addch(disp_chars.land_char as chtype);
+							r.mv(y(*y_d), x(x_d));
+							r.addch(dstate.chars.land_char as chtype);
 						}
-						set_player_color(player, false, d);
+						set_player_color(player, false, r);
 						
 						if plot_first_player_only {break;}
 					}
 				}
 				ColoringType::Supplied {colors, ign_cur_player_alive, ..} => { // ex. zoning, world prevailing doctrines
-					let pstats = &players[iface_settings.cur_player as usize].stats;
+					let pstats = &players[dstate.iface_settings.cur_player as usize].stats;
 					// loop over time series
 					for (tseries, color) in data.iter().zip(colors) {
-						d.attron(COLOR_PAIR(*color));
+						r.attron(COLOR_PAIR(*color));
 						// loop over time
 						for (x_d, (y_d, alive)) in tseries.iter().zip(pstats.alive_log.iter()).enumerate() {
 							if !ign_cur_player_alive && !*alive {break;}
-							d.mv(y(*y_d), x(x_d));
-							d.addch(disp_chars.land_char as chtype);
+							r.mv(y(*y_d), x(x_d));
+							r.addch(dstate.chars.land_char as chtype);
 						}
-						d.attroff(COLOR_PAIR(*color));
+						r.attroff(COLOR_PAIR(*color));
 					}
 				}
 			}
@@ -215,7 +214,7 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 		
 		///////////////// plot legend
 		if !plot_first_player_only {		
-			let mut max_len = l.Legend.len();
+			let mut max_len = dstate.local.Legend.len();
 			
 			match coloring_type {
 				ColoringType::Players => {
@@ -229,14 +228,14 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 							PlayerType::Human(_) | PlayerType::Empire(_) => {}
 						}
 						
-						d.mv(row_counter + ROW_TOP_GAP + LEGEND_ROW_GAP + 2, COL_START + LEGEND_COL_GAP);
-						set_player_color(player, true, d);
-						d.addch(disp_chars.land_char as chtype);
-						set_player_color(player, false, d);
-						d.addstr(&format!(" {}", player.personalization.nm));
+						r.mv(row_counter + ROW_TOP_GAP + LEGEND_ROW_GAP + 2, COL_START + LEGEND_COL_GAP);
+						set_player_color(player, true, r);
+						r.addch(dstate.chars.land_char as chtype);
+						set_player_color(player, false, r);
+						r.addstr(&format!(" {}", player.personalization.nm));
 						
 						let owner_len = if !player.stats.alive {
-							d.addstr(" (Historic)");
+							r.addstr(" (Historic)");
 							" (Historic)".len()
 						}else {0} + player.personalization.nm.len();
 						
@@ -247,59 +246,59 @@ pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_
 				}
 				ColoringType::Supplied {lbls, colors, ..} => {
 					for ((i, lbl), color) in lbls.iter().enumerate().zip(colors) {
-						d.mv(i as i32 + ROW_TOP_GAP + LEGEND_ROW_GAP + 2, COL_START + LEGEND_COL_GAP);
-						d.attron(COLOR_PAIR(*color));
-						d.addch(disp_chars.land_char as chtype);
-						d.attroff(COLOR_PAIR(*color));
-						d.addstr(&format!(" {}", lbl));
+						r.mv(i as i32 + ROW_TOP_GAP + LEGEND_ROW_GAP + 2, COL_START + LEGEND_COL_GAP);
+						r.attron(COLOR_PAIR(*color));
+						r.addch(dstate.chars.land_char as chtype);
+						r.attroff(COLOR_PAIR(*color));
+						r.addstr(&format!(" {}", lbl));
 						
 						if max_len < lbl.len() {max_len = lbl.len();}
 					}
 				}
 			}
 			
-			let gap = ((2 + max_len) - l.Legend.len()) / 2; // adding 2 to max_len to include border around legend
-			d.mv(ROW_TOP_GAP + LEGEND_ROW_GAP, COL_START + LEGEND_COL_GAP + gap as i32);
-			d.addstr(&l.Legend);
+			let gap = ((2 + max_len) - dstate.local.Legend.len()) / 2; // adding 2 to max_len to include border around legend
+			r.mv(ROW_TOP_GAP + LEGEND_ROW_GAP, COL_START + LEGEND_COL_GAP + gap as i32);
+			r.addstr(&dstate.local.Legend);
 		
 		// show map buffer utilization
 		}else{
-			d.mv(ROW_TOP_GAP + LEGEND_ROW_GAP, COL_START + LEGEND_COL_GAP);
-			d.addstr(&format!("{} {:.1}%", l.Map_buffer_used,
+			r.mv(ROW_TOP_GAP + LEGEND_ROW_GAP, COL_START + LEGEND_COL_GAP);
+			r.addstr(&format!("{} {:.1}%", dstate.local.Map_buffer_used,
 					(100.*map_data.deque_zoom_in.len() as f32) / (map_data.max_zoom_in_buffer_sz as f32)));
 		}
 		
 		///////// plot axis
 		{
 			// x-axis
-			d.mv(h - ROW_BOTTOM_GAP + 1, COL_START);
-			d.addch('|');
+			r.mv(h - ROW_BOTTOM_GAP + 1, COL_START);
+			r.addch('|');
 			for col in 1..w_use {
 				if col != ((w_use/2) - 2) {
-					d.addch(disp_chars.hline_char as chtype);
+					r.addch(dstate.chars.hline_char as chtype);
 				}else{
-					d.addch('|');
+					r.addch('|');
 				}
 			}
-			d.addch('|');
+			r.addch('|');
 			
 			// y-axis
-			d.mv(ROW_TOP_GAP, COL_START - 1);
-			d.addch(disp_chars.hline_char as chtype);
+			r.mv(ROW_TOP_GAP, COL_START - 1);
+			r.addch(dstate.chars.hline_char as chtype);
 			for row in 1..h_use {
-				d.mv(ROW_TOP_GAP + row, COL_START-1);
+				r.mv(ROW_TOP_GAP + row, COL_START-1);
 				if row != (h_use/2) {
-					d.addch(disp_chars.vline_char as chtype);
+					r.addch(dstate.chars.vline_char as chtype);
 				}else{
-					d.addch(disp_chars.hline_char as chtype);
+					r.addch(dstate.chars.hline_char as chtype);
 				}
 			}
-			d.mv(ROW_TOP_GAP + h_use, COL_START-1);
-			d.addch(disp_chars.hline_char as chtype);
+			r.mv(ROW_TOP_GAP + h_use, COL_START-1);
+			r.addch(dstate.chars.hline_char as chtype);
 		}
 	}else{
-		d.mv(h/2, 0);
-		center_txt(&l.No_info_to_plot, w, None, d)
+		r.mv(h/2, 0);
+		center_txt(&dstate.local.No_info_to_plot, w, None, r)
 	}
 }
 

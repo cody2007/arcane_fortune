@@ -5,12 +5,15 @@ use crate::doctrine::available_doctrines;
 use crate::localization::Localization;
 use crate::player::{Stats, PlayerType, Player};
 
+pub mod owned_units; pub use owned_units::*;
+pub mod manors; pub use manors::*;
+
 pub fn noble_houses_list<'bt,'ut,'rt,'dt>(cur_player: usize, relations: &Relations,
 		players: &Vec<Player>, l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
 	let mut nms_string = Vec::with_capacity(players.len());
 	
 	for house_ind in relations.noble_houses(cur_player) {
-		nms_string.push(l.House_of.replace("[]", &players[house_ind].personalization.nm));
+		nms_string.push(l.house_nm.replace("[]", &players[house_ind].personalization.nm));
 	}
 	
 	// register_shortcuts takes [&str]s, so take references of all the strings
@@ -77,7 +80,7 @@ pub fn encyclopedia_bldg_list<'bt,'ut,'rt,'dt>(bldg_templates: &'bt Vec<BldgTemp
 
 // for creating list to display of units in `units_use`. w is set to be the width of the window to be created
 pub fn unit_list_frm_vec<'bt,'ut,'rt,'dt>(unit_inds_use: &Vec<usize>, 
-		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, cur_coord: Coord, pstats: &Stats,
+		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, cur_coord: Coord, players: &Vec<Player>,
 		w: &mut usize, label_txt_opt: &mut Option<String>, map_sz: MapSz, l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
 	struct UnitEntry {
 		nm: String,
@@ -105,7 +108,7 @@ pub fn unit_list_frm_vec<'bt,'ut,'rt,'dt>(unit_inds_use: &Vec<usize>,
 			action.action_type.nm(l)
 		}else {String::from(&l.Idle)};
 		
-		let brigade = if let Some(brigade) = pstats.unit_brigade_nm(*unit_ind) {
+		let brigade = if let Some(brigade) = players[u.owner_id as usize].stats.unit_brigade_nm(*unit_ind) {
 			brigade.to_string()
 		}else{String::from("None")};
 		
@@ -206,7 +209,7 @@ pub fn unit_list_frm_vec<'bt,'ut,'rt,'dt>(unit_inds_use: &Vec<usize>,
 
 // for creating list to display of player's owned units. w is set to be the width of the window to be created
 pub fn owned_unit_list<'bt,'ut,'rt,'dt>(units: &Vec<Unit<'bt,'ut,'rt,'dt>>, cur_player: SmSvType, cur_coord: Coord,
-		pstats: &Stats, w: &mut usize, label_txt_opt: &mut Option<String>,
+		players: &Vec<Player>, w: &mut usize, label_txt_opt: &mut Option<String>,
 		map_sz: MapSz, l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
 	
 	let mut unit_inds_use = Vec::with_capacity(units.len());
@@ -216,7 +219,7 @@ pub fn owned_unit_list<'bt,'ut,'rt,'dt>(units: &Vec<Unit<'bt,'ut,'rt,'dt>>, cur_
 		unit_inds_use.push(unit_ind);
 	}
 	
-	unit_list_frm_vec(&unit_inds_use, units, cur_coord, pstats, w, label_txt_opt, map_sz, l)
+	unit_list_frm_vec(&unit_inds_use, units, cur_coord, players, w, label_txt_opt, map_sz, l)
 }
 
 // w is set to be the width of the window to be created
@@ -368,10 +371,11 @@ pub fn brigades_list<'bt,'ut,'rt,'dt>(pstats: &Stats, w: &mut usize, label_txt_o
 }
 
 // w is set to be the width of the window to be created
-pub fn brigade_unit_list<'bt,'ut,'rt,'dt>(brigade_nm: &String, pstats: &Stats, units: &Vec<Unit<'bt,'ut,'rt,'dt>>,
+pub fn brigade_unit_list<'bt,'ut,'rt,'dt>(brigade_nm: &String, pstats: &Stats, 
+		players: &Vec<Player>, units: &Vec<Unit<'bt,'ut,'rt,'dt>>,
 		cur_coord: Coord, w: &mut usize, label_txt_opt: &mut Option<String>, map_sz: MapSz, l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
 	let brigade = pstats.brigade_frm_nm(brigade_nm);
-	unit_list_frm_vec(&brigade.unit_inds, units, cur_coord, pstats, w, label_txt_opt, map_sz, l)
+	unit_list_frm_vec(&brigade.unit_inds, units, cur_coord, players, w, label_txt_opt, map_sz, l)
 }
 
 pub fn brigade_build_list<'bt,'ut,'rt,'dt>(brigade_nm: &String, pstats: &Stats, l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
@@ -818,8 +822,7 @@ pub fn owned_city_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, cur_
 }
 
 // for creating list to display of player's cities
-pub fn contacted_civilizations_list<'bt,'ut,'rt,'dt>(relations: &Relations, players: &Vec<Player>, cur_player: SmSvType, turn: usize,
-		l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
+pub fn contacted_civilizations_list<'bt,'ut,'rt,'dt>(gstate: &GameState, players: &Vec<Player>, cur_player: SmSvType, l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
 	let cur_player = cur_player as usize;
 	
 	// get all civs contacted by player
@@ -827,12 +830,12 @@ pub fn contacted_civilizations_list<'bt,'ut,'rt,'dt>(relations: &Relations, play
 	let mut owner_ids = Vec::with_capacity(players.len());
 	
 	for (owner_id, player) in players.iter().enumerate() {
-		if relations.discovered(cur_player, owner_id) && owner_id != cur_player && player.stats.alive {
+		if gstate.relations.discovered(cur_player, owner_id) && owner_id != cur_player && player.stats.alive {
 			match player.ptype {
 				PlayerType::Empire(_) | PlayerType::Human(_) => {
-					let nm_string = if let Some(_) = relations.peace_treaty_turns_remaining(cur_player as usize, owner_id, turn) {
+					let nm_string = if let Some(_) = gstate.relations.peace_treaty_turns_remaining(cur_player as usize, owner_id, gstate.turn) {
 						format!("{} {}", player.personalization.nm, l.Peace_treaty_paren)
-					}else if relations.at_war(cur_player as usize, owner_id) {
+					}else if gstate.relations.at_war(cur_player as usize, owner_id) {
 						format!("{} {}", player.personalization.nm, l.WAR_paren)
 					}else {player.personalization.nm.clone()};
 					
@@ -1122,127 +1125,145 @@ pub fn explore_types_list<'bt,'ut,'rt,'dt>(l: &Localization) -> OptionsUI<'bt,'u
 	opts
 }
 
+pub struct ListPositions {
+	pub top_left: Coord,
+	pub top_right: Coord,
+	pub sel_loc: Coord
+}
+
 // if owners supplied, print player colors
-// returns (top-left, top-right) most point the window is printed at
-pub fn print_list_window(mut mode: usize, top_txt: &str, mut options: OptionsUI,
-		iface_settings: &IfaceSettings, disp_chars: &DispChars,
-		w_opt: Option<usize>, label_txt: Option<String>, n_gap_lines: usize,
-		owners_opt: Option<&Vec<Player>>, l: &Localization,
-		buttons: &mut Buttons, d: &mut DispState) -> (Coord, Coord) {
-	let n_orig_options = options.options.len();
-	let mode_orig = mode;
-	
-	let mut w = if let Some(w_use) = w_opt {w_use as i32} else {29};
-	let h = min(iface_settings.screen_sz.h, n_orig_options + 5);
-	
-	let n_rows_plot = min(n_orig_options, iface_settings.screen_sz.h - 6);
-	
-	let mut start_ind = 0;
-	
-	// add additional width if scrolling & crop options
-	let show_scroll_bars = if n_rows_plot < n_orig_options {
-		w += 1;
+// returns (top-left, top-right, cursor) most point the window is printed at
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+	pub fn print_list_window(&mut self, mut mode: usize, top_txt: String, mut options: OptionsUI,
+			w_opt: Option<usize>, label_txt: Option<String>, n_gap_lines: usize,
+			owners_opt: Option<&Vec<Player>>) -> ListPositions {
+		let iface_settings = &self.iface_settings;
+		let d = &mut self.renderer;
 		
-		options.options = if mode < n_rows_plot {
-			options.options[..n_rows_plot].to_vec()
-		}else{
-			start_ind = mode;
-			let cropped = options.options[(mode - (n_rows_plot - 1))..=mode].to_vec();
-			mode = n_rows_plot - 1;
-			cropped
-		};
+		let n_orig_options = options.options.len();
+		let mode_orig = mode;
 		
-		true
-	}else{false};
-	
-	let y = (iface_settings.screen_sz.h as i32 - h as i32)/2;
-	let x = (iface_settings.screen_sz.w as i32 - w as i32)/2;
-	
-	let mut row: i32 = 0;
-	let (mut cy, mut cx) = (0_i32,0_i32);
-	
-	// top line
-	d.mv(row + y, x); row += 1;
-	d.addch(disp_chars.ulcorner_char);
-	for _ in 0..(w-2) {d.addch(disp_chars.hline_char);}
-	d.addch(disp_chars.urcorner_char);
-	
-	macro_rules! nln {() => (d.mv(row + y, x); row += 1; 
-				 d.addch(disp_chars.vline_char); d.addch(' ' as chtype););};
-	macro_rules! eln {() => (
-		d.getyx(stdscr(), &mut cy, &mut cx);
-		for _ in cx..=(w+x-2) {d.addch(' ' as chtype);}
-		d.addch(disp_chars.vline_char); );};
-	
-	nln!(); buttons.Esc_to_close.print(None, l, d); eln!();
-	
-	// txt line
-	nln!(); d.addstr(top_txt); eln!();
-	
-	// blank line
-	nln!(); eln!();
-	
-	// gap lines
-	for _ in 0..n_gap_lines {nln!(); eln!();}
-	
-	// labels before entries are printed
-	if let Some(txt) = label_txt {
-		nln!(); addstr_c(&txt, CGRAY, d); eln!();
-	}
-	
-	///////////////////////////// print list options
-	if options.options.len() > 0 {
-		//let w = if show_scroll_bars {w - 1} else {w};
-		print_menu_vstack(&options, y + row, x, w as usize, mode, disp_chars, true, owners_opt, start_ind, &mut None, buttons, d);
-	}else{
+		let mut w = if let Some(w_use) = w_opt {w_use as i32} else {29};
+		let h = min(iface_settings.screen_sz.h, n_orig_options + 5);
+		
+		let n_rows_plot = min(n_orig_options, iface_settings.screen_sz.h - 6);
+		
+		let mut start_ind = 0;
+		
+		// add additional width if scrolling & crop options
+		let show_scroll_bars = if n_rows_plot < n_orig_options {
+			w += 1;
+			
+			options.options = if mode < n_rows_plot {
+				options.options[..n_rows_plot].to_vec()
+			}else{
+				start_ind = mode;
+				let cropped = options.options[(mode - (n_rows_plot - 1))..=mode].to_vec();
+				mode = n_rows_plot - 1;
+				cropped
+			};
+			
+			true
+		}else{false};
+		
+		let y = (iface_settings.screen_sz.h as i32 - h as i32)/2;
+		let x = (iface_settings.screen_sz.w as i32 - w as i32)/2;
+		
+		let mut row: i32 = 0;
+		let (mut cy, mut cx) = (0_i32,0_i32);
+		
+		// top line
+		d.mv(row + y, x); row += 1;
+		d.addch(self.chars.ulcorner_char);
+		for _ in 0..(w-2) {d.addch(self.chars.hline_char);}
+		d.addch(self.chars.urcorner_char);
+		
+		macro_rules! nln {() => (d.mv(row + y, x); row += 1; 
+					 d.addch(self.chars.vline_char); d.addch(' ' as chtype););};
+		macro_rules! eln {() => (
+			d.getyx(stdscr(), &mut cy, &mut cx);
+			for _ in cx..=(w+x-2) {d.addch(' ' as chtype);}
+			d.addch(self.chars.vline_char); );};
+		
 		nln!();
-		d.addstr(&l.None); eln!();
+		// for screen readers, where to show the text cursor (default to the exit close button if no entries found)
+		let curs = cursor_pos(d);
+		let mut curs = (curs.y as i32, curs.x as i32);
+		let mut sel_loc = Some(&mut curs);
 		
-		// bottom line
-		d.mv(row + y, x);
-		d.addch(disp_chars.llcorner_char);
-		for _ in 0..(w-2) {d.addch(disp_chars.hline_char);}
-		d.addch(disp_chars.lrcorner_char);
-	}
-	
-	//////// print scroll bars
-	if show_scroll_bars {
-		let h = h as i32;
-		let w = x as i32 + w as i32 - 2;
-		let scroll_track_h = n_rows_plot;
-		let frac_covered = n_rows_plot as f32 / n_orig_options as f32;
-		let scroll_bar_h = ((scroll_track_h as f32) * frac_covered).round() as i32;
-		debug_assertq!(frac_covered <= 1.);
+		self.buttons.Esc_to_close.print(None, &self.local, d); eln!();
 		
-		let frac_at_numer = if mode_orig < n_rows_plot as usize {
-			0
-		} else {
-			mode_orig - n_rows_plot + 3 //first_ln + 2//+ n_rows_plot as usize
-		};
+		// txt line
+		nln!(); d.addstr(&top_txt); eln!();
 		
-		let frac_at = frac_at_numer as f32 / n_orig_options as f32;
-		let scroll_bar_start = ((scroll_track_h as f32) * frac_at).round() as i32;
+		// blank line
+		nln!(); eln!();
 		
-		// blank space after each option
-		for offset in 0..options.options.len() as i32 {
-			d.mv(offset + 2 + LOG_START_ROW, w-1);
-			d.addstr("  ");
+		// gap lines
+		for _ in 0..n_gap_lines {nln!(); eln!();}
+		
+		// labels before entries are printed
+		if let Some(txt) = label_txt {
+			nln!(); addstr_c(&txt, CGRAY, d); eln!();
 		}
 		
-		d.mv(LOG_START_ROW, w);
-		d.attron(COLOR_PAIR(CLOGO));
-		d.addch(disp_chars.hline_char);
-		for row in 0..scroll_bar_h-1 {
-			d.mv(row + 1 + scroll_bar_start + LOG_START_ROW, w);
-			d.addch(disp_chars.vline_char);
-			//d.addch('#' as chtype);
+		///////////////////////////// print list options
+		if options.options.len() > 0 {
+			//let w = if show_scroll_bars {w - 1} else {w};
+			print_menu_vstack(&options, y + row, x, w as usize, mode, true, owners_opt, start_ind, &mut sel_loc, &self.chars, &mut self.buttons, &mut self.renderer);
+		}else{
+			nln!();
+			d.addstr(&self.local.None); eln!();
+			
+			// bottom line
+			d.mv(row + y, x);
+			d.addch(self.chars.llcorner_char);
+			for _ in 0..(w-2) {d.addch(self.chars.hline_char);}
+			d.addch(self.chars.lrcorner_char);
 		}
-		d.mv(h-LOG_STOP_ROW, w);
-		d.addch(disp_chars.hline_char);
-		d.attroff(COLOR_PAIR(CLOGO));
+		
+		//////// print scroll bars
+		if show_scroll_bars {
+			let h = h as i32;
+			let w = x as i32 + w as i32 - 2;
+			let scroll_track_h = n_rows_plot;
+			let frac_covered = n_rows_plot as f32 / n_orig_options as f32;
+			let scroll_bar_h = ((scroll_track_h as f32) * frac_covered).round() as i32;
+			debug_assertq!(frac_covered <= 1.);
+			
+			let frac_at_numer = if mode_orig < n_rows_plot as usize {
+				0
+			} else {
+				mode_orig - n_rows_plot + 3 //first_ln + 2//+ n_rows_plot as usize
+			};
+			
+			let frac_at = frac_at_numer as f32 / n_orig_options as f32;
+			let scroll_bar_start = ((scroll_track_h as f32) * frac_at).round() as i32;
+			
+			// blank space after each option
+			for offset in 0..options.options.len() as i32 {
+				self.mv(offset + 2 + LOG_START_ROW, w-1);
+				self.addstr("  ");
+			}
+			
+			self.mv(LOG_START_ROW, w);
+			self.attron(COLOR_PAIR(CLOGO));
+			self.addch(self.chars.hline_char);
+			for row in 0..scroll_bar_h-1 {
+				self.mv(row + 1 + scroll_bar_start + LOG_START_ROW, w);
+				self.addch(self.chars.vline_char);
+				//d.addch('#' as chtype);
+			}
+			self.mv(h-LOG_STOP_ROW, w);
+			self.addch(self.chars.hline_char);
+			self.attroff(COLOR_PAIR(CLOGO));
+		}
+		
+		ListPositions {
+			top_left: Coord {y: y as isize, x: x as isize},
+			top_right: Coord {y: y as isize, x: (x + w) as isize},
+			sel_loc: Coord {y: curs.0 as isize, x: curs.1 as isize}
+		}
 	}
-	
-	(Coord {y: y as isize, x: x as isize},
-	 Coord {y: y as isize, x: (x + w) as isize})
 }
 

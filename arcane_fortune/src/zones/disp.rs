@@ -1,7 +1,8 @@
-use crate::disp_lib::*;
+use crate::renderer::*;
 use crate::disp::*;
 use crate::gcore::hashing::HashedMapEx;
 use crate::player::Stats;
+use crate::containers::*;
 use super::*;
 
 const MAX_ROAD_DIST: usize = 9;
@@ -118,12 +119,10 @@ pub enum ZonePlotType<'s,'b,'bt,'ut,'rt,'dt> {
 }
 
 // if plot_zone is none, plot all, else plot only plot_zone
-pub fn show_zone_demand_scales(roff: &mut i32, turn_col: i32, iface_settings: &IfaceSettings,
-		disp_chars: &DispChars, plot_type: ZonePlotType, d: &mut DispState) {
+pub fn show_zone_demand_scales(roff: &mut i32, turn_col: i32, plot_type: ZonePlotType, dstate: &mut DispState) {
+	macro_rules! mvclr{() => (dstate.mv(*roff, turn_col); *roff += 1; dstate.renderer.clrtoeol());}
 	
-	macro_rules! mvclr{() => (d.mv(*roff, turn_col); *roff += 1; d.clrtoeol());}
-	
-	let scale_width = iface_settings.screen_sz.w  as isize - turn_col as isize;
+	let scale_width = dstate.iface_settings.screen_sz.w  as isize - turn_col as isize;
 	let scale_width_h = scale_width / 2;
 	let step = 2./(scale_width as f32);
 	
@@ -132,7 +131,7 @@ pub fn show_zone_demand_scales(roff: &mut i32, turn_col: i32, iface_settings: &I
 			
 		for i in 0..scale_width {
 			if i == scale_width_h {
-				d.addch(disp_chars.vline_char);
+				dstate.addch(dstate.chars.vline_char);
 				continue;	
 			}
 			let mid_val = step*(i as f32 - scale_width_h as f32);
@@ -141,9 +140,9 @@ pub fn show_zone_demand_scales(roff: &mut i32, turn_col: i32, iface_settings: &I
 			  (i+1) == scale_width_h && $val < 0. || // nearly at mid-point (below)
 			  (i-1) == scale_width_h && $val > 0. || // nearly at mid-point (above)
 			  i > scale_width_h && $val >= mid_val { // after midpoint
-				plot_zone($zone_type, &disp_chars, d);
+				dstate.plot_zone($zone_type); 
 			}else {
-				d.addch(' ' as chtype);
+				dstate.renderer.addch(' ' as chtype);
 			}
 		}
 	};};

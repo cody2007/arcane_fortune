@@ -47,6 +47,7 @@ Misc (Note: setting `enter` to a different value is not fully supported yet
 	finish_all_unit_actions: @
 	change_brigade_repair: c
 	clear_brigade_repair: c
+	center_on_next_unmoved_unit: ;
 }
 
 ---------------
@@ -95,12 +96,31 @@ Unit actions
 
 -----------------
 Text mode cursor control
-	(these are only used when the game is launched in screen_reader_mode and are
-	 used to tab through text at the bottom and right side of the screen)
+	(These are only used when the game is launched in screen_reader_mode.
+	 Once pressed, the game enters text tabbing mode where it will tab the text
+	 cursor through many of the relevant lines of text on the screen.
+	 The window screen mode is only used when an in-game window is shown.
+	 The bottom screen mode will tab through information describing what you've
+	 selected on the map.
+	 The right screen mode will contain game alerts (such as if you are attacked),
+	 and other statistics like your budget.)
 {
+	start_tabbing_through_window_screen_mode: W
 	start_tabbing_through_bottom_screen_mode: B
 	start_tabbing_through_right_screen_mode: R
 	forward_tab: .
 	backward_tab: ,
+}
+
+--------------------
+Mouse settings
+	Note: if you want to play in text mode (with the ncurses or pdcurses
+		version of the game), be aware that the middle mouse click
+		does not seem reliably detected. Assigning it to the left_mouse_click
+		might be preferred.
+{
+	map_drag: left_mouse_click
+	action_drag: right_mouse_click
+	action_cancel: middle_mouse_click
 }
 

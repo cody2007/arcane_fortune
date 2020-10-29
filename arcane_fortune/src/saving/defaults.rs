@@ -1,19 +1,15 @@
+use super::*;
 use std::time::Instant;
 use std::collections::VecDeque;
 use crate::map::{MapEx, ZoneType, Map, MapSz, ZoneDemandType, MapType, TechProg, ResourceCont,
 	StructureType, LandDiscov
 };
-use crate::player::*;
 use crate::zones::{ZoneDemandRaw, StructureData,
 	ZoneAgnosticStats, ZoneAgnosticContribFracs, ZoneAgnosticLocallyLogged};
 use crate::disp::{Coord, ScreenSz, Fire, FireTile};
 use crate::doctrine::DoctrineTemplate;
-use crate::buildings::*;
-use crate::units::*;
 use crate::tech::*;
-use crate::ai::*;
-use crate::gcore::{LogType, Log, RelationsConfig,
-	Sector, Brigade, Rectangle, PerimCoords};
+use crate::containers::*;
 use crate::resources::ResourceTemplate;
 use crate::gcore::{RelationStatus, Bonuses};//, HashStruct64};
 
@@ -366,7 +362,7 @@ impl Default for Nms {
 impl Default for Log {
 	fn default() -> Self {Self {turn: 0, val: LogType::CivCollapsed {owner_id: 0}}}}
 
-impl Default for RelationsConfig {
+/*impl Default for RelationsConfig {
 	fn default() -> Self {
 		Self {
 			peace_treaty_min_years: 0,
@@ -374,7 +370,7 @@ impl Default for RelationsConfig {
 			threaten_mood_drop: 0.
 		}
 	}
-}
+}*/
 
 impl Default for AIPersonality {
 	fn default() -> Self {
@@ -386,7 +382,7 @@ impl Default for AIPersonality {
 }
 
 impl Default for RelationStatus {
-	fn default() -> Self {Self::Peace {turn_started: 0}}
+	fn default() -> Self {Self::Undiscovered}
 }
 
 impl Default for DoctrineTemplate {
@@ -496,7 +492,9 @@ impl Default for House {
 			head_noble_pair_ind: 0,
 			noble_pairs: Vec::new(),
 			
-			has_req_to_join: false
+			has_req_to_join: false,
+			
+			target_city_coord: None
 		}
 	}
 }
@@ -526,6 +524,17 @@ impl Default for NoblePair {
 		Self {
 			noble: Default::default(),
 			marriage: None
+		}
+	}
+}
+
+impl Default for GameState {
+	fn default() -> Self {
+		Self {
+			relations: Relations::new(0),
+			logs: Default::default(),
+			rng: XorState::clock_init(),
+			turn: GAME_START_TURN
 		}
 	}
 }

@@ -7,7 +7,7 @@ use std::time::SystemTime;
 
 use crate::gcore::XorState;
 use crate::player::{PersonName, Nms};
-use crate::disp_lib::endwin;
+use crate::renderer::*;
 use crate::disp::{ScreenSz, DispChars};
 use crate::units::*;
 use crate::tech::{TechTemplate};
@@ -614,7 +614,6 @@ pub fn get_usize_map_config(buffer_key: &str) -> usize {
 	panicq!("could not find `{}` in {}", buffer_key, MAP_CONFIG);
 }
 
-use crate::disp_lib::KEY_ESC;
 pub const UNSET_KEY: i32 = -2;
 pub fn find_kbd_key(nm: &str, key_sets: &Vec<Vec<KeyPair>>) -> i32 {
 	for keys in key_sets.iter() {
@@ -635,6 +634,19 @@ pub fn find_kbd_key(nm: &str, key_sets: &Vec<Vec<KeyPair>>) -> i32 {
 		}
 	}
 	UNSET_KEY // should hopefully never occur... somewhat of a hack
+}
+
+use crate::keyboard::MouseClick;
+pub fn find_mouse_click(nm: &str, key_sets: &Vec<Vec<KeyPair>>) -> MouseClick {
+	for keys in key_sets.iter() {
+		for k in keys.iter().filter(|k| k.key == nm) {
+			return if k.val == "right_mouse_click" { MouseClick::Right
+			}else if k.val == "left_mouse_click" { MouseClick::Left
+			}else if k.val == "middle_mouse_click" { MouseClick::Middle
+			}else{panicq!("could not interpret value '{}' for mouse setting '{}'", k.val, nm);}
+		}
+	}
+	panicq!("could not find required key '{}'", nm);
 }
 
 impl PersonName {

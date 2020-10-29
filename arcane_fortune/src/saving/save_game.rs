@@ -5,15 +5,13 @@ use std::fs::{File};
 use std::path::Path;
 
 use super::*;
-use crate::disp_lib::*;
 use crate::config_load::{return_names_list, read_file, get_usize_map_config};
-use crate::gcore::rand::XorState;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx, HashStruct64};
-use crate::gcore::{Log, Relations, HUMAN_PLAYER_IND, HUMAN_PLAYER_ID};
-use crate::disp::menus::{update_menu_indicators, FindType, OptionsUI};
+use crate::disp::menus::*;
 use crate::player::{PlayerType};
 use crate::containers::Templates;
 use crate::map::gen_utils::print_map_status;
+use crate::containers::*;
 use crate::localization::Localization;
 
 pub const SAVE_DIR: &str = "saves/";
@@ -21,20 +19,17 @@ pub const SAVE_DIR: &str = "saves/";
 #[derive(PartialEq)]
 pub enum SaveType {Auto, Manual} // if set to manual, name is pulled from iface_settings
 
-pub fn save_game<'f,'bt,'ut,'rt,'dt>(save_type: SaveType, turn: usize, map_data: &MapData<'rt>,
+pub fn save_game<'f,'bt,'ut,'rt,'dt>(save_type: SaveType, gstate: &GameState, map_data: &MapData<'rt>,
 		exs: &Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, units: &Vec<Unit<'bt,'ut,'rt,'dt>>,
-		relations: &Relations, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>,
-		players: &Vec<Player>, disp_settings: &DispSettings,
-		disp_chars: &DispChars, logs: &Vec<Log>, l: &Localization,
-		frame_stats: &FrameStats, rng: &mut XorState, d: &mut DispState){
+		players: &Vec<Player>, dstate: &mut DispState<'f,'bt,'ut,'rt,'dt>, frame_stats: &FrameStats){
 	let mut buf = Vec::new();
 	
 	// close any current windows or menus if user manually saved
 	if SaveType::Manual == save_type {
-		iface_settings.ui_mode = UIMode::None;
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-		print_clear_centered_logo_txt(&l.Saving_game, disp_chars, d);
+		//dstate.iface_settings.ui_mode = UIMode::None;
+		dstate.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+		dstate.print_clear_centered_logo_txt(dstate.local.Saving_game.clone());
 	}
 	
 	//////////// save
@@ -63,21 +58,18 @@ pub fn save_game<'f,'bt,'ut,'rt,'dt>(save_type: SaveType, turn: usize, map_data:
 		}
 	}
 	
-	turn.sv(&mut buf);
-	iface_settings.sv(&mut buf);
+	dstate.iface_settings.sv(&mut buf);
 	map_data.sv(&mut buf);
 	sv_exs(exs, &mut buf);
 	bldgs.sv(&mut buf);
 	units.sv(&mut buf);
-	disp_settings.sv(&mut buf);
-	relations.sv(&mut buf);
-	logs.sv(&mut buf);
+	dstate.terminal.sv(&mut buf);
+	gstate.sv(&mut buf);
 	frame_stats.sv(&mut buf);
-	rng.sv(&mut buf);
 	
 	let file_nm = match save_type {
-		SaveType::Auto => {save_nm_date(&players[iface_settings.cur_player as usize].personalization, turn, true, l)},
-		SaveType::Manual => {iface_settings.save_nm.clone()}
+		SaveType::Auto => {save_nm_date(&players[dstate.iface_settings.cur_player as usize].personalization, gstate.turn, true, &dstate.local)},
+		SaveType::Manual => {dstate.iface_settings.save_nm.clone()}
 	};
 	
 	if let Result::Ok(ref mut file) = File::create(Path::new(&format!("{}/{}", SAVE_DIR, file_nm)).as_os_str()) {
@@ -93,19 +85,16 @@ pub fn save_game<'f,'bt,'ut,'rt,'dt>(save_type: SaveType, turn: usize, map_data:
 	//test_save_load(turn, map_data, exs, temps, bldgs, units, relations, iface_settings, players, nms, disp_settings, logs, frame_stats, rng);
 	
 	if SaveType::Manual == save_type {
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		dstate.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
 	}
 }
 
-pub fn load_game<'f,'bt,'ut,'rt,'dt>(buf: Vec<u8>, mut offset: usize, menu_meta: &mut OptionsUI, disp_settings: &mut DispSettings, turn: &mut usize, map_data: &mut MapData<'rt>,
+pub fn load_game<'f,'bt,'ut,'rt,'dt>(buf: Vec<u8>, mut offset: usize, disp: &mut Disp<'f,'bt,'ut,'rt,'dt>, gstate: &mut GameState, map_data: &mut MapData<'rt>,
 		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
-		relations: &mut Relations, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>,
-		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, disp_chars: &mut DispChars,
-		logs: &mut Vec<Log>, frame_stats: &mut FrameStats,
-		rng: &mut XorState, d: &mut DispState){
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, frame_stats: &mut FrameStats){
 	
-	macro_rules! ld_val{($val:ident) => ($val.ld(&buf, &mut offset, &temps.bldgs, &temps.units, &temps.resources, &temps.doctrines););};
+	macro_rules! ld_val{($val:expr) => ($val.ld(&buf, &mut offset, &temps.bldgs, &temps.units, &temps.resources, &temps.doctrines););};
 	
 	{ // players
 		let mut sz: usize = 0;
@@ -128,23 +117,20 @@ pub fn load_game<'f,'bt,'ut,'rt,'dt>(buf: Vec<u8>, mut offset: usize, menu_meta:
 		}
 	}
 	
-	ld_val!(turn);
-	ld_val!(iface_settings);
+	ld_val!(disp.state.iface_settings);
 	ld_val!(map_data);
 	ld_exs(exs, &buf, &mut offset, &temps.bldgs, &temps.units, &temps.resources, &temps.doctrines);
 	ld_val!(bldgs);
 	ld_val!(units);
-	ld_val!(disp_settings);
-	ld_val!(relations);
-	ld_val!(logs);
+	ld_val!(disp.state.terminal);
+	ld_val!(gstate);
 	ld_val!(frame_stats);
-	ld_val!(rng);
 	
 	map_data.compute_zoom_outs(exs, players, bldgs, temps.bldgs);
 	
-	*disp_chars = init_color_pairs(disp_settings, d);
-	update_menu_indicators(menu_meta, iface_settings, iface_settings.cur_player_paused(players), disp_settings);
-	iface_settings.set_auto_turn(iface_settings.auto_turn, d); // set frame timeout
+	disp.state.chars = init_color_pairs(&disp.state.terminal, &mut disp.state.renderer);
+	disp.state.update_menu_indicators(disp.state.iface_settings.cur_player_paused(players));
+	disp.state.set_auto_turn(disp.state.iface_settings.auto_turn); // set frame timeout
 	
 	//map_data.max_zoom_in_buffer_sz = 8_000_000;
 }
@@ -320,18 +306,14 @@ pub const GAME_START_TURN: usize = 100*12*30;
 pub const N_UNIT_PLACEMENT_ATTEMPTS: usize = 2000;
 use crate::nn;
 
-pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &DispSettings,
-		turn: &mut usize, map_data: &mut MapData<'rt>,
+pub fn new_game<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, map_data: &mut MapData<'rt>,
 		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
 		temps: &Templates<'bt,'ut,'rt,'dt,'_>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, 
-		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
-		relations: &mut Relations, iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>,
-		disp_chars: &DispChars, logs: &mut Vec<Log>, l: &Localization,
-		game_opts: &GameOptions, rng: &mut XorState, d: &mut DispState) {
+		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, game_opts: &GameOptions, disp: &mut Disp<'f,'bt,'ut,'rt,'dt>) {
 	
-	let mut txt_gen = nn::TxtGenerator::new(rng.gen());
+	let mut txt_gen = nn::TxtGenerator::new(gstate.rng.gen());
 	
-	*turn = GAME_START_TURN;
+	*gstate = GameState::default();
 	
 	let country_names = return_names_list(read_file("config/names/countries.txt"));
 	
@@ -340,7 +322,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 	// each loop attempts N_PLACEMENT_ATTEMPTS before restarting the loop
 	'map_attempt: loop {
 		///// map setup
-		let map_root = map_gen(MapSz {h: H_ROOT, w: W_ROOT, sz: H_ROOT*W_ROOT}, disp_chars, l, rng, d);
+		let map_root = map_gen(MapSz {h: H_ROOT, w: W_ROOT, sz: H_ROOT*W_ROOT}, &mut gstate.rng, &mut disp.state);
 		*map_data = MapData::default(map_root, H_ROOT, W_ROOT, game_opts.zoom_in_depth, get_usize_map_config("max_zoom_in_buffer_sz"), temps.resources);
 		
 		//// exs
@@ -354,12 +336,12 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 		
 		bldgs.clear();
 		units.clear();
-		logs.clear();
+		gstate.logs.clear();
 		
 		/////////////////// put units on map
 		{
-			let sz_prog = MapSz {h: 0, w: 0, sz: players.len()};
-			let mut screen_sz = getmaxyxu(d);
+			let sz_prog = MapSz {h: 0, w: 0, sz: game_opts.n_players};
+			let mut screen_sz = getmaxyxu(&disp.state.renderer);
 			
 			let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 			
@@ -367,20 +349,20 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 			let city_w = CITY_WIDTH as isize;
 				
 			macro_rules! add_u{($coord:expr, $player:expr, $type:expr) => (
-				add_unit($coord, $player.id == HUMAN_PLAYER_IND as SmSvType, $type, units, map_data, exs, bldgs, $player, relations, logs, temps, *turn, rng););};
+				add_unit($coord, $player.id == HUMAN_PLAYER_IND as SmSvType, $type, units, map_data, exs, bldgs, $player, gstate, temps););};
 			
 			
 			//////////// ai, human, and nobility players
 			for player_ind in 0..game_opts.n_players {
 				let mut attempt = 0;
 				
-				print_map_status(Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(player_ind as usize), &mut screen_sz, sz_prog, 0, disp_chars, l, d);
-				d.clrtoeol();
+				print_map_status(Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(player_ind as usize), &mut screen_sz, sz_prog, 0, &mut disp.state);
+				disp.state.renderer.clrtoeol();
 				
 				'player_attempt: loop {
 					// city location
-					let map_coord_y = rng.usize_range(0, map_sz.h - CITY_HEIGHT - 1) as u64;
-					let map_coord_x = rng.usize_range(0, map_sz.w - CITY_WIDTH - 1) as u64;
+					let map_coord_y = gstate.rng.usize_range(0, map_sz.h - CITY_HEIGHT - 1) as u64;
+					let map_coord_x = gstate.rng.usize_range(0, map_sz.w - CITY_WIDTH - 1) as u64;
 					let map_coord = map_coord_y * map_sz.w as u64 + map_coord_x;
 					
 					let exf = exs.last().unwrap();
@@ -391,7 +373,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 							continue 'map_attempt;
 						}else{ // try another unit placement
 							attempt += 1;
-							print_attempt_update(attempt, player_ind as SmSvType, &sz_prog, &mut screen_sz, disp_chars, l, d);
+							print_attempt_update(attempt, player_ind as SmSvType, &sz_prog, &mut screen_sz, &mut disp.state);
 							continue 'player_attempt;
 						}
 					}
@@ -401,7 +383,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 						
 						let (ptype, bonuses, personality) = 
 							if player_ind != HUMAN_PLAYER_IND {
-								if let Some(empire_state) = EmpireState::new(coord, temps, map_data, exf, rng) {
+								if let Some(empire_state) = EmpireState::new(coord, temps, map_data, exf, &mut gstate.rng) {
 									let personality = empire_state.personality;
 									(PlayerType::Empire(empire_state), game_opts.ai_bonuses.clone(), personality)
 								}else{continue 'player_attempt;}
@@ -409,7 +391,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 							// human player
 							}else{
 								let city_hall = BldgTemplate::frm_str(CITY_HALL_NM, temps.bldgs);
-								if let Some(ai_state) = AIState::new(coord, CITY_GRID_HEIGHT, MIN_DIST_FRM_CITY_CENTER, city_hall, temps, map_data, exf, map_sz, rng) {
+								if let Some(ai_state) = AIState::new(coord, CITY_GRID_HEIGHT, MIN_DIST_FRM_CITY_CENTER, city_hall, temps, map_data, exf, map_sz, &mut gstate.rng) {
 									(PlayerType::Human(ai_state), Default::default(), Default::default())
 								}else{continue 'player_attempt;}
 							};
@@ -420,9 +402,9 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 							let mut gender_female;
 							let mut ruler_nm;
 							'nm_loop: loop {
-								nm = country_names[rng.usize_range(0, country_names.len())].clone();
+								nm = country_names[gstate.rng.usize_range(0, country_names.len())].clone();
 								
-								let ruler = PersonName::new(&temps.nms, rng);
+								let ruler = PersonName::new(&temps.nms, &mut gstate.rng);
 								gender_female = ruler.0;
 								ruler_nm = ruler.1;
 								
@@ -438,13 +420,13 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 							(nm, gender_female, ruler_nm)
 						};
 						
-						let player = Player::new(player_ind as SmSvType, ptype, personality, nm, ruler_nm, gender_female,
-							&bonuses, PLAYER_COLORS[player_ind], &mut txt_gen, relations, 0, temps, map_data, *turn, rng);
+						let player = Player::new(players.len() as SmSvType, ptype, personality, nm, ruler_nm, gender_female,
+							&bonuses, PLAYER_COLORS[player_ind], &mut txt_gen, gstate, 0, temps, map_data);
 						
 						// ifacesettings
 						if player_ind == HUMAN_PLAYER_IND {
-							*iface_settings = IfaceSettings::default(player.personalization.save_nm(), HUMAN_PLAYER_ID);
-							update_menu_indicators(menu_meta, iface_settings, iface_settings.cur_player_paused(players), disp_settings);
+							disp.state.iface_settings = IfaceSettings::default(player.personalization.save_nm(), HUMAN_PLAYER_ID);
+							disp.state.update_menu_indicators(disp.state.iface_settings.cur_player_paused(players));
 						}
 						
 						players.push(player);
@@ -452,7 +434,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 					
 					// place initial units
 					{
-						let player = &mut players[player_ind];
+						let player = &mut players.last_mut().unwrap();
 						let u_coord = map_sz.coord_wrap(map_coord_y as isize + (CITY_HEIGHT/2) as isize,
 											  map_coord_x as isize + (CITY_WIDTH/2) as isize).unwrap();
 						
@@ -477,7 +459,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 					
 					//////////// place barbarians
 					if !place_barbarians(&mut attempt, player_ind as SmSvType, city_h, city_w, map_coord_y, map_coord_x, &game_opts.ai_bonuses, players, units, bldgs,
-							map_data, exs, temps, relations, logs, rng, map_sz, &sz_prog, &mut screen_sz, *turn, disp_chars, l, &mut txt_gen, d) {
+							map_data, exs, &mut txt_gen, temps, gstate, map_sz, &sz_prog, &mut screen_sz, &mut disp.state) {
 						continue 'map_attempt;
 					}
 					
@@ -489,7 +471,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 						// loop until no techs added. only add techs that have had the reqs already added
 						while tech_added {
 							tech_added = false;
-							'tech_loop: for &tech_ind in rng.inds(temps.techs.len()).iter() {
+							'tech_loop: for &tech_ind in gstate.rng.inds(temps.techs.len()).iter() {
 								// already scheduled
 								if player.stats.techs_scheduled.contains(&(tech_ind as SmSvType)) {continue 'tech_loop;}
 								
@@ -529,24 +511,24 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(menu_meta: &mut OptionsUI, disp_settings: &D
 			} // place each player
 			
 			// print done
-			print_map_status(Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), &mut screen_sz, sz_prog, 0, disp_chars, l, d);
+			print_map_status(Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), &mut screen_sz, sz_prog, 0, &mut disp.state);
 		} // place players
 		
 		break 'map_attempt;
 	}
 	
 	// center cursor on map
-	iface_settings.set_screen_sz(d);
-	iface_settings.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, relations, players, logs, *turn, d);
+	disp.state.set_screen_sz();
+	disp.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, gstate, players);
 	
-	iface_settings.create_window(UIMode::InitialGameWindow, d);
+	disp.create_window(UIMode::InitialGameWindow(InitialGameWindowState{}));
 }
 
-pub fn print_attempt_update(attempt: usize, player: SmSvType, sz_prog: &MapSz, screen_sz: &mut ScreenSz, disp_chars: &DispChars, l: &Localization, d: &mut DispState) {
+pub fn print_attempt_update(attempt: usize, player: SmSvType, sz_prog: &MapSz, screen_sz: &mut ScreenSz, dstate: &mut DispState) {
 	if (attempt % 25) != 0 {return;}
 	
-	print_map_status(Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(player as usize), screen_sz, *sz_prog, 0, disp_chars, l, d);
-	d.addstr(&format!(" ({}: {}/{})", l.attempt, attempt, N_UNIT_PLACEMENT_ATTEMPTS));
-	d.clrtoeol();
+	print_map_status(Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(player as usize), screen_sz, *sz_prog, 0, dstate);
+	dstate.renderer.addstr(&format!(" ({}: {}/{})", dstate.local.attempt, attempt, N_UNIT_PLACEMENT_ATTEMPTS));
+	dstate.renderer.clrtoeol();
 }
 

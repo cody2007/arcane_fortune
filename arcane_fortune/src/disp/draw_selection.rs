@@ -5,28 +5,27 @@ use crate::zones::new_zone_w_roads;
 
 impl ActionMeta<'_,'_,'_,'_> {
 	// use `cur_mc` the cursor map coordinate
-	pub fn draw_selection(&self, cur_mc: Coord, units: &Vec<Unit>, exf: &HashedMapEx, map_data: &mut MapData,
-			iface_settings: &IfaceSettings, map_sz: MapSz, disp_chars: &DispChars,
-			d: &mut DispState) -> char {
+	pub fn draw_selection(&self, cur_mc: Coord, units: &Vec<Unit>, exf: &HashedMapEx, map_data: &mut MapData, map_sz: MapSz, dstate: &mut DispState) -> char {
 		let mut crosshair = 'X';
+		
 		match &self.action_type {
 			/////////////////////////////////// build mode, show bldg at cursor
 			ActionType::WorkerBuildBldg {template: bt, valid_placement: true, ..} => {
-				let bldg_coord = Coord {y: iface_settings.cur.y, x: iface_settings.cur.x + 1};
+				let bldg_coord = Coord {y: dstate.iface_settings.cur.y, x: dstate.iface_settings.cur.x + 1};
 				
 				// prevent plotting off map
-				let stop_col = if (bldg_coord.x + bt.sz.w as isize) < iface_settings.map_screen_sz.w as isize {
+				let stop_col = if (bldg_coord.x + bt.sz.w as isize) < dstate.iface_settings.map_screen_sz.w as isize {
 						bldg_coord.x + bt.sz.w as isize
 					}else{
-						iface_settings.map_screen_sz.w as isize
+						dstate.iface_settings.map_screen_sz.w as isize
 					};
 				
 				//// print bldg
-				for row in iface_settings.cur.y..(iface_settings.cur.y + bt.sz.h as isize) {
-					d.mv(row as i32, bldg_coord.x as i32);
-					for col in (iface_settings.cur.x + 1)..stop_col {
+				for row in dstate.iface_settings.cur.y..(dstate.iface_settings.cur.y + bt.sz.h as isize) {
+					dstate.mv(row as i32, bldg_coord.x as i32);
+					for col in (dstate.iface_settings.cur.x + 1)..stop_col {
 						
-						print_bldg_char(Coord {y: row, x: col}, bldg_coord, bt, &None, &disp_chars, map_sz, d);
+						print_bldg_char(Coord {y: row, x: col}, bldg_coord, bt, &None, map_sz, dstate);
 						
 					} // j
 				} // i
@@ -40,8 +39,8 @@ impl ActionMeta<'_,'_,'_,'_> {
 				
 				let roads = new_zone_w_roads(*start_coord_mi, cur_mc.to_ind(map_sz) as u64, map_sz, &exf);
 				
-				let start_coord_sc = start_coord_mc.to_screen_coords_unchecked(iface_settings.map_loc);
-				let (start_use, rect_sz) = start_coord_use(start_coord_sc, iface_settings.cur, map_sz); // in screen coordinates
+				let start_coord_sc = start_coord_mc.to_screen_coords_unchecked(dstate.iface_settings.map_loc);
+				let (start_use, rect_sz) = start_coord_use(start_coord_sc, dstate.iface_settings.cur, map_sz); // in screen coordinates
 				let h = rect_sz.h as isize;
 				let w = rect_sz.w as isize;
 				
@@ -49,8 +48,8 @@ impl ActionMeta<'_,'_,'_,'_> {
 					MAP_ROW_START as isize - start_use.y
 				}else{0};
 				
-				let col_max = if (start_use.x + w) >= iface_settings.map_screen_sz.w as isize {
-					iface_settings.map_screen_sz.w as isize - start_use.x
+				let col_max = if (start_use.x + w) >= dstate.iface_settings.map_screen_sz.w as isize {
+					dstate.iface_settings.map_screen_sz.w as isize - start_use.x
 				}else{w};
 				
 				let col_offset = if start_use.x < 0 {
@@ -58,28 +57,28 @@ impl ActionMeta<'_,'_,'_,'_> {
 				}else{0};
 				
 				for row in row_offset..h {
-					d.mv((start_use.y + row) as i32, max(0, start_use.x) as i32);
+					dstate.mv((start_use.y + row) as i32, max(0, start_use.x) as i32);
 					for col in col_offset..col_max {
 						
 						// only show over land (show units as a priority)
 						//let char_shown = inch() & A_CHARTEXT();
 						//if char_shown == (disp_chars.land_char as chtype & A_CHARTEXT()) {
 							if roads[(row*w + col) as usize] {
-								d.addch(ROAD_CHAR);
+								dstate.addch(ROAD_CHAR);
 							}else{
-								plot_zone(*zone_type, &disp_chars, d);
+								dstate.plot_zone(*zone_type);
 							}
 						//}else{
-						//	d.mv(row as i32, (col+1) as i32);
+						//	dstate.mv(row as i32, (col+1) as i32);
 						//}
 					} // col
 				} // row
 				
 				// show start of zone at cursor
-				if start_coord_sc.y >= MAP_ROW_START as isize && start_coord_sc.y < iface_settings.map_screen_sz.w as isize &&
-				   start_coord_sc.x >= 0 && start_coord_sc.x < iface_settings.map_screen_sz.w as isize {
-					d.mv(start_coord_sc.y as i32, start_coord_sc.x as i32);
-					d.addch('X' as chtype | COLOR_PAIR(CRED));
+				if start_coord_sc.y >= MAP_ROW_START as isize && start_coord_sc.y < dstate.iface_settings.map_screen_sz.w as isize &&
+				   start_coord_sc.x >= 0 && start_coord_sc.x < dstate.iface_settings.map_screen_sz.w as isize {
+					dstate.mv(start_coord_sc.y as i32, start_coord_sc.x as i32);
+					dstate.addch('X' as chtype | COLOR_PAIR(CRED));
 				}
 			
 			////////////////////////////
@@ -96,18 +95,18 @@ impl ActionMeta<'_,'_,'_,'_> {
 					let h = $rect_sz.h as isize;
 					let w = $rect_sz.w as isize;
 					
-					let start_use_mc = iface_settings.screen_coord_to_map_coord($start_use_sc, map_data);
+					let start_use_mc = dstate.iface_settings.screen_coord_to_map_coord($start_use_sc, map_data);
 					
 					for (row_sc, i_off) in ($start_use_sc.y..($start_use_sc.y + h)).zip(0..h) {
-						d.mv(row_sc as i32, $start_use_sc.x as i32);
+						dstate.mv(row_sc as i32, $start_use_sc.x as i32);
 						$col_loop_nm: for j_off in 0..w {
 							if let Some(map_coord) = map_sz.coord_wrap(start_use_mc.y + i_off, start_use_mc.x + j_off) {
 								// if player has a unit on this tile, show the unit
 								if let Some(ex) = exf.get(&map_coord) {
 									if let Some(unit_inds) = &ex.unit_inds {
 										for unit_ind in unit_inds.iter() {
-											if units[*unit_ind].owner_id == iface_settings.cur_player {
-												d.mv(row_sc as i32, ($start_use_sc.x + j_off + 1) as i32);
+											if units[*unit_ind].owner_id == dstate.iface_settings.cur_player {
+												dstate.mv(row_sc as i32, ($start_use_sc.x + j_off + 1) as i32);
 												continue $col_loop_nm;
 											}
 										}
@@ -115,30 +114,30 @@ impl ActionMeta<'_,'_,'_,'_> {
 								}
 								
 								// shown if no unit present
-								d.addch('*' as chtype);
+								dstate.addch('*' as chtype);
 							}
 						} // col
 					} // row
 				};};
 				
-				if let Some(start_coord_sc) = start_coord_mc.to_screen_coords(iface_settings.map_loc, iface_settings.map_screen_sz) {
+				if let Some(start_coord_sc) = start_coord_mc.to_screen_coords(dstate.iface_settings.map_loc, dstate.iface_settings.map_screen_sz) {
 					//////// rectangle selection finished, use stored rectangle end coord
 					if let Some(end_coord_mi) = end_coord {
 						let end_coord_mc = Coord::frm_ind(*end_coord_mi, map_sz); // in map coords
 						
-						if let Some(end_coord_sc) = end_coord_mc.to_screen_coords(iface_settings.map_loc, iface_settings.map_screen_sz) {
+						if let Some(end_coord_sc) = end_coord_mc.to_screen_coords(dstate.iface_settings.map_loc, dstate.iface_settings.map_screen_sz) {
 							let (start_use_sc, rect_sz) = start_coord_use(start_coord_sc, end_coord_sc, map_sz); // in screen coordinates
 							
 							draw_rectangle!(start_use_sc, rect_sz, 'col_loop_finished);
 						}
 					/////// use cursor as rectangle end coord
 					}else{
-						let (start_use_sc, rect_sz) = start_coord_use(start_coord_sc, iface_settings.cur, map_sz); // in screen coordinates
+						let (start_use_sc, rect_sz) = start_coord_use(start_coord_sc, dstate.iface_settings.cur, map_sz); // in screen coordinates
 						
 						draw_rectangle!(start_use_sc, rect_sz, 'col_loop_cursor);
 						
-						d.mv(start_coord_sc.y as i32, start_coord_sc.x as i32);
-						d.addch('X' as chtype | COLOR_PAIR(CRED));
+						dstate.mv(start_coord_sc.y as i32, start_coord_sc.x as i32);
+						dstate.addch('X' as chtype | COLOR_PAIR(CRED));
 					}
 				}
 			} _ => {}
@@ -147,32 +146,30 @@ impl ActionMeta<'_,'_,'_,'_> {
 	}
 	
 	// for example, actions from the brigade build list
-	pub fn draw_selection_finalized(&self, units: &Vec<Unit>, exf: &HashedMapEx, map_data: &mut MapData,
-			iface_settings: &IfaceSettings, map_sz: MapSz, disp_chars: &DispChars,
-			d: &mut DispState) {
+	pub fn draw_selection_finalized(&self, units: &Vec<Unit>, exf: &HashedMapEx, map_data: &mut MapData, map_sz: MapSz, dstate: &mut DispState) {
 		match &self.action_type {
 			/////////////////////////////////// build mode, show bldg at cursor
 			ActionType::WorkerBuildBldg {template: bt, ..} => {
 				let bldg_coord = {
 					let mut bldg_coord = Coord::frm_ind(*self.path_coords.last().unwrap(), map_sz);
 					bldg_coord.x += 1;
-					bldg_coord.to_screen_coords_unchecked(iface_settings.map_loc)
+					bldg_coord.to_screen_coords_unchecked(dstate.iface_settings.map_loc)
 				};
 				
 				// prevent plotting off map
-				let stop_col = if (bldg_coord.x + bt.sz.w as isize) < iface_settings.map_screen_sz.w as isize {
+				let stop_col = if (bldg_coord.x + bt.sz.w as isize) < dstate.iface_settings.map_screen_sz.w as isize {
 						bldg_coord.x + bt.sz.w as isize
 					}else{
-						iface_settings.map_screen_sz.w as isize
+						dstate.iface_settings.map_screen_sz.w as isize
 					};
 				
 				//// print bldg
 				for row in bldg_coord.y..(bldg_coord.y + bt.sz.h as isize) {
 					if row < 0 || (bldg_coord.x as i32) < 0 {break;}
 					
-					d.mv(row as i32, bldg_coord.x as i32);
+					dstate.mv(row as i32, bldg_coord.x as i32);
 					for col in bldg_coord.x..stop_col {
-						print_bldg_char(Coord {y: row, x: col}, bldg_coord, bt, &None, &disp_chars, map_sz, d);
+						print_bldg_char(Coord {y: row, x: col}, bldg_coord, bt, &None, map_sz, dstate);
 					} // j
 				} // i
 			
@@ -184,8 +181,8 @@ impl ActionMeta<'_,'_,'_,'_> {
 				
 				let roads = new_zone_w_roads(*start_coord_mi, *end_coord_mi as u64, map_sz, &exf);
 				
-				let start_coord_sc = start_coord_mc.to_screen_coords_unchecked(iface_settings.map_loc);
-				let end_coord_sc = end_coord_mc.to_screen_coords_unchecked(iface_settings.map_loc);
+				let start_coord_sc = start_coord_mc.to_screen_coords_unchecked(dstate.iface_settings.map_loc);
+				let end_coord_sc = end_coord_mc.to_screen_coords_unchecked(dstate.iface_settings.map_loc);
 				let (start_use, rect_sz) = start_coord_use(start_coord_sc, end_coord_sc, map_sz); // in screen coordinates
 				let h = rect_sz.h as isize;
 				let w = rect_sz.w as isize;
@@ -194,8 +191,8 @@ impl ActionMeta<'_,'_,'_,'_> {
 					MAP_ROW_START as isize - start_use.y
 				}else{0};
 				
-				let col_max = if (start_use.x + w) >= iface_settings.map_screen_sz.w as isize {
-					iface_settings.map_screen_sz.w as isize - start_use.x
+				let col_max = if (start_use.x + w) >= dstate.iface_settings.map_screen_sz.w as isize {
+					dstate.iface_settings.map_screen_sz.w as isize - start_use.x
 				}else{w};
 				
 				let col_offset = if start_use.x < 0 {
@@ -203,19 +200,19 @@ impl ActionMeta<'_,'_,'_,'_> {
 				}else{0};
 				
 				for row in row_offset..h {
-					d.mv((start_use.y + row) as i32, max(0, start_use.x) as i32);
+					dstate.mv((start_use.y + row) as i32, max(0, start_use.x) as i32);
 					for col in col_offset..col_max {
 						
 						// only show over land (show units as a priority)
 						//let char_shown = inch() & A_CHARTEXT();
 						//if char_shown == (disp_chars.land_char as chtype & A_CHARTEXT()) {
 							if roads[(row*w + col) as usize] {
-								d.addch(ROAD_CHAR);
+								dstate.addch(ROAD_CHAR);
 							}else{
-								plot_zone(*zone_type, &disp_chars, d);
+								dstate.plot_zone(*zone_type); 
 							}
 						//}else{
-						//	d.mv(row as i32, (col+1) as i32);
+						//	dstate.mv(row as i32, (col+1) as i32);
 						//}
 					} // col
 				} // row
@@ -231,18 +228,18 @@ impl ActionMeta<'_,'_,'_,'_> {
 					let h = $rect_sz.h as isize;
 					let w = $rect_sz.w as isize;
 					
-					let start_use_mc = iface_settings.screen_coord_to_map_coord($start_use_sc, map_data);
+					let start_use_mc = dstate.iface_settings.screen_coord_to_map_coord($start_use_sc, map_data);
 					
 					for (row_sc, i_off) in ($start_use_sc.y..($start_use_sc.y + h)).zip(0..h) {
-						d.mv(row_sc as i32, $start_use_sc.x as i32);
+						dstate.mv(row_sc as i32, $start_use_sc.x as i32);
 						$col_loop_nm: for j_off in 0..w {
 							if let Some(map_coord) = map_sz.coord_wrap(start_use_mc.y + i_off, start_use_mc.x + j_off) {
 								// if player has a unit on this tile, show the unit
 								if let Some(ex) = exf.get(&map_coord) {
 									if let Some(unit_inds) = &ex.unit_inds {
 										for unit_ind in unit_inds.iter() {
-											if units[*unit_ind].owner_id == iface_settings.cur_player {
-												d.mv(row_sc as i32, ($start_use_sc.x + j_off + 1) as i32);
+											if units[*unit_ind].owner_id == dstate.iface_settings.cur_player {
+												dstate.mv(row_sc as i32, ($start_use_sc.x + j_off + 1) as i32);
 												continue $col_loop_nm;
 											}
 										}
@@ -250,25 +247,25 @@ impl ActionMeta<'_,'_,'_,'_> {
 								}
 								
 								// shown if no unit present
-								d.addch('*' as chtype);
+								dstate.addch('*' as chtype);
 							}
 						} // col
 					} // row
 				};};
 				
-				if let Some(start_coord_sc) = start_coord_mc.to_screen_coords(iface_settings.map_loc, iface_settings.map_screen_sz) {
+				if let Some(start_coord_sc) = start_coord_mc.to_screen_coords(dstate.iface_settings.map_loc, dstate.iface_settings.map_screen_sz) {
 					//////// rectangle selection finished, use stored rectangle end coord
 					if let Some(end_coord_mi) = end_coord {
 						let end_coord_mc = Coord::frm_ind(*end_coord_mi, map_sz); // in map coords
 						
-						if let Some(end_coord_sc) = end_coord_mc.to_screen_coords(iface_settings.map_loc, iface_settings.map_screen_sz) {
+						if let Some(end_coord_sc) = end_coord_mc.to_screen_coords(dstate.iface_settings.map_loc, dstate.iface_settings.map_screen_sz) {
 							let (start_use_sc, rect_sz) = start_coord_use(start_coord_sc, end_coord_sc, map_sz); // in screen coordinates
 							
 							draw_rectangle!(start_use_sc, rect_sz, 'col_loop_finished);
 						}
 					/////// use cursor as rectangle end coord
 					}else{
-						let (start_use_sc, rect_sz) = start_coord_use(start_coord_sc, iface_settings.cur, map_sz); // in screen coordinates
+						let (start_use_sc, rect_sz) = start_coord_use(start_coord_sc, dstate.iface_settings.cur, map_sz); // in screen coordinates
 						
 						draw_rectangle!(start_use_sc, rect_sz, 'col_loop_cursor);
 					}

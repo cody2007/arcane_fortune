@@ -8,10 +8,8 @@ use crate::buildings::*;
 use crate::saving::*;
 use crate::doctrine::DoctrineTemplate;
 use crate::gcore::hashing::{HashedMapEx};
-use crate::gcore::rand::XorState;
 use crate::movement::{MvVarsAtZoom, Dest};
 use crate::disp::Coord;
-use crate::gcore::{Log, Relations};
 use crate::localization::Localization;
 use crate::player::*;
 use crate::containers::*;
@@ -353,29 +351,28 @@ impl <'bt,'ut,'rt,'dt> Unit<'bt,'ut,'rt,'dt> {
 // function not require all player data...
 pub fn rm_unit_coord_frm_map<'bt,'ut,'rt,'dt>(unit_ind: usize, is_cur_player: bool, coord: u64,
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		pstats: &mut Stats<'bt,'ut,'rt,'dt>, map_sz: MapSz, relations: &mut Relations, logs: &mut Vec<Log>, turn: usize) {
+		pstats: &mut Stats<'bt,'ut,'rt,'dt>, map_sz: MapSz, gstate: &mut GameState) {
 	
 	// update exs at all zoom lvls
 	compute_zooms_coord_unit(coord, unit_ind, RecompType::RmUnit, map_data, exs);
 	
 	// update fog of war for old location
-	compute_active_window(coord, is_cur_player, PresenceAction::SetAbsent, map_data, exs, pstats, map_sz, relations, units, logs, turn);
+	compute_active_window(coord, is_cur_player, PresenceAction::SetAbsent, map_data, exs, pstats, map_sz, gstate, units);
 }
 
 pub fn set_coord<'bt,'ut,'rt,'dt>(coord: u64, unit_ind: usize, is_cur_player: bool, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, 
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, pstats: &mut Stats<'bt,'ut,'rt,'dt>,
-		map_sz: MapSz, relations: &mut Relations, logs: &mut Vec<Log>, turn: usize) {
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, pstats: &mut Stats<'bt,'ut,'rt,'dt>, map_sz: MapSz, gstate: &mut GameState) {
 	
 	let u = &units[unit_ind];
 	
-	rm_unit_coord_frm_map(unit_ind, is_cur_player, u.coord, units, map_data, exs, pstats, map_sz, relations, logs, turn);
+	rm_unit_coord_frm_map(unit_ind, is_cur_player, u.coord, units, map_data, exs, pstats, map_sz, gstate);
 	units[unit_ind].coord = coord;
 	
 	// update exs at all zoom lvls
 	compute_zooms_coord_unit(coord, unit_ind, RecompType::AddUnit, map_data, exs);
 	
 	// indicate unit at new location
-	compute_active_window(coord, is_cur_player, PresenceAction::SetPresentAndDiscover, map_data, exs, pstats, map_sz, relations, units, logs, turn);
+	compute_active_window(coord, is_cur_player, PresenceAction::SetPresentAndDiscover, map_data, exs, pstats, map_sz, gstate, units);
 }
 
 pub fn unboard_unit<'bt,'ut,'rt,'dt>(coord: u64, mut u: Unit<'bt,'ut,'rt,'dt>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, 
@@ -392,12 +389,11 @@ pub fn unboard_unit<'bt,'ut,'rt,'dt>(coord: u64, mut u: Unit<'bt,'ut,'rt,'dt>, u
 }
 
 use crate::movement::movable_to;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 
 pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, is_cur_player: bool, unit_template: &'ut UnitTemplate<'rt>, 
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		bldgs: &Vec<Bldg>, player: &mut Player<'bt,'ut,'rt,'dt>, relations: &mut Relations,
-		logs: &mut Vec<Log>, temps: &Templates<'bt,'ut,'rt,'dt,'_>, turn: usize, rng: &mut XorState){
+		bldgs: &Vec<Bldg>, player: &mut Player<'bt,'ut,'rt,'dt>, gstate: &mut GameState, temps: &Templates<'bt,'ut,'rt,'dt,'_>){
 	
 	let exf = exs.last_mut().unwrap();
 	// set the first param (current location of unit) to some other coord than the destination so movable_to does not always return true
@@ -405,7 +401,7 @@ pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, is_cur_player: bool, unit_template:
 				bldgs, &Dest::NoAttack, unit_template.movement_type));
 	
 	units.push(Unit {
-			nm: temps.nms.units[rng.usize_range(0, temps.nms.units.len())].clone(),
+			nm: temps.nms.units[gstate.rng.usize_range(0, temps.nms.units.len())].clone(),
 			health: unit_template.max_health,
 			owner_id: player.id,
 			template: unit_template,
@@ -421,7 +417,7 @@ pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, is_cur_player: bool, unit_template:
 	
 	// update exs at all zoom lvls
 	compute_zooms_coord_unit(coord, unit_ind, RecompType::AddUnit, map_data, exs);
-	compute_active_window(coord, is_cur_player, PresenceAction::SetPresentAndDiscover, map_data, exs, &mut player.stats, map_sz, relations, units, logs, turn);
+	compute_active_window(coord, is_cur_player, PresenceAction::SetPresentAndDiscover, map_data, exs, &mut player.stats, map_sz, gstate, units);
 	
 	player.stats.unit_expenses += unit_template.upkeep;
 	
@@ -430,8 +426,7 @@ pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, is_cur_player: bool, unit_template:
 }
 
 pub fn disband_unit<'bt,'ut,'rt,'dt>(unit_ind: usize, is_cur_player: bool, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, 
-		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
-		map_sz: MapSz, logs: &mut Vec<Log>, turn: usize){
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, map_sz: MapSz) {
 	
 	let u = &units[unit_ind];
 	let owner_id = u.owner_id as usize;
@@ -439,7 +434,7 @@ pub fn disband_unit<'bt,'ut,'rt,'dt>(unit_ind: usize, is_cur_player: bool, units
 	
 	player.rm_unit(unit_ind, u.template);
 	
-	rm_unit_coord_frm_map(unit_ind, is_cur_player, u.coord, units, map_data, exs, &mut player.stats, map_sz, relations, logs, turn);
+	rm_unit_coord_frm_map(unit_ind, is_cur_player, u.coord, units, map_data, exs, &mut player.stats, map_sz, gstate);
 		
 	let u = &units[unit_ind];
 	player.stats.unit_expenses -= u.template.upkeep;
@@ -458,7 +453,7 @@ pub fn disband_unit<'bt,'ut,'rt,'dt>(unit_ind: usize, is_cur_player: bool, units
 			
 			player.chg_unit_ind(units.len(), unit_ind, u.template);
 			
-			rm_unit_coord_frm_map(units.len(), is_cur_player, u.coord, units, map_data, exs, &mut player.stats, map_sz, relations, logs, turn); //////////// ??????????
+			rm_unit_coord_frm_map(units.len(), is_cur_player, u.coord, units, map_data, exs, &mut player.stats, map_sz, gstate); //////////// ??????????
 			compute_zooms_coord_unit(units[unit_ind].coord, unit_ind, RecompType::AddUnit, map_data, exs);
 		}
 	}

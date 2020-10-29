@@ -3,7 +3,7 @@ use std::cmp::{min,max};
 use crate::gcore::rand::*;
 use crate::map::MapType;
 use crate::resources::ResourceTemplate;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 

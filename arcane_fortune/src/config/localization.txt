@@ -37,7 +37,10 @@ Generic text
 	Road: "Road", "#Road"
 	Wall: "Wall", "#Wall"
 	Gate: "Gate", "#Gate"
+	House: "House", "House" // noble house
 	house_nm: "House of []", "#House of []"
+	Founded_by_the_civilization: "Founded by the [] civilization.", "#Founded by the [] civilization."
+	Founded_by_the_house_of: "Founded by the [house_nm].", "#Founded by the [house_nm]."
 	house_joined_empire: "The [house_nm] has joined the [empire_nm] empire.", "#The [house_nm] has joined the [empire_nm] empire."
 	house_joined_empire_abbrev: "Joined the [empire_nm] empire.", "#Joined the [empire_nm] empire."
 	noble_male_title: "Lord", "#Lord"
@@ -54,6 +57,7 @@ Generic text
 	Confirm: "Confirm", "#Confirm"
 	Leave_brigade: ": leave brigade", "#: leave brigade"
 	Join_brigade: ": Join brigade", "#: Join brigade"
+	Select_manor: "Select a manor:", "#Select a manor:"
 	Select_resource: "Select resource:", "#Select resource:"
 	Select_production: "Select production:", "#Select production:"
 	Select_technology: "Select technology:", "#Select technology:"
@@ -113,9 +117,22 @@ Generic text
 	Age: "Age", "#Age"
 	No_nobility_in_empire: "No noble houses are part of your empire. Maybe one day one will request to join...", "#No noble houses are part of your empire. Maybe one day one will request to join..."
 	only_House_of: "House of", "#House of"
-	House_of: "House of []", "#House of []"
 	WAR_paren: "(WAR)", "#(WAR)"
 	Peace_treaty_paren: "(Peace treaty)", "#(Peace treaty)"
+	Civilization_collapsed: "The [] civilization has collapsed.", "#The [] civilization has collapsed."
+	House_collapsed: "The [house_nm] has collapsed.", "#The [house_of] [name] has collapsed."
+	Mood: "Mood", "#Mood"
+	mood_you_declared_war_on_us: "You declared war on us!", "#You declared war on us!"
+	mood_we_declared_war_on_you: "You will learn your lesson!", "#You will learn your lesson!"
+	mood_we_are_sympathetic_to_the_unjust_war_against_you: "We sympathize with your war against our common enemy.", "#We sympatheize with your war against our common enemy."
+	mood_you_declared_war_on_our_friend: "You started an unjust war against our friend.", "#You started an unjust war against our friend."
+	mood_you_declared_war_on_our_enemy: "You are a source of justice on the global stage.", "#You are a source of justice on the global stage."
+	mood_you_threatened_us: "You threatened us.", "#You threatened us."
+	mood_common_doctrine: "We respect your culture's principled nature.", "#We respect your culture's principled nature."
+	mood_differing_doctrine: "Your culture is barbaric, at best.", "#Your culture is barbaric, at best."
+	mood_fiefdom: "You are our protector.", "#You are our protector."
+	mood_fiefdom_we_do_not_support_the_war: "You are involved in needless foreign violence.", "#You are involved in needless foreign violence."
+	mood_fiefdom_we_demand_war: "You are not assertive enough in international affairs.", "#You are not assertive enough in international affairs."
 	Cultural_Advisor: "Cultural Advisor", "#Cultural Advisor"
 	Cultural_Advisor_vlow: " The state of your people is barbaric! They need, no require, you dedicate more buildings with a higher doctrine in mind.", "#vlow"
 	Cultural_Advisor_low: " Your empire is culturally stagnating. Consider dedicating more buildings with a higher doctrine in mind.", "#low"
@@ -159,8 +176,8 @@ Generic text
 	Arrow_keys: "Arrow keys", "#Arrow keys"
 	Screen: "Screen", "Écran" // @
 	Cursor: "Cursor", "Curseur" // @
-	to_cancel: "to cancel", "#to cancel" // <esc> to cancel
-	to_go_back: "to go back", "#to go back"
+	to_cancel: "cancel", "#cancel" // <esc> to cancel
+	to_go_back: "go back", "#go back"
 	Left_arrow: "<Left arrow>", "#<Left arrow>"
 	What_would_you_like_to_learn_about: "What would you like to learn about?", "#What would you like to learn about?"
 	Select_a_rectangular_group_of_units: "Select a rectangular group of units:", "#Select a rectangular group of units:"
@@ -318,6 +335,7 @@ Generic text
 	The_country_Embassy: "The [country] Embassy", "#The [country] Embassy"
 	perform_action: "perform action", "#perform action" // <Enter> perform action
 	select: "select", "#select" // <arrows> select
+	Up_Down_arrows: "<Up/Down arrows>", "#<Up/Down arrows>"
 	How_do_you_respond: "How do you respond?", "#How do you respond?" // to embassy greating
 	Threaten: "Threaten", "Menacer" // @
 	Suggest_a_peace_treaty: "Suggest a peace treaty", "#Suggest a peace treaty"
@@ -380,8 +398,10 @@ Generic text
 	Also_req: "Also req:", "Also req:"
 	World_History: "World History", "L'histoire du monde" // window title @
 	Battle_History: "Battle History", "#Battle History" // window title
-	Ecnomic_History: "Economic History", "#Economic History" // window title
+	Economic_History: "Economic History", "#Economic History" // window title
 	No_logs: "The world is still pre-historical and no logs exists yet. Check back later.", "#The world is still pre-historical and no logs exist yet. Check back later."
+	A_new_order_is_being_established: "A new order is being established...", "#A new order is being established..."
+	Please_wait_violent_take_over: "Somewhere a violent take-over is taking place. Please wait while order is restored...", "#Somewhere a violent take-over is taking place. Please wait while order is restored..."
 	Dispositions: "Dispositions:", "#Dispositions:" // aka attitudes / beliefs / inclinations
 	Moods: "Moods:", "#Moods:"
 	Cost: "Cost", "Coût"

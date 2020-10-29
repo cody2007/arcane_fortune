@@ -3,7 +3,7 @@ use crate::units::UnitTemplate;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::saving::*;
-use crate::disp_lib::{CInt};//, endwin};
+use crate::renderer::{CInt};//, endwin};
 use std::time::Instant;
 use crate::disp::color::*;
 use crate::disp::ScreenSz;

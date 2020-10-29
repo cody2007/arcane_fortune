@@ -9,7 +9,7 @@ pub struct ScreenCoord {
 }
 
 // text cursor
-pub fn cursor_pos(d: &DispState) -> ScreenCoord {
+pub fn cursor_pos(d: &Renderer) -> ScreenCoord {
 	let mut y = 0;
 	let mut x = 0;
 	d.getyx(stdscr(), &mut y, &mut x);
@@ -73,7 +73,7 @@ macro_rules! create_buttons{($($entry:ident = $key: ident, $txt: ident, $tool_ti
 			  self.$entry.hovered_over = false;)*
 		}
 		
-		pub fn add(&mut self, start: ScreenCoord, id: usize, d: &DispState) {
+		pub fn add(&mut self, start: ScreenCoord, id: usize, d: &Renderer) {
 			let end = cursor_pos(d);
 			self.list.push(ListButton {
 				id,
@@ -106,13 +106,13 @@ macro_rules! create_buttons{($($entry:ident = $key: ident, $txt: ident, $tool_ti
 			None
 		}
 		
-		pub fn print_tool_tip(&self, disp_chars: &DispChars, d: &mut DispState) {
+		pub fn print_tool_tip(&self, disp_chars: &DispChars, d: &mut Renderer) {
 			$(if self.$entry.print_tool_tip(disp_chars, d) {return;})*
 		}
 	}
 );}
 
-// button.nm = kbd.nm, l.nm
+// button.nm = keyboard key (dstate.kbd), text (dstate.local), tool tip (dstate.local)
 create_buttons!(
 	move_unit = move_unit, Move_to, Empty_txt
 	group_move = group_move, Group_move, Group_move_tool_tip
@@ -171,6 +171,10 @@ create_buttons!(
 	Open = enter, Open, Empty_txt
 	Load_game = enter, Load_game, Empty_txt
 	New_game = enter, New_game, Empty_txt
+	Threaten = enter, Threaten, Empty_txt
+	Suggest_a_peace_treaty = enter, Suggest_a_peace_treaty, Empty_txt
+	Declare_war = enter, Declare_war, Empty_txt
+	Propose_treaty = enter, Propose_treaty, Empty_txt
 	tab = tab, Empty_txt, Empty_txt
 	Exit = enter, Exit, Empty_txt
 	rm_bldgs_and_zones = rm_bldgs_and_zones, rm_bldgs_and_zones, Empty_txt
@@ -196,7 +200,7 @@ impl Button {
 		}
 	}
 	
-	pub fn print_tool_tip(&self, disp_chars: &DispChars, d: &mut DispState) -> bool {
+	pub fn print_tool_tip(&self, disp_chars: &DispChars, d: &mut Renderer) -> bool {
 		if self.hovered_over && self.tool_tip.len() != 0 {
 			const BOX_COLOR: CInd = CLOGO;
 			let lines = wrap_txt(&self.tool_tip, 50);
@@ -258,10 +262,10 @@ impl Button {
 	}
 	
 	// should match button.print_txt() ...
-	// If iface_settings is provided: key highlighting is only shown when UIMode is none
-	// If iface_settings is not provided: key highlighting is always shown (ex. if the highlighting is for entries in a window)
+	// If ui_mode is provided: key highlighting is only shown when UIMode is none
+	// If ui_mode is not provided: key highlighting is always shown (ex. if the highlighting is for entries in a window)
 	// Returns the button width
-	pub fn print(&mut self, iface_settings: Option<&IfaceSettings>, l: &Localization, d: &mut DispState) -> isize {
+	pub fn print(&mut self, ui_mode: Option<&UIMode>, l: &Localization, d: &mut Renderer) -> isize {
 		let w = self.print_txt(l).len() as isize;
 		
 		let pos = {
@@ -288,8 +292,8 @@ impl Button {
 			// "some text [] asdf" -> "some text k asdf" where k is the keybinding
 			if let Some(_) = self.txt.find("[]") {
 				// only show highlighting when no window is active (ex. for shortcut keys at the bottom of the screen)
-				let key_attr = if let Some(iface_settings) = iface_settings {
-					shortcut_or_default_show(&iface_settings.ui_mode, non_key_txt_color)
+				let key_attr = if let Some(ui_mode) = ui_mode {
+					shortcut_or_default_show(ui_mode, non_key_txt_color)
 				// highlighting always, ex. for shortcuts in a window
 				}else{shortcut_indicator()};
 				
@@ -304,8 +308,8 @@ impl Button {
 			// inserts 'k' and optionally ':' if it's not present
 			}else{
 				// only show highlighting when no window is active (ex. for shortcut keys at the bottom of the screen)
-				if let Some(iface_settings) = iface_settings {
-					iface_settings.print_key(self.key, l, d);
+				if let Some(ui_mode) = ui_mode {
+					ui_mode.print_key(self.key, l, d);
 				// highlighting always, ex. for shortcuts in a window
 				}else{
 					print_key_always_active(self.key, l, d);
@@ -321,7 +325,7 @@ impl Button {
 		w
 	}
 	
-	pub fn print_key_only(&mut self, iface_settings: Option<&IfaceSettings>, l: &Localization, d: &mut DispState) -> isize {
+	pub fn print_key_only(&mut self, ui_mode: Option<&UIMode>, l: &Localization, d: &mut Renderer) -> isize {
 		let w = key_txt(self.key, l).len() as isize;
 		
 		let pos = {
@@ -333,8 +337,8 @@ impl Button {
 		// print
 		{
 			// only show highlighting when no window is active (ex. for shortcut keys at the bottom of the screen)
-			if let Some(iface_settings) = iface_settings {
-				iface_settings.print_key(self.key, l, d);
+			if let Some(ui_mode) = ui_mode {
+				ui_mode.print_key(self.key, l, d);
 			// highlighting always, ex. for shortcuts in a window
 			}else{
 				print_key_always_active(self.key, l, d);
@@ -345,7 +349,7 @@ impl Button {
 		w
 	}
 	
-	pub fn print_without_parsing(&mut self, d: &mut DispState) {
+	pub fn print_without_parsing(&mut self, d: &mut Renderer) {
 		let pos = {
 			let start = cursor_pos(d);
 			let end = ScreenCoord {y: start.y, x: start.x + self.txt.len() as isize};
@@ -367,6 +371,28 @@ impl Button {
 		addstr_c(&self.txt, color, d);
 		
 		self.pos = Some(pos);
+	}
+	
+	// shows "* button txt *" at the center of the screen when selected
+	// used primarily in windows 
+	pub fn print_centered_selection(&mut self, roff: i32, highlight: bool, screen_reader_cur_loc: &mut (i32, i32),
+			screen_w: i32, r: &mut Renderer) {
+		let col = (screen_w - self.txt.len() as i32 - 4)/2;
+		
+		r.mv(roff, col);
+		if highlight {
+			r.addstr("* ");
+			{ // set position for screen readers
+				let curs = cursor_pos(r);
+				*screen_reader_cur_loc = (curs.y as i32, curs.x as i32);
+			}
+			self.print_without_parsing(r);
+			r.addstr(" *");
+		}else{
+			r.addstr("  ");
+			self.print_without_parsing(r);
+			r.addstr("  ");
+		}
 	}
 	
 	pub fn activated(&self, key_pressed: i32, mouse_event: &Option<MEVENT>) -> bool {

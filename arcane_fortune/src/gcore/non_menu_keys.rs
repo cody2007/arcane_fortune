@@ -1,13 +1,11 @@
 use std::collections::VecDeque;
-use crate::disp_lib::*;
+use crate::renderer::*;
 use crate::disp::*;
-use crate::disp::window::ProdOptions;
 use crate::units::*;
 use crate::map::*;
 use crate::gcore::*;
 use crate::zones::return_zone_coord;
-use crate::disp::menus::{OptionsUI, ArgOptionUI, FindType};
-use crate::containers::Templates;
+use crate::disp::menus::{ArgOptionUI, FindType};
 
 // check if unit present, it is owned by current player, has actions available, and no other action mode is active
 impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
@@ -33,57 +31,46 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 
 // start zoning mode for worker
 fn start_zoning<'bt,'ut,'rt,'dt>(unit_inds: &Vec<usize>, zone_type: ZoneType, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>,
-		map_data: &mut MapData<'rt>, exf: &HashedMapEx, iface_settings: &mut IfaceSettings) {
+		map_data: &mut MapData<'rt>, exf: &HashedMapEx, disp: &mut Disp) {
 	// zone if in build list mode or there is a worker selected
-	if iface_settings.add_action_to.is_build_list() || unit_inds.iter().any(|&ind| units[ind].template.nm[0] == WORKER_NM) {
+	if disp.state.iface_settings.add_action_to.is_build_list() || unit_inds.iter().any(|&ind| units[ind].template.nm[0] == WORKER_NM) {
 		let act = ActionType::WorkerZone { valid_placement: false, zone_type, start_coord: None, end_coord: None };
-		iface_settings.start_build_mv_mode(act, unit_inds, units, map_data);
+		disp.state.iface_settings.start_build_mv_mode(act, unit_inds, units, map_data);
 	
 	// set taxes
-	}else if let Some(bldg_ind) = iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exf){
+	}else if let Some(bldg_ind) = disp.state.iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exf){
 		if bldgs[bldg_ind].template.nm[0] == CITY_HALL_NM {
-			iface_settings.ui_mode = UIMode::SetTaxes(zone_type);
+			disp.ui_mode = UIMode::SetTaxes(zone_type);
 		}
 	}
 }
 
-pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<MEVENT>, turn: &mut usize, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, 
-		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
-		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
-		disp_chars: &DispChars, disp_settings: &DispSettings,
-		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, relations: &mut Relations,
-		iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>, production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>,
-		logs: &mut Vec<Log>, menu_options: &mut OptionsUI, frame_stats: &mut FrameStats,
-		buttons: &mut Buttons, txt_list: &mut TxtList, rng: &mut XorState, d: &mut DispState){
-	
-	let kbd = &temps.kbd;
-	let l = &temps.l;
-
+pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, 
+		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, frame_stats: &mut FrameStats, disp: &mut Disp<'f,'bt,'ut,'rt,'dt>) {
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
 	// cursor and view movement
 	macro_rules! lupdate{($coord_set: expr, $sign: expr)=> {
-		match iface_settings.view_mv_mode {
-			ViewMvMode::Cursor => iface_settings.linear_update($coord_set, $sign, map_data, exs, units, bldgs, relations, players, map_sz, logs, *turn, d),
-			ViewMvMode::Screen => iface_settings.linear_update_screen($coord_set, $sign, map_data, exs, units, bldgs, relations, players, map_sz, logs, *turn, d),
+		match disp.state.iface_settings.view_mv_mode {
+			ViewMvMode::Cursor => disp.linear_update($coord_set, $sign, map_data, exs, units, bldgs, gstate, players, map_sz),
+			ViewMvMode::Screen => disp.linear_update_screen($coord_set, $sign, map_data, exs, units, bldgs, gstate, players, map_sz),
 			ViewMvMode::N => {panicq!("invalid view setting");}
 		}
 	}};
 	macro_rules! aupdate{($coord_set: expr, $sign: expr)=> {
-		match iface_settings.view_mv_mode {
-			ViewMvMode::Cursor => iface_settings.accel_update($coord_set, ($sign) as f32, map_data, exs, units, bldgs, relations, players, map_sz, logs, *turn, d),
-			ViewMvMode::Screen => iface_settings.accel_update_screen($coord_set, ($sign) as f32, map_data, exs, units, bldgs, relations, players, map_sz, logs, *turn, d),
+		match disp.state.iface_settings.view_mv_mode {
+			ViewMvMode::Cursor => disp.accel_update($coord_set, ($sign) as f32, map_data, exs, units, bldgs, gstate, players, map_sz),
+			ViewMvMode::Screen => disp.accel_update_screen($coord_set, ($sign) as f32, map_data, exs, units, bldgs, gstate, players, map_sz),
 			ViewMvMode::N => {panicq!("invalid view setting");}
 		}
 	}};
 	
-	macro_rules! end_turn_c{()=>(end_turn(turn, units, bldgs, temps, disp_chars, disp_settings,
-		map_data, exs, players, relations, iface_settings, production_options, 
-		logs, menu_options, frame_stats, rng, buttons, txt_list, d););};
+	macro_rules! end_turn_c{()=>(end_turn(gstate, units, bldgs, temps, disp, map_data, exs, players, frame_stats););};
 		
 	macro_rules! set_taxes{($inc: expr)=>{
-		if let UIMode::SetTaxes(zone_type) = iface_settings.ui_mode {
-			if let Some(city_hall_ind_set) = iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exs.last().unwrap()) {
+		if let UIMode::SetTaxes(zone_type) = disp.ui_mode {
+			if let Some(city_hall_ind_set) = disp.state.iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exs.last().unwrap()) {
 				if let BldgArgs::PopulationCenter {ref mut tax_rates, ..} = bldgs[city_hall_ind_set].args {
 					let t = &mut tax_rates[zone_type as usize];
 					let n = (*t as isize) + $inc;
@@ -103,7 +90,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 										if city_hall_ind == city_hall_ind_set {
 											let player = &mut players[b.owner_id as usize];
 											let new_income = -bldgs[bldg_ind].template.upkeep * 
-												return_effective_tax_rate(b.coord, map_data, exs, player, bldgs, temps.doctrines, map_sz, *turn);
+												return_effective_tax_rate(b.coord, map_data, exs, player, bldgs, temps.doctrines, map_sz, gstate.turn);
 											
 											bldgs[bldg_ind].set_taxable_upkeep(new_income, &mut player.stats);
 										} // city hall used is the one set
@@ -117,29 +104,29 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 		} // in tax-setting UI mode
 	};};
 	
-	let k = key_pressed;
+	let k = disp.state.key_pressed;
 	let mut cursor_moved = false;
 	
 	//// expand/minimize large submap (should be before the section below or else it'll never be called when the submap is expanded)
-	if buttons.show_expanded_submap.activated(k, mouse_event) || buttons.hide_submap.activated(k, mouse_event) {iface_settings.show_expanded_submap ^= true;}
+	if disp.state.buttons.show_expanded_submap.activated(k, &disp.state.mouse_event) || disp.state.buttons.hide_submap.activated(k, &disp.state.mouse_event) {disp.state.iface_settings.show_expanded_submap ^= true;}
 	
 	let exf = exs.last().unwrap();
-	let unit_inds = iface_settings.sel_units_owned(&players[iface_settings.cur_player as usize].stats, units, map_data, exf);
+	let unit_inds = disp.state.iface_settings.sel_units_owned(&players[disp.state.iface_settings.cur_player as usize].stats, units, map_data, exf);
 	
 	// mouse
 	// 	-dragging (both submap and normal map)
 	//	-cursor location updating / move search updating
-	if let Some(m_event) = &mouse_event {
-		let submap_start_row = iface_settings.screen_sz.h as i32 - MAP_ROW_STOP_SZ as i32;
+	if let Some(m_event) = &disp.state.mouse_event {
+		let submap_start_row = disp.state.iface_settings.screen_sz.h as i32 - MAP_ROW_STOP_SZ as i32;
 		
 		// expanded submap (clicking and dragging)
-		if iface_settings.show_expanded_submap {
+		if disp.state.iface_settings.show_expanded_submap {
 			let expanded_submap = map_data.map_szs[ZOOM_IND_EXPANDED_SUBMAP];
-			let within_submap = m_event.y >= (iface_settings.screen_sz.h - (expanded_submap.h+2)) as i32 && 
+			let within_submap = m_event.y >= (disp.state.iface_settings.screen_sz.h - (expanded_submap.h+2)) as i32 && 
 						  m_event.x < (expanded_submap.w+2) as i32;
 			// go to location clicked in submap
-			if within_submap && (lbutton_released(mouse_event) || lbutton_clicked(mouse_event)) || dragging(mouse_event) {
-				let screen_sz = iface_settings.screen_sz;
+			if within_submap && disp.state.kbd.map_drag.released_clicked_or_dragging(&disp.state.mouse_event) { //(lbutton_released(&disp.state.mouse_event) || lbutton_clicked(&disp.state.mouse_event)) || ldragging(&disp.state.mouse_event) {
+				let screen_sz = disp.state.iface_settings.screen_sz;
 				
 				let sub_map_frac = {
 					// click location offset on the screen
@@ -165,82 +152,89 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 					x: (screen_sz.w - MAP_COL_STOP_SZ) as f32/2.
 				};
 				
-				let cur_zoom = map_data.map_szs[iface_settings.zoom_ind];
+				let cur_zoom = map_data.map_szs[disp.state.iface_settings.zoom_ind];
 				
-				iface_settings.map_loc = Coord {
+				disp.state.iface_settings.map_loc = Coord {
 					y: (sub_map_frac.y*(cur_zoom.h as f32) - d.y).round() as isize,
 					x: (sub_map_frac.x*(cur_zoom.w as f32) - d.x).round() as isize,
 				};
 				
-				iface_settings.chk_cursor_bounds(map_data);
+				disp.state.iface_settings.chk_cursor_bounds(map_data);
 				
 				//center_cursor();
 				return;
 				
 			// no longer in submap
 			}else if !within_submap {
-				iface_settings.show_expanded_submap = false;
+				disp.state.iface_settings.show_expanded_submap = false;
 			}
 		
 		// move text cursor on main map to current mouse location (clicking and dragging)
 		}else if m_event.y >= MAP_ROW_START as i32 &&
-		   m_event.y < submap_start_row && m_event.x < iface_settings.map_screen_sz.w as i32 {			
-			if lbutton_clicked(mouse_event) || lbutton_released(mouse_event) || lbutton_pressed(mouse_event) || dragging(mouse_event) {
+		   m_event.y < submap_start_row && m_event.x < disp.state.iface_settings.map_screen_sz.w as i32 {
+			if disp.state.kbd.map_drag.released_clicked_pressed_or_dragging(&disp.state.mouse_event) || disp.state.kbd.action_drag.released_clicked_pressed_or_dragging(&disp.state.mouse_event) {  //lbutton_clicked(&disp.state.mouse_event) || lbutton_released(&disp.state.mouse_event) || lbutton_pressed(&disp.state.mouse_event) || ldragging(&disp.state.mouse_event) {
 				let screen_coord = Coord {y: m_event.y as isize, x: m_event.x as isize};
 				let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
-				iface_settings.set_text_coord(screen_coord, units, bldgs, exs, relations, map_data, players, map_sz, logs, *turn, d);
+				disp.set_text_coord(screen_coord, units, bldgs, exs, map_data, players, map_sz, gstate);
 				
-				if iface_settings.zoom_ind == map_data.max_zoom_ind() {
-					let cur_mi = iface_settings.cursor_to_map_ind(map_data);
-					iface_settings.set_action_start_coord_if_not_set(cur_mi, units, exs.last().unwrap(), map_data);
+				if disp.state.iface_settings.zoom_ind == map_data.max_zoom_ind() {
+					if disp.state.kbd.action_drag.released_clicked_pressed_or_dragging(&disp.state.mouse_event) {
+						disp.state.iface_settings.start_individual_mv_mode(ActionType::Mv, &unit_inds, units, map_data);
+					}
+					
+					let cur_mi = disp.state.iface_settings.cursor_to_map_ind(map_data);
+					disp.state.iface_settings.set_action_start_coord_if_not_set(cur_mi, units, exs.last().unwrap(), map_data);
 				}
 			}
 		// submap clicked or hovered in -> expand it
 		}else if m_event.y >= (submap_start_row + 2) && m_event.x < (map_data.map_szs[ZOOM_IND_SUBMAP].w+1) as i32 && 
-				iface_settings.start_map_drag == None {
-			iface_settings.show_expanded_submap = true;
+				disp.state.iface_settings.start_map_drag == None {
+			disp.state.iface_settings.show_expanded_submap = true;
 		}
 		
 		// drag map (update location of map shown on the screen or start move mode)
-		if (iface_settings.zoom_ind != map_data.max_zoom_ind() || iface_settings.add_action_to.actions().len() == 0) && dragging(mouse_event) {
+		if disp.state.kbd.map_drag.dragging(&disp.state.mouse_event) &&
+				(!TEXT_MODE || (disp.state.iface_settings.zoom_ind != map_data.max_zoom_ind() || disp.state.iface_settings.add_action_to.actions().len() == 0)) {
+				 // ^ if in text mode, only drag if we are not moving a unit -- ncurses doesn't seem to reliably send which mouse button is being held when dragging
 			// continue drag
-			if let Some(start_map_drag) = iface_settings.start_map_drag {
-				let cur = iface_settings.screen_coord_to_map_coord(Coord {y: m_event.y as isize, x: m_event.x as isize}, map_data);
-				iface_settings.map_loc.y -= cur.y - start_map_drag.y;
-				iface_settings.map_loc.x -= cur.x - start_map_drag.x;
-				iface_settings.chk_cursor_bounds(map_data);
+			if let Some(start_map_drag) = disp.state.iface_settings.start_map_drag {
+				let m_event = disp.state.mouse_event.as_ref().unwrap();
+				let cur = disp.state.iface_settings.screen_coord_to_map_coord(Coord {y: m_event.y as isize, x: m_event.x as isize}, map_data);
+				disp.state.iface_settings.map_loc.y -= cur.y - start_map_drag.y;
+				disp.state.iface_settings.map_loc.x -= cur.x - start_map_drag.x;
+				disp.state.iface_settings.chk_cursor_bounds(map_data);
 			
 			// attempt to start moving unit, otherwise drag map
-			}else if !iface_settings.start_individual_mv_mode(ActionType::Mv, &unit_inds, units, map_data) {
-				iface_settings.start_map_drag = Some(iface_settings.cursor_to_map_coord(map_data));
+			}else if !TEXT_MODE || !disp.state.iface_settings.start_individual_mv_mode(ActionType::Mv, &unit_inds, units, map_data) {
+				disp.state.iface_settings.start_map_drag = Some(disp.state.iface_settings.cursor_to_map_coord(map_data));
 			}
 			return;
-		}else{iface_settings.start_map_drag = None;}
+		}else{disp.state.iface_settings.start_map_drag = None;}
 	}
 	
 	///// menu
-	if kbd.open_top_menu == k {iface_settings.start_menu(d);}
+	if disp.state.kbd.open_top_menu == k {disp.start_menu();}
 	
 	///// zoom
 	{
 		macro_rules! set_text_coord{() => {
-			if let Some(screen_coord) = d.mouse_pos() {
+			if let Some(screen_coord) = disp.state.renderer.mouse_pos() {
 				let screen_coord = Coord {y: screen_coord.0 as isize, x: screen_coord.1 as isize};
-				iface_settings.set_text_coord(screen_coord, units, bldgs, exs, relations, map_data, players, map_sz, logs, *turn, d);
+				disp.set_text_coord(screen_coord, units, bldgs, exs, map_data, players, map_sz, gstate);
 			}
 		};};
 		
-		macro_rules! chg_zoom{($dir:expr) => {iface_settings.chg_zoom($dir, map_data, exs, units, bldgs, relations, players, map_sz, logs, *turn, d);};};
+		macro_rules! chg_zoom{($dir:expr) => {disp.chg_zoom($dir, map_data, exs, units, bldgs, gstate, players, map_sz);};};
 		
-		if kbd.zoom_in == k {chg_zoom!(1);}
-		if kbd.zoom_out == k {chg_zoom!(-1);}
+		if disp.state.kbd.zoom_in == k {chg_zoom!(1);}
+		if disp.state.kbd.zoom_out == k {chg_zoom!(-1);}
 		
-		if scroll_up(mouse_event) {set_text_coord!(); chg_zoom!(1);}
-		if scroll_down(mouse_event) {set_text_coord!(); chg_zoom!(-1);}
+		if scroll_up(&disp.state.mouse_event) {set_text_coord!(); chg_zoom!(1);}
+		if scroll_down(&disp.state.mouse_event) {set_text_coord!(); chg_zoom!(-1);}
 	}
 	
-	if kbd.toggle_cursor_mode == k {
-		iface_settings.view_mv_mode = match iface_settings.view_mv_mode {
+	if disp.state.kbd.toggle_cursor_mode == k {
+		disp.state.iface_settings.view_mv_mode = match disp.state.iface_settings.view_mv_mode {
 			ViewMvMode::Cursor => ViewMvMode::Screen,
 			ViewMvMode::Screen => ViewMvMode::Cursor,
 			ViewMvMode::N => {panicq!("invalid view setting")}
@@ -248,61 +242,61 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 	}
 		
 	////////// cursor OR view straight
-	if kbd.up_normal(k) {lupdate!(CoordSet::Y, -1); cursor_moved = true;}
-	if kbd.down_normal(k) {lupdate!(CoordSet::Y, 1); cursor_moved = true;}
-	if kbd.left == k || KEY_LEFT == k {lupdate!(CoordSet::X, -1); cursor_moved = true;}
-	if kbd.right == k || KEY_RIGHT == k {lupdate!(CoordSet::X, 1); cursor_moved = true;}
+	if disp.state.kbd.up_normal(k) {lupdate!(CoordSet::Y, -1); cursor_moved = true;}
+	if disp.state.kbd.down_normal(k) {lupdate!(CoordSet::Y, 1); cursor_moved = true;}
+	if disp.state.kbd.left == k || KEY_LEFT == k {lupdate!(CoordSet::X, -1); cursor_moved = true;}
+	if disp.state.kbd.right == k || KEY_RIGHT == k {lupdate!(CoordSet::X, 1); cursor_moved = true;}
 	
-	if kbd.fast_up == k {aupdate!(CoordSet::Y, -1); cursor_moved = true;}
-	if kbd.fast_down == k {aupdate!(CoordSet::Y, 1); cursor_moved = true;}
-	if kbd.fast_left == k {aupdate!(CoordSet::X, -1); cursor_moved = true;}
-	if kbd.fast_right == k {aupdate!(CoordSet::X, 1); cursor_moved = true;}
+	if disp.state.kbd.fast_up == k {aupdate!(CoordSet::Y, -1); cursor_moved = true;}
+	if disp.state.kbd.fast_down == k {aupdate!(CoordSet::Y, 1); cursor_moved = true;}
+	if disp.state.kbd.fast_left == k {aupdate!(CoordSet::X, -1); cursor_moved = true;}
+	if disp.state.kbd.fast_right == k {aupdate!(CoordSet::X, 1); cursor_moved = true;}
 	
 	/////////// screen reader text tabbing
 	if screen_reader_mode() {
-		if k == kbd.start_tabbing_through_bottom_screen_mode {
-			iface_settings.ui_mode = UIMode::TextTab {
+		if k == disp.state.kbd.start_tabbing_through_bottom_screen_mode {
+			disp.ui_mode = UIMode::TextTab {
 				mode: 0,
 				loc: TextTabLoc::BottomStats
 			};
-			d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+			disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
 		}
 		
-		if k == kbd.start_tabbing_through_right_screen_mode {
-			iface_settings.ui_mode = UIMode::TextTab {
+		if k == disp.state.kbd.start_tabbing_through_right_screen_mode {
+			disp.ui_mode = UIMode::TextTab {
 				mode: 0,
 				loc: TextTabLoc::RightSide
 			};
-			d.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+			disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
 		}
 		
-		if k == kbd.forward_tab {
-			if let UIMode::TextTab {ref mut mode, loc} = &mut iface_settings.ui_mode {
+		if k == disp.state.kbd.forward_tab {
+			if let UIMode::TextTab {ref mut mode, loc} = &mut disp.ui_mode {
 				*mode += 1;
 				// check if we wrap
 				match loc {
 					TextTabLoc::BottomStats => {
-						if txt_list.bottom.len() <= *mode {*mode = 0;}
+						if disp.state.txt_list.bottom.len() <= *mode {*mode = 0;}
 					}
 					TextTabLoc::RightSide => {
-						if txt_list.right.len() <= *mode {*mode = 0;}
+						if disp.state.txt_list.right.len() <= *mode {*mode = 0;}
 					}
 				}
 			}
 		}
 		
-		if k == kbd.backward_tab {
-			if let UIMode::TextTab {ref mut mode, loc} = &mut iface_settings.ui_mode {
+		if k == disp.state.kbd.backward_tab {
+			if let UIMode::TextTab {ref mut mode, loc} = &mut disp.ui_mode {
 				if *mode >= 1 {
 					*mode -= 1;
 				// wrap
 				}else{
 					match loc {
 						TextTabLoc::BottomStats => {
-							*mode = txt_list.bottom.len()-1;
+							*mode = disp.state.txt_list.bottom.len()-1;
 						}
 						TextTabLoc::RightSide => {
-							*mode = txt_list.right.len()-1;
+							*mode = disp.state.txt_list.right.len()-1;
 						}
 					}
 				}
@@ -313,85 +307,89 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 	/////////// cursor OR view diagonol
 	{
 		// upper right
-		if kbd.diag_up_right == k {
+		if disp.state.kbd.diag_up_right == k {
 			lupdate!(CoordSet::X, 2);
 			lupdate!(CoordSet::Y, -1);
 			cursor_moved = true;
 		}
 		
-		if kbd.fast_diag_up_right == k {
+		if disp.state.kbd.fast_diag_up_right == k {
 			aupdate!(CoordSet::X, 2);
 			aupdate!(CoordSet::Y, -1);
 			cursor_moved = true;
 		}
 		
 		// upper left
-		if kbd.diag_up_left == k {
+		if disp.state.kbd.diag_up_left == k {
 			lupdate!(CoordSet::X, -2);
 			lupdate!(CoordSet::Y, -1);
 			cursor_moved = true;
 		}
 		
-		if kbd.fast_diag_up_left == k {
+		if disp.state.kbd.fast_diag_up_left == k {
 			aupdate!(CoordSet::X, -2);
 			aupdate!(CoordSet::Y, -1);
 			cursor_moved = true;
 		}
 		
 		// lower right
-		if kbd.diag_down_right == k {
+		if disp.state.kbd.diag_down_right == k {
 			lupdate!(CoordSet::X, 2);
 			lupdate!(CoordSet::Y, 1);
 			cursor_moved = true;
 		}
 		
-		if kbd.fast_diag_down_right == k {
+		if disp.state.kbd.fast_diag_down_right == k {
 			aupdate!(CoordSet::X, 2);
 			aupdate!(CoordSet::Y, 1);
 			cursor_moved = true;
 		}
 		
 		// lower left
-		if kbd.diag_down_left == k {
+		if disp.state.kbd.diag_down_left == k {
 			lupdate!(CoordSet::X, -2);
 			lupdate!(CoordSet::Y, 1);
 			cursor_moved = true;
 		}
 		
-		if kbd.fast_diag_down_left == k {
+		if disp.state.kbd.fast_diag_down_left == k {
 			aupdate!(CoordSet::X, -2);
 			aupdate!(CoordSet::Y, 1);
 			cursor_moved = true;
 		}
 			
 		// center on cursor
-		if kbd.center_on_cursor == k {iface_settings.ctr_on_cur(map_data);}
+		if disp.state.kbd.center_on_cursor == k {disp.state.iface_settings.ctr_on_cur(map_data);}
+	}
+	
+	if disp.state.kbd.center_on_next_unmoved_unit == k {
+		disp.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, gstate, players);
 	}
 	
 	////////// end turn
-	if buttons.progress_day.activated(k, mouse_event) && iface_settings.all_player_pieces_mvd {end_turn_c!();}
-	if buttons.progress_day_ign_unmoved_units.activated(k, mouse_event) { end_turn_c!();}
-	if buttons.progress_month.activated(k, mouse_event) { for _i in 0..FAST_TURN_INC {end_turn_c!();}}
-	if buttons.finish_all_unit_actions.activated(k, mouse_event) || buttons.stop_fin_all_unit_actions.activated(k, mouse_event) {
+	if disp.state.buttons.progress_day.activated(k, &disp.state.mouse_event) && disp.state.iface_settings.all_player_pieces_mvd {end_turn_c!();}
+	if disp.state.buttons.progress_day_ign_unmoved_units.activated(k, &disp.state.mouse_event) { end_turn_c!();}
+	if disp.state.buttons.progress_month.activated(k, &disp.state.mouse_event) { for _i in 0..FAST_TURN_INC {end_turn_c!();}}
+	if disp.state.buttons.finish_all_unit_actions.activated(k, &disp.state.mouse_event) || disp.state.buttons.stop_fin_all_unit_actions.activated(k, &disp.state.mouse_event) {
 		// stop finishing all actions
-		if iface_settings.auto_turn == AutoTurn::FinishAllActions {
-			iface_settings.set_auto_turn(AutoTurn::Off, d);
+		if disp.state.iface_settings.auto_turn == AutoTurn::FinishAllActions {
+			disp.state.set_auto_turn(AutoTurn::Off);
 		// start finishing all actions
-		}else	if iface_settings.all_player_pieces_mvd {
-			iface_settings.set_auto_turn(AutoTurn::FinishAllActions, d);
+		}else	if disp.state.iface_settings.all_player_pieces_mvd {
+			disp.state.set_auto_turn(AutoTurn::FinishAllActions);
 		// alert that there are unmoved units
-		}else if iface_settings.auto_turn == AutoTurn::Off {
-			iface_settings.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, relations, players, logs, *turn, d);
-			iface_settings.create_interrupt_window(UIMode::UnmovedUnitsNotification, d);
+		}else if disp.state.iface_settings.auto_turn == AutoTurn::Off {
+			disp.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, gstate, players);
+			disp.create_interrupt_window(UIMode::UnmovedUnitsNotification(UnmovedUnitsNotificationState {}));
 		}
 	}
 	
-	let pstats = &players[iface_settings.cur_player as usize].stats;
+	let pstats = &players[disp.state.iface_settings.cur_player as usize].stats;
 	let exf = exs.last().unwrap();
 	
-	if let AddActionTo::None = iface_settings.add_action_to {
+	if let AddActionTo::None = disp.state.iface_settings.add_action_to {
 		// mode change: assign action to everyone in brigade
-		/*if buttons.assign_action_to_all_in_brigade.activated(k, mouse_event) {
+		/*if disp.state.buttons.assign_action_to_all_in_brigade.activated(k, &disp.state.mouse_event) {
 			if let Some(unit_ind) = iface_settings.unit_ind_frm_cursor(units, map_data, exf) {
 				if let Some(brigade_nm) = pstats.unit_brigade_nm(unit_ind) {
 					iface_settings.add_action_to = AddActionTo::AllInBrigade {
@@ -404,23 +402,23 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 		}*/
 		
 		// view brigade
-		if buttons.view_brigade.activated(k, mouse_event) {
-			if let Some(unit_ind) = iface_settings.unit_ind_frm_cursor(units, map_data, exf) {
+		if disp.state.buttons.view_brigade.activated(k, &disp.state.mouse_event) {
+			if let Some(unit_ind) = disp.state.iface_settings.unit_ind_frm_cursor(units, map_data, exf) {
 				if let Some(brigade_nm) = pstats.unit_brigade_nm(unit_ind) {
-					iface_settings.create_window(UIMode::BrigadesWindow {
+					disp.create_window(UIMode::BrigadesWindow(BrigadesWindowState {
 						mode: 0,
 						brigade_action: BrigadeAction::ViewBrigadeUnits {
 							brigade_nm: brigade_nm.to_string()
 						}
-					}, d);
+					}));
 					return;
 				}
 			}
 		}
 		
 		///// building production
-		if buttons.change_bldg_production.activated(k, mouse_event) {
-			if let Some(bldg_ind) = iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exf) { // checks cur_player owns it
+		if disp.state.buttons.change_bldg_production.activated(k, &disp.state.mouse_event) {
+			if let Some(bldg_ind) = disp.state.iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exf) { // checks cur_player owns it
 				let b = &bldgs[bldg_ind];
 				if let Some(_) = &b.template.units_producable {
 					let production_opt = match &b.args {
@@ -430,7 +428,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 					
 					// convert &UnitTemplate (production) into an index, to use for the window selection
 					let mode = if let Some(production) = production_opt.last() {
-						production_options.bldgs[b.template.id as usize].as_ref().unwrap().options.iter().position(|o| {
+						disp.state.production_options.bldgs[b.template.id as usize].as_ref().unwrap().options.iter().position(|o| {
 							if let ArgOptionUI::UnitTemplate(Some(ut)) = o.arg {
 								return ut == production.production;
 							}
@@ -438,18 +436,18 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 						}).unwrap()
 					}else{0};
 					
-					iface_settings.create_window(UIMode::ProdListWindow {mode}, d);
+					disp.create_window(UIMode::ProdListWindow(ProdListWindowState {mode}));
 					return;
 				}
 			}
 		}
 		
 		//// building production list
-		if buttons.view_production.activated(k, mouse_event) {
-			if let Some(bldg_ind) = iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exf) { // checks cur_player owns it
+		if disp.state.buttons.view_production.activated(k, &disp.state.mouse_event) {
+			if let Some(bldg_ind) = disp.state.iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exf) { // checks cur_player owns it
 				let b = &bldgs[bldg_ind];
 				if let Some(_) = &b.template.units_producable {
-					iface_settings.create_window(UIMode::CurrentBldgProd {mode: 0}, d);
+					disp.create_window(UIMode::CurrentBldgProd(CurrentBldgProdState {mode: 0}));
 					return;
 				}
 			}
@@ -464,16 +462,16 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 	
 	// individual actions:
 	//	should be assigned only to one unit at a time (no applying these to every unit in a brigade)
-	if let AddActionTo::None = iface_settings.add_action_to {
+	if let AddActionTo::None = disp.state.iface_settings.add_action_to {
 		//// move with cursor
-		if buttons.move_with_cursor.activated(k, mouse_event) {
-			iface_settings.start_individual_mv_mode(ActionType::MvWithCursor, &unit_inds, units, map_data);
+		if disp.state.buttons.move_with_cursor.activated(k, &disp.state.mouse_event) {
+			disp.state.iface_settings.start_individual_mv_mode(ActionType::MvWithCursor, &unit_inds, units, map_data);
 			return;
 		}
 		
 		// group move (every unit in selected rectangle is assigned the movement action when enter is pressed)
-		if buttons.group_move.activated_ign_not_being_on_screen(k, mouse_event) ||
-		   (shift_pressed() && lbutton_pressed(mouse_event)) {
+		if disp.state.buttons.group_move.activated_ign_not_being_on_screen(k, &disp.state.mouse_event) ||
+		   (shift_pressed() && lbutton_pressed(&disp.state.mouse_event)) {
 			// 0. start rectangle corner at cursor location
 			// 1. select second corner bounding rectangle
 			// 2. select destination
@@ -482,9 +480,9 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 			// we do not initially have a unit to associate the action w/.
 			// After step 1 is completed, we need to supply a unit_ind before
 			// move paths can be computed in step 2.
-			iface_settings.add_action_to = AddActionTo::NoUnit {
+			disp.state.iface_settings.add_action_to = AddActionTo::NoUnit {
 				action: ActionMeta::new(ActionType::GroupMv {
-					start_coord: Some(iface_settings.cursor_to_map_ind(map_data)),
+					start_coord: Some(disp.state.iface_settings.cursor_to_map_ind(map_data)),
 					end_coord: None
 				})
 			};
@@ -492,19 +490,19 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 		}
 		
 		// join or leave brigade
-		if buttons.join_brigade.activated(k, mouse_event) || buttons.leave_brigade.activated(k, mouse_event) {
+		if disp.state.buttons.join_brigade.activated(k, &disp.state.mouse_event) || disp.state.buttons.leave_brigade.activated(k, &disp.state.mouse_event) {
 			if let Some(unit_ind) = unit_inds.first() {
-				let pstats = &mut players[iface_settings.cur_player as usize].stats;
+				let pstats = &mut players[disp.state.iface_settings.cur_player as usize].stats;
 				
 				// leave brigade
 				if let Some(_) = pstats.unit_brigade_nm(*unit_ind) {
 					pstats.rm_unit_frm_brigade(*unit_ind);
 				// join brigade
 				}else if pstats.brigades.len() != 0 {
-					iface_settings.create_window(UIMode::BrigadesWindow {
+					disp.create_window(UIMode::BrigadesWindow(BrigadesWindowState {
 						mode: 0,
 						brigade_action: BrigadeAction::Join {unit_ind: *unit_ind}
-					}, d);
+					}));
 				}
 				return;
 			}
@@ -513,15 +511,15 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 	
 	// broadcastable actions:
 	// 	can be assigned to all units in brigade at once (also can be assigned to individual units)
-	if let AddActionTo::AllInBrigade {..} | AddActionTo::None = iface_settings.add_action_to {
+	if let AddActionTo::AllInBrigade {..} | AddActionTo::None = disp.state.iface_settings.add_action_to {
 		//// movement
-		if buttons.move_unit.activated(k, mouse_event) {
-			iface_settings.start_broadcastable_mv_mode(ActionType::Mv, &unit_inds, units, map_data);
+		if disp.state.buttons.move_unit.activated(k, &disp.state.mouse_event) {
+			disp.state.iface_settings.start_broadcastable_mv_mode(ActionType::Mv, &unit_inds, units, map_data);
 			return;
 		}
 		
 		// fortify
-		if buttons.fortify.activated(k, mouse_event) {
+		if disp.state.buttons.fortify.activated(k, &disp.state.mouse_event) {
 			for unit_ind in unit_inds.iter() {
 				let u = &mut units[*unit_ind];
 				
@@ -533,63 +531,63 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 				}
 				
 				u.action.clear();
-				u.action.push(ActionMeta::new(ActionType::Fortify { turn: *turn }));
+				u.action.push(ActionMeta::new(ActionType::Fortify { turn: gstate.turn }));
 			}
-			iface_settings.add_action_to = AddActionTo::None;
-			iface_settings.update_all_player_pieces_mvd_flag(units);
+			disp.state.iface_settings.add_action_to = AddActionTo::None;
+			disp.state.iface_settings.update_all_player_pieces_mvd_flag(units);
 			return;
 		}
 		
 		// pass move
-		if buttons.pass_move.activated(k, mouse_event) {
+		if disp.state.buttons.pass_move.activated(k, &disp.state.mouse_event) {
 			////// pass move
 			for unit_ind in unit_inds.iter() {
 				units[*unit_ind].actions_used = None;
 			}
 			
 			if unit_inds.len() != 0 {
-				iface_settings.add_action_to = AddActionTo::None;
-				iface_settings.update_all_player_pieces_mvd_flag(units);
+				disp.state.iface_settings.add_action_to = AddActionTo::None;
+				disp.state.iface_settings.update_all_player_pieces_mvd_flag(units);
 				return;
 			}
 		}
 		
 		// auto-explore
-		if buttons.auto_explore.activated(k, mouse_event) {
+		if disp.state.buttons.auto_explore.activated(k, &disp.state.mouse_event) {
 			if unit_inds.len() != 0 {
-				iface_settings.create_window(UIMode::SelectExploreType {mode: 0}, d);
+				disp.create_window(UIMode::SelectExploreType(SelectExploreTypeState {mode: 0}));
 				return;
 			}
 		}
 		
 		// disband
-		if buttons.disband.activated(k, mouse_event) {
+		if disp.state.buttons.disband.activated(k, &disp.state.mouse_event) {
 			for unit_ind in unit_inds.iter() {
-				disband_unit(*unit_ind, true, units, map_data, exs, players, relations, map_sz, logs, *turn);
+				disband_unit(*unit_ind, true, units, map_data, exs, players, gstate, map_sz);
 			}
 			
 			if unit_inds.len() != 0 {
-				iface_settings.add_action_to = AddActionTo::None;
-				iface_settings.update_all_player_pieces_mvd_flag(units);
+				disp.state.iface_settings.add_action_to = AddActionTo::None;
+				disp.state.iface_settings.update_all_player_pieces_mvd_flag(units);
 				
 				// prevent unit_subsel out-of-bounds error
-				if let Some(ex) = exs.last().unwrap().get(&iface_settings.cursor_to_map_ind(map_data)) {
+				if let Some(ex) = exs.last().unwrap().get(&disp.state.iface_settings.cursor_to_map_ind(map_data)) {
 					if let Some(unit_inds) = &ex.unit_inds {
-						if iface_settings.unit_subsel >= unit_inds.len() {
-							iface_settings.unit_subsel = 0;
+						if disp.state.iface_settings.unit_subsel >= unit_inds.len() {
+							disp.state.iface_settings.unit_subsel = 0;
 						}
 					}else{
-						iface_settings.unit_subsel = 0;
+						disp.state.iface_settings.unit_subsel = 0;
 					}
 				}else{
-					iface_settings.unit_subsel = 0;
+					disp.state.iface_settings.unit_subsel = 0;
 				}
 				return;
 			}
 		}
 		
 		// attack
-		if buttons.attack.activated(k, mouse_event) {
+		if disp.state.buttons.attack.activated(k, &disp.state.mouse_event) {
 			let unit_inds_filtered = unit_inds.iter().cloned().filter(|&ind| {
 				let ut = units[ind].template;
 				WORKER_NM != ut.nm[0] && !ut.attack_per_turn.is_none()
@@ -601,33 +599,33 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 				ignore_own_walls: false
 			};
 			
-			iface_settings.start_broadcastable_mv_mode(act, &unit_inds_filtered, units, map_data);
+			disp.state.iface_settings.start_broadcastable_mv_mode(act, &unit_inds_filtered, units, map_data);
 			return;
 		}
 		
 		// sector automation
-		if buttons.soldier_automate.activated(k, mouse_event) {
+		if disp.state.buttons.soldier_automate.activated(k, &disp.state.mouse_event) {
 			if unit_inds.iter().any(|&ind| !units[ind].template.attack_per_turn.is_none()) {
-				iface_settings.create_window(UIMode::CreateSectorAutomation {
+				disp.create_window(UIMode::CreateSectorAutomation(CreateSectorAutomationState {
 					mode: 0,
 					sector_nm: None,
 					unit_enter_action: None,
 					idle_action: None,
 					curs_col: 1,
 					txt: String::from("0")
-				}, d);
+				}));
 				return;
 			}
 		}
 		
 		// automate zone creation
-		if buttons.automate_zone_creation.activated(k, mouse_event) {
+		if disp.state.buttons.automate_zone_creation.activated(k, &disp.state.mouse_event) {
 			for unit_ind in worker_unit_inds.iter() {
 				let u = &mut units[*unit_ind];
-				iface_settings.add_action_to = AddActionTo::None;
+				disp.state.iface_settings.add_action_to = AddActionTo::None;
 				
 				// create sector around city, then automate
-				if iface_settings.workers_create_city_sectors {
+				if disp.state.iface_settings.workers_create_city_sectors {
 					if let Some(ai_state) = &players[u.owner_id as usize].ptype.any_ai_state() {
 						let u_coord = Coord::frm_ind(u.return_coord(), map_sz);
 						if let Some(min_city) = ai_state.city_states.iter().min_by_key(|c|
@@ -659,7 +657,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 										if !sectors.iter().any(|s| s.nm == *nm) {
 											sectors.push(Sector {
 												nm: nm.clone(),
-												perim_coords: PerimCoords::new(*turn, &segments, map_sz),
+												perim_coords: PerimCoords::new(gstate.turn, &segments, map_sz),
 												segments
 											});
 										}
@@ -672,32 +670,32 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 							
 						// no city found
 						}else{
-							iface_settings.create_window(UIMode::GenericAlert {
-								txt: l.No_city_halls_found.clone()
-							}, d);
+							disp.create_window(UIMode::GenericAlert(GenericAlertState {
+								txt: disp.state.local.No_city_halls_found.clone()
+							}));
 						}
 					}
 				}
 			}
-			iface_settings.update_all_player_pieces_mvd_flag(units);
+			disp.state.iface_settings.update_all_player_pieces_mvd_flag(units);
 			return;
 		}
 		
 		// continue construction of bldg
-		if buttons.continue_bldg_construction.activated(k, mouse_event) {
-			iface_settings.start_broadcastable_mv_mode(ActionType::WorkerContinueBuildBldg, &worker_unit_inds, units, map_data);
+		if disp.state.buttons.continue_bldg_construction.activated(k, &disp.state.mouse_event) {
+			disp.state.iface_settings.start_broadcastable_mv_mode(ActionType::WorkerContinueBuildBldg, &worker_unit_inds, units, map_data);
 			return;
 		}
 		
 		// repair wall
-		if buttons.repair_wall.activated(k, mouse_event) {
+		if disp.state.buttons.repair_wall.activated(k, &disp.state.mouse_event) {
 			let unit_inds_filtered = unit_inds.iter().cloned().filter(|&ind| units[ind].template.repair_wall_per_turn != None).collect();
-			iface_settings.start_broadcastable_mv_mode(ActionType::WorkerRepairWall {wall_coord: None, turns_expended: 0}, &unit_inds_filtered, units, map_data);
+			disp.state.iface_settings.start_broadcastable_mv_mode(ActionType::WorkerRepairWall {wall_coord: None, turns_expended: 0}, &unit_inds_filtered, units, map_data);
 			return;
 		}
 		
 		// unload boat
-		if buttons.unload_boat.activated(k, mouse_event) {
+		if disp.state.buttons.unload_boat.activated(k, &disp.state.mouse_event) {
 			for unit_ind in unit_inds.iter() {
 				//// unload units from boat
 				let u = &units[*unit_ind];
@@ -713,7 +711,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 						}else{panicq!("carried unit should be available");}
 					}
 					
-					iface_settings.add_action_to = AddActionTo::None;
+					disp.state.iface_settings.add_action_to = AddActionTo::None;
 				}
 			}
 			return;
@@ -725,9 +723,9 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 	// actions that can be performed by individuals, everyone in a brigade or added to the build list:
 	{
 		// build bldg
-		if buttons.build_bldg.activated(k, mouse_event) {
+		if disp.state.buttons.build_bldg.activated(k, &disp.state.mouse_event) {
 			if worker_unit_inds.len() != 0 {
-				iface_settings.create_window(UIMode::ProdListWindow {mode: 0}, d);
+				disp.create_window(UIMode::ProdListWindow(ProdListWindowState {mode: 0}));
 				return;
 			}
 		}
@@ -735,82 +733,88 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 	
 	// build list actions:
 	//	can be added to a brigade's build list but not be assigned simultanously to multiple units at once (also can be assigned to individual units)
-	if let AddActionTo::BrigadeBuildList {..} | AddActionTo::None = iface_settings.add_action_to {
+	if let AddActionTo::BrigadeBuildList {..} | AddActionTo::None = disp.state.iface_settings.add_action_to {
 		// road
-		if buttons.build_road.activated(k, mouse_event) {
+		if disp.state.buttons.build_road.activated(k, &disp.state.mouse_event) {
 			let act = ActionType::WorkerBuildStructure {structure_type: StructureType::Road, turns_expended: 0};
-			iface_settings.start_build_mv_mode(act, &worker_unit_inds, units, map_data);
+			disp.state.iface_settings.start_build_mv_mode(act, &worker_unit_inds, units, map_data);
 			return;
 		}
 		
 		// wall
-		if buttons.build_wall.activated(k, mouse_event) {
+		if disp.state.buttons.build_wall.activated(k, &disp.state.mouse_event) {
 			// check that no other units are here... prevent building wall on them
-			if let Some(ex) = exs.last().unwrap().get(&iface_settings.cursor_to_map_ind(map_data)) {
+			if let Some(ex) = exs.last().unwrap().get(&disp.state.iface_settings.cursor_to_map_ind(map_data)) {
 				if let Some(unit_inds) = &ex.unit_inds {
 					if unit_inds.len() > 1 {return;}
 				}
 			}
 			
 			let act = ActionType::WorkerBuildStructure {structure_type: StructureType::Wall, turns_expended: 0};
-			iface_settings.start_build_mv_mode(act, &worker_unit_inds, units, map_data);
+			disp.state.iface_settings.start_build_mv_mode(act, &worker_unit_inds, units, map_data);
 			return;
 		}
 		
 		// gate
-		if buttons.build_gate.activated(k, mouse_event) {
+		if disp.state.buttons.build_gate.activated(k, &disp.state.mouse_event) {
 			let act = ActionType::WorkerBuildStructure {structure_type: StructureType::Gate, turns_expended: 0};
-			iface_settings.start_build_mv_mode(act, &worker_unit_inds, units, map_data);
+			disp.state.iface_settings.start_build_mv_mode(act, &worker_unit_inds, units, map_data);
 			return;
 		}
 		
 		// rm zones & bldgs
-		if buttons.rm_bldgs_and_zones.activated(k, mouse_event) {
+		if disp.state.buttons.rm_bldgs_and_zones.activated(k, &disp.state.mouse_event) {
 			let act = ActionType::WorkerRmZonesAndBldgs {start_coord: None, end_coord: None};
-			iface_settings.start_build_mv_mode(act, &worker_unit_inds, units, map_data);
+			disp.state.iface_settings.start_build_mv_mode(act, &worker_unit_inds, units, map_data);
 			return;
 		}
 		
 		//////////// zoning (creation and setting tax rates)
-		if buttons.zone_agricultural.activated(k, mouse_event) || buttons.tax_agricultural.activated(k, mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Agricultural, units, bldgs, map_data, exf, iface_settings); return;}
-		if buttons.zone_residential.activated(k, mouse_event) || buttons.tax_residential.activated(k, mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Residential, units, bldgs, map_data, exf, iface_settings); return;}
-		if buttons.zone_business.activated(k, mouse_event) || buttons.tax_business.activated(k, mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Business, units, bldgs, map_data, exf, iface_settings); return;}
-		if buttons.zone_industrial.activated(k, mouse_event) || buttons.tax_industrial.activated(k, mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Industrial, units, bldgs, map_data, exf, iface_settings); return;}
+		if disp.state.buttons.zone_agricultural.activated(k, &disp.state.mouse_event) || disp.state.buttons.tax_agricultural.activated(k, &disp.state.mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Agricultural, units, bldgs, map_data, exf, disp); return;}
+		if disp.state.buttons.zone_residential.activated(k, &disp.state.mouse_event) || disp.state.buttons.tax_residential.activated(k, &disp.state.mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Residential, units, bldgs, map_data, exf, disp); return;}
+		if disp.state.buttons.zone_business.activated(k, &disp.state.mouse_event) || disp.state.buttons.tax_business.activated(k, &disp.state.mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Business, units, bldgs, map_data, exf, disp); return;}
+		if disp.state.buttons.zone_industrial.activated(k, &disp.state.mouse_event) || disp.state.buttons.tax_industrial.activated(k, &disp.state.mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Industrial, units, bldgs, map_data, exf, disp); return;}
 	}
 	
 	// tab -- unit subselection when multiple units on single plot of land
 	// increment index, and wrap if needed
-	if buttons.tab.activated(k, mouse_event) {
-		if !iface_settings.add_action_to.is_none() {return;}
-		let map_coord = iface_settings.cursor_to_map_ind(map_data);
+	if disp.state.buttons.tab.activated(k, &disp.state.mouse_event) {
+		if !disp.state.iface_settings.add_action_to.is_none() {return;}
+		let map_coord = disp.state.iface_settings.cursor_to_map_ind(map_data);
 		if let Some(ex) = exs.last().unwrap().get(&map_coord) {
 			if let Some(unit_inds) = &ex.unit_inds {
 				let n_inds = unit_inds.len();
 				debug_assertq!(n_inds > 0);
 				debug_assertq!(n_inds <= MAX_UNITS_PER_PLOT);
 				
-				iface_settings.unit_subsel += 1;
-				if iface_settings.unit_subsel >= n_inds { // wrap
-					iface_settings.unit_subsel = 0;
+				disp.state.iface_settings.unit_subsel += 1;
+				if disp.state.iface_settings.unit_subsel >= n_inds { // wrap
+					disp.state.iface_settings.unit_subsel = 0;
 				}
 			}
 		}
 		return;
 	}
 	
-	if buttons.increase_tax.activated(k, mouse_event) || buttons.increase_tax_alt.activated(k, mouse_event) {
+	if disp.state.buttons.increase_tax.activated(k, &disp.state.mouse_event) || disp.state.buttons.increase_tax_alt.activated(k, &disp.state.mouse_event) {
 		set_taxes!(2);
 		return;
-	}else if buttons.decrease_tax.activated(k, mouse_event) {
+	}else if disp.state.buttons.decrease_tax.activated(k, &disp.state.mouse_event) {
 		set_taxes!(-2);
 		return;
 	}
 	
 	// remaining keys are not currently configurable...
-	if k == KEY_ESC || rbutton_pressed(mouse_event) || rbutton_released(mouse_event) || rbutton_clicked(mouse_event) ||
-			buttons.Cancel.activated(k, mouse_event) {
-		iface_settings.ui_mode = UIMode::None;
-		iface_settings.show_expanded_submap = false;
+	if k == KEY_ESC || disp.state.kbd.action_cancel.released(&disp.state.mouse_event) || disp.state.kbd.action_cancel.pressed(&disp.state.mouse_event) || disp.state.kbd.action_cancel.clicked(&disp.state.mouse_event) ||
+			disp.state.buttons.Cancel.activated(k, &disp.state.mouse_event) {
+		
+		// clear the screen if we've exited screen reader text tabbing mode
+		//	otherwise text on the right side of the screen will remain even though it's not needed
+		if let UIMode::TextTab {..} = disp.ui_mode {
+			disp.state.renderer.clear();
+		}
+		disp.ui_mode = UIMode::None;
+		disp.state.iface_settings.show_expanded_submap = false;
 		
 		// clear action from unit if we were moving with cursor
 		if let AddActionTo::IndividualUnit {
@@ -820,24 +824,24 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 				},
 				unit_ind, ..
 			}
-		} = &iface_settings.add_action_to {
+		} = &disp.state.iface_settings.add_action_to {
 			units[unit_ind.unwrap()].action.pop();
 		}
 		
-		iface_settings.add_action_to = AddActionTo::None;
+		disp.state.iface_settings.add_action_to = AddActionTo::None;
 		
 	////////////////////////////////
 	// enter
-	} else if k == kbd.enter || lbutton_released(mouse_event) || lbutton_clicked(mouse_event) {
-		if iface_settings.zoom_ind != map_data.max_zoom_ind() {return;}
-		let cur_mi = iface_settings.cursor_to_map_ind(map_data);
+	} else if k == disp.state.kbd.enter || disp.state.kbd.action_drag.released(&disp.state.mouse_event) || disp.state.kbd.action_drag.clicked(&disp.state.mouse_event) { //lbutton_released(&disp.state.mouse_event) || lbutton_clicked(&disp.state.mouse_event) {
+		if disp.state.iface_settings.zoom_ind != map_data.max_zoom_ind() {return;}
+		let cur_mi = disp.state.iface_settings.cursor_to_map_ind(map_data);
 		
-		match &mut iface_settings.add_action_to {
+		match &mut disp.state.iface_settings.add_action_to {
 			AddActionTo::NoUnit {..} => {
 				/////////////////////
 				// drawing rectangle generally, set start coord to cursor
-				if iface_settings.set_action_start_coord_if_not_set(cur_mi, units, exf, map_data) {
-					if let AddActionTo::NoUnit {action} = &mut iface_settings.add_action_to {
+				if disp.state.iface_settings.set_action_start_coord_if_not_set(cur_mi, units, exf, map_data) {
+					if let AddActionTo::NoUnit {action} = &mut disp.state.iface_settings.add_action_to {
 						match action.action_type {
 							ActionType::GroupMv {ref mut start_coord, ref mut end_coord} => {
 								debug_assertq!(!start_coord.is_none());
@@ -868,9 +872,9 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 											if let Some(ex) = exf.get(&coord) {
 											if let Some(unit_inds) = &ex.unit_inds {
 												for unit_ind in unit_inds.iter() {
-													if units[*unit_ind].owner_id != iface_settings.cur_player {continue;}
+													if units[*unit_ind].owner_id != disp.state.iface_settings.cur_player {continue;}
 													
-													iface_settings.add_action_to = AddActionTo::IndividualUnit {
+													disp.state.iface_settings.add_action_to = AddActionTo::IndividualUnit {
 														action_iface: unit_action_iface(Coord::frm_ind(coord, map_sz), action.action_type.clone(), *unit_ind, units)
 													};
 													return;
@@ -880,7 +884,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 									}}
 									
 									// no unit found, cancel action
-									iface_settings.add_action_to = AddActionTo::None;
+									disp.state.iface_settings.add_action_to = AddActionTo::None;
 									return;
 								}
 								
@@ -905,7 +909,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 											if let Some(unit_inds) = &ex.unit_inds {
 												for unit_ind in unit_inds.iter() {
 													let u = &units[*unit_ind];
-													if u.owner_id != iface_settings.cur_player || u.template.nm[0] == RIOTER_NM {continue;}
+													if u.owner_id != disp.state.iface_settings.cur_player || u.template.nm[0] == RIOTER_NM {continue;}
 													
 													brigade_unit_inds.push(*unit_ind);
 												}
@@ -915,7 +919,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 									
 									// create brigade
 									if brigade_unit_inds.len() != 0 {
-										let pstats = &mut players[iface_settings.cur_player as usize].stats;
+										let pstats = &mut players[disp.state.iface_settings.cur_player as usize].stats;
 										
 										// if any unit already belongs to a brigade, remove it from the existing brigade
 										for brigade in pstats.brigades.iter_mut() {
@@ -938,23 +942,23 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 									}
 									
 									// view brigade
-									iface_settings.ui_mode = UIMode::BrigadesWindow {
+									disp.ui_mode = UIMode::BrigadesWindow(BrigadesWindowState {
 										mode: 0,
 										brigade_action: BrigadeAction::ViewBrigadeUnits {
 											brigade_nm: nm.clone()
 										}
-									};
-									d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+									});
+									disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 									
 									// close action
-									iface_settings.add_action_to = AddActionTo::None;
+									disp.state.iface_settings.add_action_to = AddActionTo::None;
 									return;
 									
 								}else{panicq!("start_coord should've already been set");}
 							} ActionType::SectorCreation {ref mut start_coord, creation_type, ref nm, ..} => {
 								// finished drawing rectangle, create or add to sector
 								if let Some(start_coord) = start_coord {
-									let pstats = &mut players[iface_settings.cur_player as usize].stats;
+									let pstats = &mut players[disp.state.iface_settings.cur_player as usize].stats;
 									
 									let segment = Rectangle {
 										start: Coord::frm_ind(*start_coord, map_sz),
@@ -965,15 +969,15 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 											let segments = vec![segment];
 											pstats.sectors.push(Sector {
 												nm: nm.clone(),
-												perim_coords: PerimCoords::new(*turn, &segments, map_sz),
+												perim_coords: PerimCoords::new(gstate.turn, &segments, map_sz),
 												segments
 											});
 										} SectorCreationType::AddTo => {
-											pstats.sector_frm_nm_mut(nm).add(*turn, segment, map_sz);
+											pstats.sector_frm_nm_mut(nm).add(gstate.turn, segment, map_sz);
 										} SectorCreationType::N => {panicq!("invalid creation type");}
 									}
 									
-									iface_settings.add_action_to = AddActionTo::None;
+									disp.state.iface_settings.add_action_to = AddActionTo::None;
 									return;
 								// set start coord, now wait for end coord
 								}else{panicq!("start_coord should've already been set");}
@@ -983,9 +987,9 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 				}
 			} AddActionTo::BrigadeBuildList {action: Some(_action), ..} => {
 				// chk if zone & bldg placement valid:
-				if iface_settings.pre_process_action_chk_valid(cur_mi, units, bldgs, exf, map_data) {
-					if let AddActionTo::BrigadeBuildList {action: Some(action), brigade_nm} = &iface_settings.add_action_to {
-						let pstats = &mut players[iface_settings.cur_player as usize].stats;
+				if disp.state.iface_settings.pre_process_action_chk_valid(cur_mi, units, bldgs, exf, map_data) {
+					if let AddActionTo::BrigadeBuildList {action: Some(action), brigade_nm} = &disp.state.iface_settings.add_action_to {
+						let pstats = &mut players[disp.state.iface_settings.cur_player as usize].stats;
 						let brigade_nm = brigade_nm.clone();
 						let mut action = action.clone();
 						
@@ -998,7 +1002,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 						
 						pstats.brigade_frm_nm_mut(&brigade_nm).build_list.push_back(action.clone());
 						
-						iface_settings.add_action_to = AddActionTo::BrigadeBuildList {
+						disp.state.iface_settings.add_action_to = AddActionTo::BrigadeBuildList {
 							action: None,
 							brigade_nm
 						};
@@ -1008,11 +1012,11 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 				// do nothing if moving w/ cursor
 				if let ActionType::MvWithCursor = &action_iface.action.action_type {return;}
 				
-				if iface_settings.pre_process_action_chk_valid(cur_mi, units, bldgs, exf, map_data) {
-					if let AddActionTo::IndividualUnit {action_iface} = &iface_settings.add_action_to {
+				if disp.state.iface_settings.pre_process_action_chk_valid(cur_mi, units, bldgs, exf, map_data) {
+					if let AddActionTo::IndividualUnit {action_iface} = &disp.state.iface_settings.add_action_to {
 						let action_iface = action_iface.clone();
-						if iface_settings.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, exs, relations, players, temps, map_data, map_sz, disp_settings, disp_chars, menu_options, logs, *turn, rng, frame_stats, kbd, l, buttons, txt_list, d) {
-							iface_settings.add_action_to = AddActionTo::None;
+						if disp.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, exs, gstate, players, temps, map_data, map_sz, frame_stats) {
+							disp.state.iface_settings.add_action_to = AddActionTo::None;
 						}
 					}else{panicq!("invalid add_action_to state");}
 				}
@@ -1027,15 +1031,15 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 				
 				// add action to all units in brigade
 				for action_iface in action_ifaces.clone() {
-					if iface_settings.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, exs, relations, players, temps, map_data, map_sz, disp_settings, disp_chars, menu_options, logs, *turn, rng, frame_stats, kbd, l, buttons, txt_list, d) {
+					if disp.assign_action_iface_to_unit(action_iface, cur_mi, units, bldgs, exs, gstate, players, temps, map_data, map_sz, frame_stats) {
 						any_success = true;
 					}
 				}
 				
 				if any_success {
 					if !mv_action {
-						iface_settings.add_action_to = AddActionTo::None;
-					}else if let AddActionTo::AllInBrigade {ref mut action_ifaces, ..} = iface_settings.add_action_to {
+						disp.state.iface_settings.add_action_to = AddActionTo::None;
+					}else if let AddActionTo::AllInBrigade {ref mut action_ifaces, ..} = disp.state.iface_settings.add_action_to {
 						*action_ifaces = None;
 					}
 				}
@@ -1045,14 +1049,14 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(key_pressed: i32, mouse_event: &Option<
 			  AddActionTo::AllInBrigade {action_ifaces: None, ..} => {}
 		}
 		
-		iface_settings.reset_unit_subsel();
-		iface_settings.update_all_player_pieces_mvd_flag(units);
+		disp.reset_unit_subsel();
+		disp.state.iface_settings.update_all_player_pieces_mvd_flag(units);
 	}
 	
 	// no key pressed, reset cursor velocity
 	if !cursor_moved {
-		iface_settings.cur_v = VelocCoord {x: SCROLL_ACCEL_INIT, y: SCROLL_ACCEL_INIT};
-		iface_settings.map_loc_v = VelocCoord {x: SCROLL_ACCEL_INIT, y: SCROLL_ACCEL_INIT};
+		disp.state.iface_settings.cur_v = VelocCoord {x: SCROLL_ACCEL_INIT, y: SCROLL_ACCEL_INIT};
+		disp.state.iface_settings.map_loc_v = VelocCoord {x: SCROLL_ACCEL_INIT, y: SCROLL_ACCEL_INIT};
 	}
 }
 

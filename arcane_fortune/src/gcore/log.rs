@@ -167,7 +167,9 @@ pub fn dbg_log(txt: &str, owner_id: SmSvType, logs: &mut Vec<Log>, turn: usize) 
 }
 
 pub fn print_log(log: &LogType, print: bool, players: &Vec<Player>, doctrine_templates: &Vec<DoctrineTemplate>,
-		l: &Localization, d: &mut DispState) -> usize {
+		dstate: &mut DispState) -> usize {
+	let l = &dstate.local;
+	let d = &mut dstate.renderer;
 	macro_rules! print_civ_txt{($owner: expr, $txt: expr) => {
 		set_player_color($owner, true, d);
 		d.addstr($txt);
@@ -176,12 +178,33 @@ pub fn print_log(log: &LogType, print: bool, players: &Vec<Player>, doctrine_tem
 	
 	let txt = match log {
 		LogType::CivCollapsed {owner_id} => {
-			if print {
-				d.addstr("The ");
-				print_civ_nm(&players[*owner_id], d);
-				d.addstr(" civilization has collapsed.");
-			}
-			format!("The {} civilization has collapsed.", players[*owner_id].personalization.nm)}
+			let player = &players[*owner_id];
+			let personalization = &player.personalization;
+			let (txt, tags) = match player.ptype {
+				PlayerType::Human(_) | PlayerType::Empire(_) | PlayerType::Barbarian(_) => {
+					// Civilization_collapsed: "The [] civilization has collapsed."
+					(&l.Civilization_collapsed,
+					 vec![KeyValColor {
+					 	key: String::from("[]"),
+					 	val: personalization.nm.clone(),
+					 	attr: COLOR_PAIR(personalization.color)
+					}])
+				}
+				PlayerType::Nobility(_) => {
+					// house_nm: "House of []"
+					// House_collapsed: "The [house_nm] has collapsed."
+					
+					(&l.House_collapsed,
+					 vec![KeyValColor {
+						key: String::from("[house_nm]"),
+						val: l.house_nm.replace("[]", &personalization.nm),
+						attr: COLOR_PAIR(personalization.color)
+					}])
+				}
+			};
+			
+			if print {color_tags_print(txt, &tags, None, d);}
+			color_tags_txt(txt, &tags)}
 		LogType::CivDestroyed {owner_attackee_id, owner_attacker_id} => {
 			if players[*owner_attackee_id].ptype.is_barbarian() {
 				if print {

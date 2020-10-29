@@ -1,5 +1,5 @@
 #[cfg(any(feature="opt_debug", debug_assertions))]
-use crate::disp_lib::*;
+use crate::renderer::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]
 use crate::map::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]

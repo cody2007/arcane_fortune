@@ -1,5 +1,5 @@
 use crate::saving::*;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 use crate::units::*;
 use crate::buildings::*;
 use crate::resources::*;

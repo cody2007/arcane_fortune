@@ -8,11 +8,11 @@ use crate::player::Stats;
 use crate::gcore::Relations;
 use crate::doctrine::DoctrineTemplate;
 use crate::gcore::hashing::HashedMapEx;
-use crate::gcore::rand::XorState;
 use crate::disp::{Coord, ScreenSz, ActionInterfaceMeta};
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 use crate::ai::{CITY_HEIGHT, CITY_WIDTH, AI_MAX_SEARCH_DEPTH, set_target_attackable};
 use crate::movement::{MvVars, manhattan_dist_inds, manhattan_dist, movable_to};
+use crate::containers::*;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 use crate::gcore::{dbg_log, Log};
@@ -111,8 +111,7 @@ impl AttackFront {
 	
 	// checks if recruitment is done, then progresses to assembly mode where units gather near the city to be attacked
 	fn progress_state_to_assembly(&mut self, ai_ind: usize, units: &Vec<Unit>, bldgs: &Vec<Bldg>, 
-			map_data: &mut MapData, exf: &HashedMapEx, 
-			relations: &Relations, map_sz: MapSz, rng: &mut XorState) {
+			map_data: &mut MapData, exf: &HashedMapEx, gstate: &mut GameState, map_sz: MapSz) {
 		#[cfg(feature="profile")]
 		let _g = Guard::new("attack_fronts.progress_state_to_assembly");
 		
@@ -121,7 +120,7 @@ impl AttackFront {
 		if let AttackFrontState::Recruitment {unreachable_city_coords} = &self.state {
 			if self.n_empty_slots() != 0 {return;} // chk that all units have been added to the attack front
 			
-			if let Some(target_city_coord) = self.find_nearest_war_city_loc(ai_ind, unreachable_city_coords, units, bldgs, relations, map_sz) {
+			if let Some(target_city_coord) = self.find_nearest_war_city_loc(ai_ind, unreachable_city_coords, units, bldgs, &gstate.relations, map_sz) {
 				/////////////////////////////// determine assembly point
 				let loc_dist = max(CITY_HEIGHT, CITY_WIDTH) as isize;
 				let blank_spot = {
@@ -132,12 +131,12 @@ impl AttackFront {
 				let city_coord = Coord::frm_ind(target_city_coord, map_sz);
 				for _attempt in 0..N_ATTEMPTS {
 					let (y_off, x_off) = {
-						let sign = if rng.usize_range(0, 2) == 0 {1} else {-1};
+						let sign = if gstate.rng.usize_range(0, 2) == 0 {1} else {-1};
 						
-						if rng.usize_range(0, 2) == 0 {
-							(sign*loc_dist, rng.isize_range(0, loc_dist))
+						if gstate.rng.usize_range(0, 2) == 0 {
+							(sign*loc_dist, gstate.rng.isize_range(0, loc_dist))
 						}else{
-							(rng.isize_range(0, loc_dist), sign*loc_dist)
+							(gstate.rng.isize_range(0, loc_dist), sign*loc_dist)
 						}
 					};
 					
@@ -296,8 +295,8 @@ impl AttackFront {
 		}else{panicq!("attempted to progress state to attack wall or city, but we are not in the correct state");}
 	}
 	
-	fn wall_attack<'bt,'ut,'rt,'dt>(&mut self, cur_player: usize, relations: &Relations, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg>,
-			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, map_data: &mut MapData<'rt>, map_sz: MapSz, logs: &mut Vec<Log>) {//, iface_settings: &mut IfaceSettings) {
+	fn wall_attack<'bt,'ut,'rt,'dt>(&mut self, cur_player: usize, gstate: &mut GameState, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg>,
+			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, map_data: &mut MapData<'rt>, map_sz: MapSz) {//, iface_settings: &mut IfaceSettings) {
 		#[cfg(feature="profile")]
 		let _g = Guard::new("attack_fronts.wall_attack");
 
@@ -309,7 +308,7 @@ impl AttackFront {
 					return;
 				}
 				
-				self.progress_state_to_attack_wall_or_city(units, bldgs, map_data, exs, map_sz, logs);//, iface_settings);
+				self.progress_state_to_attack_wall_or_city(units, bldgs, map_data, exs, map_sz, &mut gstate.logs);//, iface_settings);
 			// initiate attacks
 			}else{				
 				*attacks_initiated = true;
@@ -359,7 +358,7 @@ impl AttackFront {
 					}
 					
 					// not at war with
-					if !relations.at_war(cur_player, city_owner as usize) {
+					if !gstate.relations.at_war(cur_player, city_owner as usize) {
 						//printlnq!("not at war with city");
 						abort!();
 					}
@@ -686,11 +685,11 @@ impl AttackFronts {
 	}
 	
 	pub fn execute_actions<'bt,'ut,'rt,'dt>(&mut self, ai_ind: usize, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg>, map_data: &mut MapData<'rt>,
-			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, relations: &Relations, map_sz: MapSz, rng: &mut XorState, logs: &mut Vec<Log>) {//, iface_settings: &mut IfaceSettings) {
+			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, map_sz: MapSz) {//, iface_settings: &mut IfaceSettings) {
 		#[cfg(feature="profile")]
 		let _g = Guard::new("attack_fronts.execute_actions");
 		
-		let war_enemies = relations.at_war_with(ai_ind);
+		let war_enemies = gstate.relations.at_war_with(ai_ind);
 		
 		// not at war, set everything to the recruitment state
 		if war_enemies.len() == 0 {
@@ -725,25 +724,25 @@ impl AttackFronts {
 		
 		let n_attack_fronts = self.vals.len();
 		if n_attack_fronts == 0 {return;}
-		let af = &mut self.vals[rng.usize_range(0, n_attack_fronts)];
+		let af = &mut self.vals[gstate.rng.usize_range(0, n_attack_fronts)];
 		
 		const CONT_CHANCE: f32 = 0.025;
 		
 		match &af.state {
 			AttackFrontState::Recruitment {..} => {
-				af.progress_state_to_assembly(ai_ind, units, bldgs, map_data, exs.last().unwrap(), relations, map_sz, rng);
+				af.progress_state_to_assembly(ai_ind, units, bldgs, map_data, exs.last().unwrap(), gstate, map_sz);
 			} AttackFrontState::AssembleToLocation {..} => {
-				if rng.gen_f32b() < CONT_CHANCE {
+				if gstate.rng.gen_f32b() < CONT_CHANCE {
 					//printlnq!("assemble ai {}", ai_ind);
-					af.assemble_to_location(units, bldgs, map_data, exs, map_sz, logs); // then progresses state
+					af.assemble_to_location(units, bldgs, map_data, exs, map_sz, &mut gstate.logs); // then progresses state
 				}
 			} AttackFrontState::WallAttack {..} => {
-				if rng.gen_f32b() < CONT_CHANCE {
-					af.wall_attack(ai_ind, relations, units, bldgs, exs, map_data, map_sz, logs); // then progresses state
+				if gstate.rng.gen_f32b() < CONT_CHANCE {
+					af.wall_attack(ai_ind, gstate, units, bldgs, exs, map_data, map_sz); // then progresses state
 				}
 			} AttackFrontState::CityAttack {..} => {
-				if rng.gen_f32b() < CONT_CHANCE {
-					af.city_attack(ai_ind, relations, units, bldgs, exs, map_data, map_sz); // then sets state to recruitment once finished
+				if gstate.rng.gen_f32b() < CONT_CHANCE {
+					af.city_attack(ai_ind, &mut gstate.relations, units, bldgs, exs, map_data, map_sz); // then sets state to recruitment once finished
 				}
 			}
 		}

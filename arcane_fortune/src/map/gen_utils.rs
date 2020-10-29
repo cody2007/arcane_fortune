@@ -1,56 +1,52 @@
-use crate::disp_lib::*;
+use crate::renderer::*;
 use crate::gcore::rand::XorState;
 use crate::disp::*;
 use super::vars::*;
-use crate::localization::Localization;
+use crate::containers::*;
 
 pub fn print_map_status(elevation_prog: Option<usize>, elevation_smooth_prog: Option<usize>,
 		arability_prog: Option<usize>, arability_smooth_prog: Option<usize>,
 		unit_placement_prog: Option<usize>, screen_sz: &mut ScreenSz, 
-		map_szg: MapSz, cur_ind: usize, disp_chars: &DispChars, l: &Localization, d: &mut DispState){
+		map_szg: MapSz, cur_ind: usize, dstate: &mut DispState){
 	
 	if (cur_ind % 500) != 0 {return;}
 	
-	let screen_sz_new = getmaxyxu(d);
+	let screen_sz_new = getmaxyxu(&dstate.renderer);
 	if screen_sz_new != *screen_sz {
 		*screen_sz = screen_sz_new;
-		d.clear();
+		dstate.renderer.clear();
 	}
 	
-	let mut txt_under_logo_row_off = print_centered_logo(screen_sz_new, disp_chars, 0, d) as i32;
+	let mut txt_under_logo_row_off = dstate.print_centered_logo(screen_sz_new, 0) as i32;
 	txt_under_logo_row_off += (LOGO_HEIGHT + 1) as i32;
 	
 	const OFFSET_TXT: &str = "Generating land arability... ";
 	let col = ((screen_sz_new.w - OFFSET_TXT.len())/2) as i32;
 	
-	let mut print_progress = |txt, var| {
-		if let Some(var) = var {
-			d.mv(txt_under_logo_row_off, col as i32);
-			d.addstr(txt);
-			d.addstr("...");
-			d.mv(txt_under_logo_row_off, col + OFFSET_TXT.len() as i32);
+	macro_rules! print_progress{($txt: expr, $var: expr) => {
+		if let Some(var) = $var {
+			dstate.renderer.mv(txt_under_logo_row_off, col as i32);
+			dstate.renderer.addstr($txt);
+			dstate.renderer.addstr("...");
+			dstate.renderer.mv(txt_under_logo_row_off, col + OFFSET_TXT.len() as i32);
 			
 			if var != map_szg.sz {
-				d.attron(COLOR_PAIR(CYELLOW));
 				let var_print = 100. * (var as f32) / (map_szg.sz as f32);
-				d.addstr(format!("{:.0}%", var_print).as_ref());
-				d.attroff(COLOR_PAIR(CYELLOW));
+				addstr_c(&format!("{:.0}%", var_print), CYELLOW, &mut dstate.renderer);
 			}else{
-				d.attron(COLOR_PAIR(CGREEN));
-				d.addstr(&l.Done);
-				d.attroff(COLOR_PAIR(CGREEN));
+				addstr_c(&dstate.local.Done, CGREEN, &mut dstate.renderer);
 			}
 			txt_under_logo_row_off += 1;
 		}
-	};
-		
-	print_progress(&l.Generating_elevation_map, elevation_prog);
-	print_progress(&l.Smoothing_elevation_map, elevation_smooth_prog);
-	print_progress(&l.Generating_arability_map, arability_prog);
-	print_progress(&l.Smoothing_arability_map, arability_smooth_prog);
-	print_progress(&l.Placing_humankind, unit_placement_prog);
+	};};
+	
+	print_progress!(&dstate.local.Generating_elevation_map, elevation_prog);
+	print_progress!(&dstate.local.Smoothing_elevation_map, elevation_smooth_prog);
+	print_progress!(&dstate.local.Generating_arability_map, arability_prog);
+	print_progress!(&dstate.local.Smoothing_arability_map, arability_smooth_prog);
+	print_progress!(&dstate.local.Placing_humankind, unit_placement_prog);
 
-	d.refresh();
+	dstate.renderer.refresh();
 }
 
 pub fn add_neighbor_stack(i: isize, j: isize, sum_neighbors: &mut f32, n_neighbors: &mut usize, 
@@ -89,14 +85,13 @@ pub fn add_neighbor(i: isize, j: isize, sum_neighbors: &mut f32, n_neighbors: &m
 }
 
 // if type_g != None, ignore water
-pub fn smooth_map(vals: &mut Box<[f32]>, map_szg: MapSz, rng: &mut XorState, type_g: Option<&Vec<MapType>>, screen_sz: &mut ScreenSz, disp_chars: &DispChars, l: &Localization,
-		d: &mut DispState) {
+pub fn smooth_map(vals: &mut Box<[f32]>, map_szg: MapSz, rng: &mut XorState, type_g: Option<&Vec<MapType>>, screen_sz: &mut ScreenSz, dstate: &mut DispState) {
 	let rand_map_inds = rng.inds(map_szg.sz);
 	
 	for (ind, rand_ind) in (*rand_map_inds).iter().enumerate() {
 		match type_g {
-			None => {print_map_status(Some(map_szg.sz), Some(ind), None, None, None, screen_sz, map_szg, ind, disp_chars, l, d);}
-			Some(_) => {print_map_status(Some(map_szg.sz), Some(map_szg.sz), Some(map_szg.sz), Some(ind), None, screen_sz, map_szg, ind, disp_chars, l, d);}
+			None => {print_map_status(Some(map_szg.sz), Some(ind), None, None, None, screen_sz, map_szg, ind, dstate);}
+			Some(_) => {print_map_status(Some(map_szg.sz), Some(map_szg.sz), Some(map_szg.sz), Some(ind), None, screen_sz, map_szg, ind, dstate);}
 		}
 		let rand_ind = *rand_ind;
 		debug_assertq!(rand_ind < map_szg.sz);

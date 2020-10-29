@@ -3,19 +3,17 @@ use std::cmp::min;
 use crate::disp::SCROLL_ACCEL_INIT;
 use crate::map::*;
 use crate::units::vars::*;
-use crate::buildings::*;
 use crate::saving::*;
 use crate::gcore::hashing::HashedMapEx;
 use crate::gcore::Relations;
-use super::{TreeOffsets, TreeSelMv};
+use super::{TreeSelMv};
 use crate::resources::ResourceTemplate;
+use crate::tech::TechWindowState;
+use crate::doctrine::DoctrineWindowState;
 use crate::doctrine::DoctrineTemplate;
 use crate::movement::{Dest, MvVarsAtZoom};
-use crate::zones::HappinessCategory;
-use crate::disp_lib::*;
-use crate::config_load::SaveFile;
+use crate::renderer::*;
 //use super::num_format;
-use crate::nn::TxtPrinter;
 
 enum_From!{Underlay {Arability, Elevation, WaterMountains}}
 
@@ -29,238 +27,6 @@ pub struct ActionInterfaceMeta<'f,'bt,'ut,'rt,'dt> {
 	
 	pub movable_to: &'f dyn Fn(u64, u64, &Map, &HashedMapEx, MvVarsAtZoom, &Vec<Bldg>, &Dest, MovementType) -> bool
 }
-
-enum_From!{PlotData {DefensivePower, OffensivePower, Population,
-	Unemployed, Gold, NetIncome, ResearchPerTurn, 
-	ResearchCompleted, Happiness, Crime, DoctrineScienceAxis, 
-	YourPrevailingDoctrines, WorldPrevailingDoctrines,
-	Pacifism, Health,
-	ZoneDemands, MPD}}
-
-impl PlotData {
-	pub fn next(&mut self) {
-		let mut ind = *self as usize;
-		if ind != ((PlotData::N as usize) - 1) {
-			ind += 1;
-		}else{
-			ind = 0;
-		}
-		
-		*self = PlotData::from(ind);
-	}
-	
-	pub fn prev(&mut self) {
-		let mut ind = *self as usize;
-		if ind != 0 {
-			ind -= 1;
-		}else{
-			ind = (PlotData::N as usize) - 1;
-		}
-		
-		*self = PlotData::from(ind);
-	}
-}
-
-#[derive(PartialEq, Clone, Copy)]
-pub enum EncyclopediaCategory {Unit, Bldg, Tech, Doctrine, Resource}
-
-#[derive(PartialEq)]
-pub enum EncyclopediaState { CategorySelection {mode: usize}, // main screen. selection between Unit, Bldg, or Tech info (`mode` controls this selection)
-				     ExemplarSelection { // ex. Unit selection screen (when `selection_mode` = true), or info page (when `selection_mode` = false)
-						selection_mode: bool,
-						category: EncyclopediaCategory, // should not be changed from initial value
-						mode: usize, // specific unit (for example)
-				     }}
-
-pub enum EmbassyState {
-	CivSelection {mode: usize}, // of the civs
-	DialogSelection {mode: usize, owner_id: usize, quote_printer: TxtPrinter},
-	
-	// just show a quote and let the user close the window
-	Threaten {owner_id: usize, quote_printer: TxtPrinter},
-	DeclareWar {owner_id: usize, quote_printer: TxtPrinter},
-	DeclarePeace {owner_id: usize, quote_printer: TxtPrinter},
-	DeclaredWarOn {owner_id: usize, quote_printer: TxtPrinter}, // AI declares war on the human player
-	
-	DeclarePeaceTreaty {owner_id: usize, quote_printer: TxtPrinter,
-		        gold_offering: String, curs_col: isize,
-		        treaty_rejected: bool
-	}
-}
-
-pub enum TxtType {
-	BrigadeNm,
-	SectorNm
-}
-
-pub enum BrigadeAction {
-	Join {unit_ind: usize},
-	ViewBrigades,
-	ViewBrigadeUnits {brigade_nm: String}
-}
-
-pub enum SectorAction {
-	GoTo, AddTo, Delete,
-	SetBrigadeToRepairWalls(String) // the brigade name
-}
-
-pub enum TextTabLoc {
-	BottomStats,
-	RightSide
-}
-
-pub enum UIMode<'bt,'ut,'rt,'dt> {
-	None,
-	SetTaxes(ZoneType),
-	TextTab {mode: usize, loc: TextTabLoc}, // for screen readers -- text cursor is moved to printed text
-	Menu {mode: Option<usize>, sub_mode: Option<usize>, prev_auto_turn: AutoTurn,
-		sel_loc: (i32, i32) // sel_loc is the row and col on the screen where the active menu item is -- used to set the text cursor for screen readers
-	},
-	ProdListWindow {mode: usize}, 
-	// ^ bldg unit production: when bldg under cursor
-	//   worker bldg production: when unit under cursor
-	CurrentBldgProd {mode: usize},
-	
-	SelectBldgDoctrine {mode: usize, bldg_template: &'bt BldgTemplate<'ut,'rt,'dt>},
-	SelectExploreType {mode: usize},
-	SaveAsWindow {
-			prev_auto_turn: AutoTurn,
-			save_nm: String,
-			curs_col: isize
-	},
-	OpenWindow {prev_auto_turn: AutoTurn, save_files: Vec<SaveFile>, mode: usize},
-	SaveAutoFreqWindow {freq: String, curs_col: isize},
-	GetTextWindow {txt: String, curs_col: isize, txt_type: TxtType},
-	TechWindow { // the tech tree -- set with iface_settings.create_tech_window()
-			sel: Option<SmSvType>,
-			sel_mv: TreeSelMv,
-			tree_offsets: Option<TreeOffsets>,
-			prompt_tech: bool, // tell player we finished researching tech
-			prev_auto_turn: AutoTurn
-	},
-	DoctrineWindow { // the spirituality tree -- set with iface_settings.create_spirituality_window()
-			sel: Option<SmSvType>,
-			sel_mv: TreeSelMv,
-			tree_offsets: Option<TreeOffsets>,
-			prev_auto_turn: AutoTurn
-	},
-	PlotWindow {data: PlotData},
-	UnitsWindow {mode: usize}, // selection of unit
-	
-	BrigadesWindow {mode: usize, brigade_action: BrigadeAction}, // selection of brigade -- to view it or add a unit to it
-	BrigadeBuildList {mode: usize, brigade_nm: String},
-	
-	SectorsWindow {mode: usize, sector_action: SectorAction}, // selection of sector to jump to or delete
-	CitiesWindow {mode: usize}, // selection of city hall
-	MilitaryBldgsWindow {mode: usize}, // selection of military buildings
-	ImprovementBldgsWindow {mode: usize}, // selection of improvement buildings
-	ContactEmbassyWindow {state: EmbassyState},
-	CivilizationIntelWindow {mode: usize, selection_phase: bool}, // selection of civilization
-	SwitchToPlayerWindow {mode: usize},
-	SetDifficultyWindow {mode: usize},
-	TechDiscoveredWindow {tech_ind: usize, prev_auto_turn: AutoTurn}, // iface_settings.create_tech_discovered_window(); shows what new units/bldgs/resources avail after discovery of tech
-	DiscoverTechWindow {mode: usize}, // omniprescent option, not part of normal gameplay
-	ObtainResourceWindow {mode: usize},
-	PlaceUnitWindow {mode: usize},
-	ResourcesAvailableWindow, // show resources available (utilized)
-	ResourcesDiscoveredWindow {mode: usize}, // every resource the player has ever come across
-	WorldHistoryWindow {scroll_first_line: usize},
-	BattleHistoryWindow {scroll_first_line: usize},
-	EconomicHistoryWindow {scroll_first_line: usize},
-	WarStatusWindow, // heatmap of who is at war with who
-	EncyclopediaWindow {state: EncyclopediaState},
-	GoToCoordinateWindow {coordinate: String, curs_col: isize},
-	MvWithCursorNoActionsRemainAlert {unit_ind: usize},
-	PrevailingDoctrineChangedWindow, // when the residents adopt a new doctrine
-	RiotingAlert {city_nm: String}, // when rioting breaks out
-	GenericAlert {txt: String},
-	CitizenDemandAlert {reason: HappinessCategory},
-	CreateSectorAutomation {
-		mode: usize,
-		sector_nm: Option<String>,
-		unit_enter_action: Option<SectorUnitEnterAction>,
-		idle_action: Option<SectorIdleAction>, // if patrol, dist text is then asked for
-			
-		txt: String,
-		curs_col: isize
-	},
-	CivicAdvisorsWindow,
-	PublicPollingWindow,
-	InitialGameWindow,
-	EndGameWindow,
-	AboutWindow,
-	UnmovedUnitsNotification,
-	NoblePedigree {mode: usize, house_nm: Option<String>},
-	AcceptNobilityIntoEmpire {mode: usize, house_ind: usize}, // nobility asks to join the empire
-	ForeignUnitInSectorAlert {sector_nm: String, battalion_nm: String},
-}
-
-impl UIMode<'_,'_,'_,'_> {
-	pub fn is_none(&self) -> bool {
-		match self {
-			UIMode::TextTab {..} | UIMode::None => {true}
-			_ => {false}
-		}
-	}
-}
-
-/*impl fmt::Display for UIMode<'_,'_,'_,'_> {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", match self {
-			UIMode::None => "None",
-			UIMode::SetTaxes(_) => "SetTaxes",
-			UIMode::Menu {..} => "Menu",
-			UIMode::GenericAlert {..} => "GenericAlert",
-			UIMode::PublicPollingWindow => "PublicPollingWindow",
-			UIMode::ProdListWindow {..} => "ProdListWindow",
-			UIMode::CurrentBldgProd {..} => "CurrentBldgProd",
-			UIMode::CitizenDemandAlert {..} => "CitizenDemandAlert",
-			UIMode::SelectBldgDoctrine {..} => "SelectBldgDoctrine",
-			UIMode::SelectExploreType {..} => "SelectExploreType",
-			UIMode::SaveAsWindow {..} => "SaveAsWindow",
-			UIMode::OpenWindow {..} => "OpenWindow",
-			UIMode::CreateSectorAutomation {..} => "CreateSectorAutomation",
-			UIMode::SaveAutoFreqWindow {..} => "SaveAutoFreqWindow",
-			UIMode::GetTextWindow {..} => "GetTextWindow",
-			UIMode::TechWindow {..} => "TechWindow",
-			UIMode::DoctrineWindow {..} => "DoctrineWindow",
-			UIMode::PlotWindow {..} => "PlotWindow",
-			UIMode::UnitsWindow {..} => "UnitsWindow",
-			UIMode::BrigadesWindow {..} => "BrigadesWindow",
-			UIMode::BrigadeBuildList {..} => "BrigadeBuildList",
-			UIMode::SectorsWindow {..} => "SectorsWindow",
-			UIMode::MilitaryBldgsWindow {..} => "MilitaryBldgsWindow",
-			UIMode::ImprovementBldgsWindow {..} => "ImprovementBldgsWindow",
-			UIMode::CitiesWindow {..} => "CitiesWindow",
-			UIMode::ContactEmbassyWindow {..} => "ContactEmbassyWindow",
-			UIMode::CivilizationIntelWindow {..} => "CivilizationIntelWindow",
-			UIMode::SwitchToPlayerWindow {..} => "SwitchToPlayerWindow",
-			UIMode::SetDifficultyWindow {..} => "SetDifficulty",
-			UIMode::TechDiscoveredWindow {..} => "TechDiscoveredWindow",
-			UIMode::DiscoverTechWindow {..} => "DiscoverTechWindow",
-			UIMode::ObtainResourceWindow {..} => "ObtainResourceWindow",
-			UIMode::PlaceUnitWindow {..} => "PlaceUnitWindow",
-			UIMode::ResourcesAvailableWindow => "ResourcesAvailableWindow",
-			UIMode::ResourcesDiscoveredWindow {..} => "ResourcesDiscoveredWindow",
-			UIMode::WorldHistoryWindow {..} => "WorldHistoryWindow",
-			UIMode::BattleHistoryWindow {..} => "BattleHistoryWindow",
-			UIMode::EconomicHistoryWindow {..} => "EconomicHistoryWindow",
-			UIMode::WarStatusWindow => "WarStatusWindow",
-			UIMode::EncyclopediaWindow {..} => "EncyclopediaWindow",
-			UIMode::GoToCoordinateWindow {..} => "GoToCoordinateWindow",
-			UIMode::InitialGameWindow => "InitialGameWindow",
-			UIMode::PrevailingDoctrineChangedWindow => "PrevailingDoctrineChangedWindow",
-			UIMode::RiotingAlert {..} => "RiotingAlert",
-			UIMode::EndGameWindow => "EndGameWindow",
-			UIMode::AboutWindow => "AboutWindow",
-			UIMode::CivicAdvisorsWindow => "CivicAdvisorsWindow",
-			UIMode::UnmovedUnitsNotification => "UnmovedUnitsNotification",
-			UIMode::MvWithCursorNoActionsRemainAlert {..} => "MvWithCursorNoActionsRemainAlert",
-			UIMode::ForeignUnitInSectorAlert {..} => "ForeignUnitInSectorAlert",
-			UIMode::NoblePedigree {..} => "NoblePedigree"
-		})
-	}
-}*/
 
 enum_From!{ViewMvMode {Cursor, Screen}}
 enum_From!{AutoTurn {Off, On, FinishAllActions}}
@@ -416,8 +182,6 @@ pub struct IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	// movement, worker zoning, building, ...
 	pub add_action_to: AddActionTo<'f,'bt,'ut,'rt,'dt>,
 	
-	pub ui_mode: UIMode<'bt,'ut,'rt,'dt>, // active window, menu, etc
-	
 	// underlay
 	pub underlay: Underlay, // map underlay
 	
@@ -469,7 +233,7 @@ pub struct IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	pub checkpoint_freq: SmSvType // in years
 }
 
-impl_saving!{IfaceSettings<'f,'bt,'ut,'rt,'dt> {add_action_to, ui_mode, underlay, show_structures, show_units, show_bldgs,
+impl_saving!{IfaceSettings<'f,'bt,'ut,'rt,'dt> {add_action_to, underlay, show_structures, show_units, show_bldgs,
 	     show_zones, show_resources, zone_overlay_map, show_unconnected_bldgs, show_unoccupied_bldgs, show_sectors,
 	     cur_player, zoom_ind, unit_subsel, show_expanded_submap,
 	     map_screen_sz, screen_sz, view_mv_mode,
@@ -481,7 +245,6 @@ impl <'f,'bt,'ut,'rt,'dt> IfaceSettings<'f,'bt,'ut,'rt,'dt>{
 	pub fn default(save_nm: String, cur_player: SmSvType) -> IfaceSettings<'f,'bt,'ut,'rt,'dt>{
 		Self {
 			add_action_to: AddActionTo::None,
-			ui_mode: UIMode::None,
 			
 			underlay: Underlay::Arability,
 			
@@ -582,27 +345,34 @@ impl <'f,'bt,'ut,'rt,'dt> IfaceSettings<'f,'bt,'ut,'rt,'dt>{
 		
 		self.chk_cursor_bounds(map_data);
 	}
-	
-	// for auto turn increment
-	pub fn set_auto_turn(&mut self, state: AutoTurn, d: &mut DispState) {
-		self.auto_turn = state;
-		d.timeout(match self.auto_turn {
-			AutoTurn::On | AutoTurn::FinishAllActions => 1,
-			AutoTurn::Off => MAX_DELAY_FRAMES,
-			AutoTurn::N => {panicq!("invalid auto turn");}
-		});
+}
+
+pub fn set_auto_turn_sep(state: AutoTurn, iface_settings: &mut IfaceSettings, renderer: &mut Renderer) {
+	iface_settings.auto_turn = state;
+	renderer.timeout(match iface_settings.auto_turn {
+		AutoTurn::On | AutoTurn::FinishAllActions => 1,
+		AutoTurn::Off => MAX_DELAY_FRAMES,
+		AutoTurn::N => {panicq!("invalid auto turn");}
+	});
+}
+
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+	pub fn set_auto_turn(&mut self, state: AutoTurn) {
+		set_auto_turn_sep(state, &mut self.iface_settings, &mut self.renderer);
 	}
-	
-	pub fn player_end_game(&mut self, relations: &mut Relations, d: &mut DispState) {
-		self.show_fog = false;
-		self.show_actions = true;
-		self.ui_mode = UIMode::EndGameWindow;
-		self.set_auto_turn(AutoTurn::Off, d);
+}
+
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
+	pub fn player_end_game(&mut self, relations: &mut Relations) {
+		self.state.iface_settings.show_fog = false;
+		self.state.iface_settings.show_actions = true;
+		self.ui_mode = UIMode::EndGameWindow(EndGameWindowState{});
+		self.state.set_auto_turn(AutoTurn::Off);
 		
-		relations.discover_all_civs(self.cur_player as usize);
+		relations.discover_all_civs(self.state.iface_settings.cur_player as usize);
 		
-		d.timeout(MAX_DELAY_FRAMES); // if it was chgd from auto_turn_increment
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+		self.state.renderer.timeout(MAX_DELAY_FRAMES); // if it was chgd from auto_turn_increment
+		self.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 	}
 }
 
@@ -764,71 +534,71 @@ pub const TURN_ROW: i32 = MAP_ROW_START as i32;
 
 pub const FAST_TURN_INC: usize = 30;
 
-impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
-	pub fn create_tech_window(&mut self, prompt_tech: bool, d: &mut DispState) {
-		self.reset_auto_turn(d);
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
+	pub fn create_tech_window(&mut self, prompt_tech: bool) {
+		self.reset_auto_turn();
 		
-		self.ui_mode = UIMode::TechWindow {
+		self.ui_mode = UIMode::TechWindow(TechWindowState {
 				sel: None, // tech selection index
 				sel_mv: TreeSelMv::None,
 				tree_offsets: None,
 				prompt_tech,
-				prev_auto_turn: self.auto_turn
-		};
+				prev_auto_turn: self.state.iface_settings.auto_turn
+		});
 		
-		self.set_auto_turn(AutoTurn::Off, d);
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+		self.state.set_auto_turn(AutoTurn::Off);
+		self.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 	}
 	
-	pub fn create_pedigree_window(&mut self, d: &mut DispState) {
-		self.reset_auto_turn(d);
-		self.ui_mode = UIMode::NoblePedigree {
+	pub fn create_pedigree_window(&mut self) {
+		self.reset_auto_turn();
+		self.ui_mode = UIMode::NoblePedigree(NoblePedigreeState {
 				mode: 0,
 				house_nm: None
-		};
+		});
 		
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+		self.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 	}
 	
-	pub fn create_spirituality_window(&mut self, d: &mut DispState) {
-		self.reset_auto_turn(d);
+	pub fn create_spirituality_window(&mut self) {
+		self.reset_auto_turn();
 		
-		self.ui_mode = UIMode::DoctrineWindow {
+		self.ui_mode = UIMode::DoctrineWindow(DoctrineWindowState {
 				sel: None, // spirituality selection index
 				sel_mv: TreeSelMv::None,
 				tree_offsets: None,
-				prev_auto_turn: self.auto_turn
-		};
+				prev_auto_turn: self.state.iface_settings.auto_turn
+		});
 		
-		self.set_auto_turn(AutoTurn::Off, d);
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+		self.state.set_auto_turn(AutoTurn::Off);
+		self.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 	}
 	
-	pub fn create_tech_discovered_window(&mut self, tech_ind: usize, d: &mut DispState) {
-		self.reset_auto_turn(d);
+	pub fn create_tech_discovered_window(&mut self, tech_ind: usize) {
+		self.reset_auto_turn();
 		
-		self.ui_mode = UIMode::TechDiscoveredWindow {
+		self.ui_mode = UIMode::TechDiscoveredWindow(TechDiscoveredWindowState {
 			tech_ind,
-			prev_auto_turn: self.auto_turn
-		};
+			prev_auto_turn: self.state.iface_settings.auto_turn
+		});
 		
-		self.set_auto_turn(AutoTurn::Off, d);
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+		self.state.set_auto_turn(AutoTurn::Off);
+		self.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 	}
 	
 	// only if settings indicate auto turn should be interrupted
 	// or the player isn't in the auto-turn mode
-	pub fn create_interrupt_window(&mut self, ui_mode: UIMode<'bt,'ut,'rt,'dt>, d: &mut DispState) {
-		if self.interrupt_auto_turn || self.auto_turn == AutoTurn::Off {
-			self.set_auto_turn(AutoTurn::Off, d);
-			d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+	pub fn create_interrupt_window(&mut self, ui_mode: UIMode<'bt,'ut,'rt,'dt>) {
+		if self.state.iface_settings.interrupt_auto_turn || self.state.iface_settings.auto_turn == AutoTurn::Off {
+			self.state.set_auto_turn(AutoTurn::Off);
+			self.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 			self.ui_mode = ui_mode;
 		}
 	}
 	
 	// regardless of auto-turn settings
-	pub fn create_window(&mut self, ui_mode: UIMode<'bt,'ut,'rt,'dt>, d: &mut DispState) {
-		d.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+	pub fn create_window(&mut self, ui_mode: UIMode<'bt,'ut,'rt,'dt>) {
+		self.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 		self.ui_mode = ui_mode;
 	}
 }
@@ -900,5 +670,93 @@ pub fn line_to(coord_frm: u64, coord_to: u64, map_sz: MapSz, screen_sz: ScreenSz
 pub struct ScreenFrac {
 	pub y: f32,
 	pub x: f32
+}
+
+// screen reader functions
+use super::*;
+impl UIMode<'_,'_,'_,'_> {
+	pub fn right_side_tabbing(&self) -> bool {
+		if let UIMode::TextTab {loc: TextTabLoc::RightSide, ..} = self {
+			true
+		}else{
+			false
+		}
+	}
+	
+	// ex. if a window is displayed, don't show the map
+	pub fn hide_map(&self) -> bool {
+		if !screen_reader_mode() {return false;}
+		
+		match self {
+			// do not hide the map
+			UIMode::None |
+			UIMode::TextTab {..} |
+			UIMode::SetTaxes(_) => false,
+				
+			// hide the map when these are shown (when in screen reader mode)
+			UIMode::Trade(_) |
+			UIMode::ContactEmbassyWindow(_) |
+			UIMode::ContactNobilityWindow(_) |
+			UIMode::SaveAsWindow(_) |
+			UIMode::SaveAutoFreqWindow(_) |
+			UIMode::GoToCoordinateWindow(_) |
+			UIMode::CreateSectorAutomation(_) |
+			UIMode::GetTextWindow(_) |
+			UIMode::Menu {..} |
+			UIMode::ProdListWindow(_) |
+			UIMode::CurrentBldgProd(_) |
+			UIMode::SelectBldgDoctrine(_) |
+			UIMode::CitizenDemandAlert(_) |
+			UIMode::PublicPollingWindow(_) |
+			UIMode::SelectExploreType(_) |
+			UIMode::OpenWindow(_) |
+			UIMode::TechWindow(_) |
+			UIMode::DoctrineWindow(_) |
+			UIMode::PlotWindow(_) |
+			UIMode::UnitsWindow(_) |
+			UIMode::NobleUnitsWindow(_) |
+			UIMode::GenericAlert(_) |
+			UIMode::NoblePedigree(_) |
+			UIMode::BrigadesWindow(_) |
+			UIMode::BrigadeBuildList(_) |
+			UIMode::SectorsWindow(_) |
+			UIMode::BldgsWindow(_) |
+			UIMode::CitiesWindow(_) |
+			UIMode::ManorsWindow(_) |
+			//UIMode::ContactEmbassyWindow(_) |
+			UIMode::CivilizationIntelWindow(_) |
+			UIMode::SwitchToPlayerWindow(_) |
+			UIMode::SetDifficultyWindow(_) |
+			UIMode::RiotingAlert(_) |
+			UIMode::TechDiscoveredWindow(_) |
+			UIMode::DiscoverTechWindow(_) |
+			UIMode::ObtainResourceWindow(_) |
+			UIMode::PlaceUnitWindow(_) |
+			UIMode::ResourcesAvailableWindow(_) |
+			UIMode::ResourcesDiscoveredWindow(_) |
+			UIMode::HistoryWindow(_) |
+			UIMode::WarStatusWindow(_) |
+			UIMode::EncyclopediaWindow(_) |
+			UIMode::InitialGameWindow(_) |
+			UIMode::EndGameWindow(_) |
+			UIMode::UnmovedUnitsNotification(_) |
+			UIMode::PrevailingDoctrineChangedWindow(_) |
+			UIMode::MvWithCursorNoActionsRemainAlert(_) |
+			UIMode::CivicAdvisorsWindow(_) |
+			UIMode::AcceptNobilityIntoEmpire(_) |
+			UIMode::ForeignUnitInSectorAlert(_) |
+			UIMode::AboutWindow(_) => true
+		}
+	}
+	
+	pub fn show_menu(&self) -> bool {
+		if !screen_reader_mode() {return true;}
+		if let UIMode::Menu {..} | UIMode::None |
+		   UIMode::TextTab {..} | UIMode::SetTaxes(_) = self {
+			true
+		}else{
+			false
+		}
+	}
 }
 

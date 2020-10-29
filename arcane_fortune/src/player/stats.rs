@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::hash::{BuildHasherDefault};
 
 use crate::saving::*;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 use crate::map::{TechProg, LandDiscov, MapSz, MapData, ZoneType};
 use crate::zones::{ZoneAgnosticLocallyLogged, ZoneDemandSumMap};
 use crate::gcore::*;

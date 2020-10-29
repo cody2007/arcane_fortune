@@ -5,13 +5,11 @@ use crate::movement::*;
 use crate::saving::*;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
 use crate::zones::return_zone_coord;
-use crate::gcore::rand::XorState;
-use crate::disp_lib::endwin;
-use crate::gcore::{Log, Relations};
+use crate::renderer::endwin;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::player::*;
-use crate::containers::Templates;
+use crate::containers::*;
 
 pub const CITY_HALL_NM: &str = "City Hall";
 pub const BOOT_CAMP_NM: &str = "Boot Camp";
@@ -320,8 +318,7 @@ impl <'bt,'ut,'rt,'dt> Bldg <'bt,'ut,'rt,'dt> {
 // cur_player is from iface_settings, not the player building the unit
 pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, 
 		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
-		player: &mut Player<'bt,'ut,'rt,'dt>, relations: &mut Relations, logs: &mut Vec<Log>,
-		temps: &Templates<'bt,'ut,'rt,'dt,'_>, turn: usize, rng: &mut XorState) {
+		player: &mut Player<'bt,'ut,'rt,'dt>, gstate: &mut GameState, temps: &Templates<'bt,'ut,'rt,'dt,'_>) {
 	
 	enum ProdAction<'ut,'rt> {IncProg, DecProg, FinProd {coord_add: u64, unit_template: &'ut UnitTemplate<'rt>}};
 	
@@ -405,7 +402,7 @@ pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, uni
 				 panicq!("bldg args in undefined state");
 			  }}
 			let owner_id = bldgs[bldg_ind].owner_id;
-			add_unit(coord_add, owner_id == cur_player, unit_template, units, map_data, exs, bldgs, player, relations, logs, temps, turn, rng);
+			add_unit(coord_add, owner_id == cur_player, unit_template, units, map_data, exs, bldgs, player, gstate, temps);
 		}
 	}
 }

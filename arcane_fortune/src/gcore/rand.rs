@@ -1,13 +1,13 @@
 use std::num::Wrapping;
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 use crate::units::UnitTemplate;
 use crate::buildings::BldgTemplate;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::saving::*;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Default)]
 pub struct XorState {state: u32}
 
 impl_saving!{XorState {state}}

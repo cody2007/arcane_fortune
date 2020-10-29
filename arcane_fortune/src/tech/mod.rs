@@ -1,13 +1,12 @@
-use crate::disp_lib::*;
+use crate::renderer::*;
 use crate::saving::*;
 use crate::config_load::*;
 use crate::map::{TechProg};
 use crate::player::{Stats, Player};
-use crate::disp::{IfaceSettings};
-use crate::disp::window::{init_bldg_prod_windows, ProdOptions};
+use crate::disp::window::*;
 use crate::units::UnitTemplate;
 use crate::localization::Localization;
-use crate::containers::Templates;
+use crate::containers::*;
 use std::process::exit;
 
 pub mod vars; pub use vars::*;
@@ -71,10 +70,7 @@ fn find_index(key: SmSvType, vec: &Vec<SmSvType>) -> Option<usize> {
 
 // research techs for all players
 // update window production lists for bldgs & units, prompt player to select new tech
-pub fn research_techs<'f,'bt,'ut,'rt,'dt>(players: &mut Vec<Player>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
-		production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>,
-		iface_settings: &mut IfaceSettings<'f,'bt,'ut,'rt,'dt>, l: &Localization, d: &mut DispState) {
-	
+pub fn research_techs<'f,'bt,'ut,'rt,'dt>(players: &mut Vec<Player>, temps: &Templates<'bt,'ut,'rt,'dt,'_>, disp: &mut Disp<'f,'bt,'ut,'rt,'dt>) {
 	for player in players.iter_mut() { // for all players
 		let ps = &mut player.stats;
 		if let Some(t_researching) = ps.techs_scheduled.last() { // if currently researching
@@ -93,15 +89,15 @@ pub fn research_techs<'f,'bt,'ut,'rt,'dt>(players: &mut Vec<Player>, temps: &Tem
 					
 					// update building unit production window options
 					// prompt player to select new tech if nothing else has been scheduled, or show tech discovered window
-					if player.id == iface_settings.cur_player {
-						*production_options = init_bldg_prod_windows(temps.bldgs, ps, l);
+					if player.id == disp.state.iface_settings.cur_player {
+						disp.state.production_options = init_bldg_prod_windows(temps.bldgs, ps, &disp.state.local);
 						
 						// prompt to select new tech for research
 						if ps.techs_scheduled.len() == 0 {
-							iface_settings.create_tech_window(true, d);
+							disp.create_tech_window(true);
 						// tech discovered window
 						}else{
-							iface_settings.create_tech_discovered_window(t_researching, d);
+							disp.create_tech_discovered_window(t_researching);
 						}
 					}
 				}
@@ -186,8 +182,8 @@ impl Stats<'_,'_,'_,'_> {
 
 	// recursively discover tech and all of its undiscovered research requirements
 	// ***** ASSUMES this is for the current player & updates `production_options`
-	pub fn force_discover_undiscov_tech<'bt,'ut,'rt,'dt>(&mut self, tech_req_ind: SmSvType, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
-			production_options: &mut ProdOptions<'bt,'ut,'rt,'dt>, l: &Localization) {
+	pub fn force_discover_undiscov_tech<'f,'bt,'ut,'rt,'dt>(&mut self, tech_req_ind: SmSvType, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+			dstate: &mut DispState<'f,'bt,'ut,'rt,'dt>) {
 		let mut techs_to_discover = Vec::with_capacity(temps.techs.len());
 		techs_to_discover.push(tech_req_ind);
 		self.build_undiscov_tech_req_list(tech_req_ind, &temps.techs, &mut techs_to_discover);
@@ -204,7 +200,7 @@ impl Stats<'_,'_,'_,'_> {
 			}
 		}
 		
-		*production_options = init_bldg_prod_windows(&temps.bldgs, self, l);
+		dstate.production_options = init_bldg_prod_windows(&temps.bldgs, self, &dstate.local);
 	}
 	
 	// tech_sel is the index into tech_templates

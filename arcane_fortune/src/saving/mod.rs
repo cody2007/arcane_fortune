@@ -32,11 +32,11 @@ use crate::doctrine::*;
 use crate::disp::*;
 use crate::player::*;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx, HashedFogVars, HashedCoords, HashStruct64};
-use crate::gcore::{LogType, RelationStatus};
+use crate::gcore::*;
 use crate::zones::*;
 use crate::ai::*;
 use crate::resources::ResourceTemplate;
-use crate::disp_lib::endwin;
+use crate::renderer::*;
 
 pub mod defaults; pub use defaults::*;
 pub mod save_game; pub use save_game::*;
@@ -44,7 +44,7 @@ pub mod save_debug; pub use save_debug::*;
 pub mod snappy;
 
 #[derive(PartialEq, Clone)]
-pub enum GameState {New, NewOptions, Load(String), TitleScreen}
+pub enum GameControl {New, NewOptions, Load(String), TitleScreen}
 
 //////////////////////////////////////////////// trait defs
 macro_rules! fn_headers{() => (
@@ -140,6 +140,7 @@ impl_frm_cast!(ExploreType, SmSvType);
 impl_frm_cast!(SectorUnitEnterAction, SmSvType);
 impl_frm_cast!(SectorCreationType, SmSvType);
 impl_frm_cast!(PacifismMilitarism, SmSvType);
+impl_frm_cast!(MoodType, SmSvType);
 
 ////////////////////////// saving/loading non-castable (to integer) primitives
 
@@ -396,17 +397,17 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for AttackFrontState {
 impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for RelationStatus {
 	fn sv(&self, res: &mut Vec<u8>){
 		match self {
-			RelationStatus::Peace {turn_started} => {
-				res.push(0);
-				turn_started.sv(res);
-			} RelationStatus::War {turn_started} => {
+			RelationStatus::Undiscovered => {res.push(0);
+			} RelationStatus::Peace {turn_started} => {
 				res.push(1);
 				turn_started.sv(res);
-			} RelationStatus::Fiefdom {turn_joined} => {
+			} RelationStatus::War {turn_started} => {
 				res.push(2);
+				turn_started.sv(res);
+			} RelationStatus::Fiefdom {turn_joined} => {
+				res.push(3);
 				turn_joined.sv(res);
 			}
-
 		}
 	}
 	
@@ -415,19 +416,20 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for RelationStatus {
 		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
 		
 		*self = match res[*o-1] {
-			0 => {
+			0 => {RelationStatus::Undiscovered
+			} 1 => {
 				let mut d = RelationStatus::Peace {turn_started: 0};
 				if let RelationStatus::Peace {ref mut turn_started} = d {
 					ld_vals!(turn_started);
 				}
 				d
-			} 1 => {
+			} 2 => {
 				let mut d = RelationStatus::War {turn_started: 0};
 				if let RelationStatus::War {ref mut turn_started} = d {
 					ld_vals!(turn_started);
 				}
 				d
-			} 2 => {
+			} 3 => {
 				let mut d = RelationStatus::Fiefdom {turn_joined: 0};
 				if let RelationStatus::Fiefdom {ref mut turn_joined} = d {
 					ld_vals!(turn_joined);

@@ -99,8 +99,7 @@ impl <'bt,'ut,'rt,'dt>ActionMeta<'bt,'ut,'rt,'dt> {
 	// used when setting action from build list
 	pub fn set_action_meta(self, unit_ind: usize, is_cur_player: bool, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, 
 			pstats: &mut Stats<'bt,'ut,'rt,'dt>, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, map_data: &mut MapData,
-			min_city_opt: Option<&CityState<'bt,'ut,'rt,'dt>>,
-			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, relations: &mut Relations, logs: &mut Vec<Log>, map_sz: MapSz, turn: usize) {
+			min_city_opt: Option<&CityState<'bt,'ut,'rt,'dt>>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, map_sz: MapSz) {
 		let u = &mut units[unit_ind];
 		
 		// if repairing wall, start coord is stored in the action type, else use `path_coords`
@@ -125,7 +124,7 @@ impl <'bt,'ut,'rt,'dt>ActionMeta<'bt,'ut,'rt,'dt> {
 			{
 				if let Some(min_city) = min_city_opt {
 					if !min_city.exit_city(&mut max_search_depth, unit_ind, is_cur_player, true, start_coord, 
-								Coord::frm_ind(units[unit_ind].return_coord(), map_sz), pstats, map_data, exs, units, bldgs, relations, logs, map_sz, turn) {
+								Coord::frm_ind(units[unit_ind].return_coord(), map_sz), pstats, map_data, exs, units, bldgs, gstate, map_sz) {
 						return;
 					}
 				}

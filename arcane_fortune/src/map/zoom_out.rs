@@ -1,5 +1,5 @@
 use crate::disp::*;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 use crate::map::ZoomInd;
 use crate::map::vars::*;
 use crate::map::utils::*; // update_ex_data(), rm_ex_data()
@@ -7,11 +7,11 @@ use crate::buildings::*;
 use crate::saving::SmSvType;
 use crate::gcore::hashing::{HashedMapEx};
 use crate::zones::{StructureData, FOG_UNIT_DIST};
-use crate::gcore::{Log, Relations};
 use crate::units::Unit;
 use crate::player::{Stats, Player};
 use crate::zones::return_zone_coord;
 use crate::resources::N_RESOURCES_DISCOV_LOG;
+use crate::containers::*;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 
@@ -366,7 +366,7 @@ pub enum PresenceAction {
 // 		^ (speed optimization--also, discoveries not computed on zoomed out maps for non-current players)
 pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, is_cur_player: bool, action: PresenceAction,
 		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, pstats: &mut Stats<'bt,'ut,'rt,'dt>,
-		map_sz: MapSz, relations: &mut Relations, units: &Vec<Unit>, logs: &mut Vec<Log>, turn: usize){
+		map_sz: MapSz, gstate: &mut GameState, units: &Vec<Unit>){
 	#[cfg(feature="profile")]
 	let _g = Guard::new("compute_active_window");
 	
@@ -412,13 +412,13 @@ pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, is_cur_pl
 					if let Some(ex) = exs.last().unwrap().get(&coord) {
 						// land owned by undiscov civ?
 						if let Some(owner_id) = ex.actual.owner_id {
-							relations.discover_civ(player_ind, owner_id as usize, logs, turn);
+							gstate.relations.discover_civ(player_ind, owner_id as usize, &mut gstate.logs, gstate.turn);
 						}
 						
 						// any undiscovered civs from units?
 						if let Some(unit_inds) = &ex.unit_inds {
 							for unit_ind in unit_inds.iter() {
-								relations.discover_civ(player_ind, units[*unit_ind as usize].owner_id as usize, logs, turn);
+								gstate.relations.discover_civ(player_ind, units[*unit_ind as usize].owner_id as usize, &mut gstate.logs, gstate.turn);
 							}
 						} // units here
 					} // discov units

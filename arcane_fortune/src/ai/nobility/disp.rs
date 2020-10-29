@@ -1,7 +1,6 @@
 use std::cmp::max;
-use crate::disp_lib::{DispState, COLOR_PAIR};
-use crate::disp::{Buttons, ScreenSz, CGREEN, DispChars, crop_txt};
-use crate::localization::Localization;
+use crate::renderer::COLOR_PAIR;
+use crate::disp::*;
 use crate::player::Personalization;
 use super::*;
 
@@ -11,66 +10,65 @@ const SPACE_BETWEEN_PAIRS_X: usize = 3;
 const SPACE_BETWEEN_GENERATIONS_Y: usize = 2;
 
 impl Noble {
-	fn print(&self, show_parent_connection: bool, coord: ScreenCoord, disp_chars: &DispChars, l: &Localization,
-			d: &mut DispState, turn: usize) {
+	fn print(&self, show_parent_connection: bool, coord: ScreenCoord, dstate: &mut DispState, turn: usize) {
 		let y = coord.y as i32;
 		let x = coord.x as i32;
 		
 		// top line
 		{
-			d.mv(y, x);
-			d.addch(disp_chars.ulcorner_char);
+			dstate.mv(y, x);
+			dstate.addch(dstate.chars.ulcorner_char);
 			for col in 0..(BOX_WIDTH-2) {
-				d.addch(if !show_parent_connection || col != (BOX_WIDTH-2)/2 {
-					disp_chars.hline_char
+				dstate.addch(if !show_parent_connection || col != (BOX_WIDTH-2)/2 {
+					dstate.chars.hline_char
 				}else{
-					disp_chars.llcorner_char
+					dstate.chars.llcorner_char
 				});
 			}
-			d.addch(disp_chars.urcorner_char);
+			dstate.addch(dstate.chars.urcorner_char);
 		}
 		
 		macro_rules! center_txt{($row: expr, $txt: expr) => {
-			d.mv(y+$row, x);
-			d.addch(disp_chars.vline_char);
+			dstate.mv(y+$row, x);
+			dstate.addch(dstate.chars.vline_char);
 			
 			let txt = crop_txt($txt, BOX_WIDTH);
-			d.mv(y+$row, x + (BOX_WIDTH as i32- txt.len() as i32)/2);
-			d.addstr(&txt);
+			dstate.mv(y+$row, x + (BOX_WIDTH as i32- txt.len() as i32)/2);
+			dstate.addstr(&txt);
 			
-			d.mv(y+$row, x + BOX_WIDTH as i32-1);
-			d.addch(disp_chars.vline_char);
+			dstate.mv(y+$row, x + BOX_WIDTH as i32-1);
+			dstate.addch(dstate.chars.vline_char);
 		};};
 		
 		center_txt!(1, &format!("{} {}", self.name.first, self.name.last));
-		center_txt!(2, &format!("{}: {} {}", l.Age, ((turn - self.born_turn) as f32/TURNS_PER_YEAR as f32).round(), l.yrs));
+		center_txt!(2, &format!("{}: {} {}", dstate.local.Age, ((turn - self.born_turn) as f32/TURNS_PER_YEAR as f32).round(), dstate.local.yrs));
 		
 		// bottom line
 		{
-			d.mv(y+3, x);
-			d.addch(disp_chars.llcorner_char);
-			for _ in 0..(BOX_WIDTH-2) {d.addch(disp_chars.hline_char);}
-			d.addch(disp_chars.lrcorner_char);
+			dstate.mv(y+3, x);
+			dstate.addch(dstate.chars.llcorner_char);
+			for _ in 0..(BOX_WIDTH-2) {dstate.addch(dstate.chars.hline_char);}
+			dstate.addch(dstate.chars.lrcorner_char);
 		}
 	}
 }
 
 impl NoblePair {
-	fn print(&self, show_parent_connection: bool, coord: ScreenCoord,
-			disp_chars: &DispChars, l: &Localization, d: &mut DispState, turn: usize) {
-		self.noble.print(show_parent_connection, coord, disp_chars, l, d, turn);
+	fn print(&self, show_parent_connection: bool, coord: ScreenCoord, dstate: &mut DispState, turn: usize) {
+		self.noble.print(show_parent_connection, coord, dstate, turn);
 		if let Some(marriage) = &self.marriage {
 			let y = coord.y as i32;
 			let x = coord.x as i32;
+			let d = &mut dstate.renderer;
 			
 			// line between the two:        | Partner 1 |-------| Partner 2 |
 			let box_middle_row = y + BOX_HEIGHT as i32/2;
-			d.mv(box_middle_row, x + BOX_WIDTH as i32);
+			dstate.mv(box_middle_row, x + BOX_WIDTH as i32);
 			for col in 0..SPACE_BETWEEN_PAIRS_X {
-				d.addch(if col != (SPACE_BETWEEN_PAIRS_X/2) {
-					disp_chars.hline_char
+				dstate.addch(if col != (SPACE_BETWEEN_PAIRS_X/2) {
+					dstate.chars.hline_char
 				}else{
-					disp_chars.urcorner_char
+					dstate.chars.urcorner_char
 				});
 			}
 			
@@ -78,13 +76,13 @@ impl NoblePair {
 				y: y as isize,
 				x: x as isize + (BOX_WIDTH + SPACE_BETWEEN_PAIRS_X) as isize
 			};
-			marriage.partner.print(show_parent_connection, coord, disp_chars, l, d, turn);
+			marriage.partner.print(show_parent_connection, coord, dstate, turn);
 			
 			// vertical line between the two
 			if marriage.children.len() != 0 {
 				for row in (box_middle_row+1)..(coord.y as i32 + SPACE_BETWEEN_GENERATIONS_Y as i32 + BOX_HEIGHT as i32) {
-					d.mv(row, x + BOX_WIDTH as i32 + 1);
-					d.addch(disp_chars.vline_char);
+					dstate.mv(row, x + BOX_WIDTH as i32 + 1);
+					dstate.addch(dstate.chars.vline_char);
 				}
 			}
 		}
@@ -99,35 +97,33 @@ impl NoblePair {
 }
 
 impl House {
-	pub fn print_pedigree(&self, personalization: &Personalization, buttons: &mut Buttons, screen_sz: ScreenSz,
-			disp_chars: &DispChars,	l: &Localization, d: &mut DispState, turn: usize) {
-		d.clear();
+	pub fn print_pedigree(&self, personalization: &Personalization, turn: usize, dstate: &mut DispState) {
+		dstate.clear();
 		
 		let title_c = COLOR_PAIR(CGREEN);
 		
-		d.mv(0,0); buttons.Esc_to_close.print(None, l, d);
+		dstate.mv(0,0); dstate.buttons.Esc_to_close.print(None, &dstate.local, &mut dstate.renderer);
 		
 		macro_rules! center_txt{($txt: expr, $w: expr) => {
 			let g = ($w as usize - $txt.len())/2;
 			let mut sp = String::new();
 			for _ in 0..g {sp.push(' ');}
-			d.attron(title_c);
-			d.addstr(&format!("{}{}", sp, $txt));
-			d.attroff(title_c);
+			dstate.attron(title_c);
+			dstate.addstr(&format!("{}{}", sp, $txt));
+			dstate.attroff(title_c);
 		};};
 		
-		let w = screen_sz.w as i32;
-		center_txt!(l.House_of.replace("[]", &personalization.nm), w);
+		let w = dstate.iface_settings.screen_sz.w as i32;
+		center_txt!(dstate.local.house_nm.replace("[]", &personalization.nm), w);
 		
 		if let Some(head_pair) = self.noble_pairs.first() {
 			let head_branch_w = self.branch_disp_width(head_pair) as i32;
 			debug_assertq!(w > head_branch_w);
-			self.print_branch(1, (w - head_branch_w)/2, head_pair, w, disp_chars, l, d, turn);
+			self.print_branch(1, (w - head_branch_w)/2, head_pair, turn, dstate);
 		}
 	}
 	
-	fn print_branch(&self, start_row: i32, start_col: i32, head_pair: &NoblePair, screen_sz_w: i32,
-			disp_chars: &DispChars, l: &Localization, d: &mut DispState, turn: usize) {
+	fn print_branch(&self, start_row: i32, start_col: i32, head_pair: &NoblePair, turn: usize, dstate: &mut DispState) {
 		let head_branch_w = self.branch_disp_width(head_pair) as isize;
 		let head_pair_w = head_pair.disp_width() as isize;
 		
@@ -141,7 +137,7 @@ impl House {
 				start_col + (head_branch_w - head_pair_w) as i32 /2
 			};
 			
-			head_pair.print(false, ScreenCoord {y: start_row as isize, x: head_start_col as isize}, disp_chars, l, d, turn);
+			head_pair.print(false, ScreenCoord {y: start_row as isize, x: head_start_col as isize}, dstate, turn);
 		}
 		
 		// show children
@@ -161,18 +157,18 @@ impl House {
 			(|| { // horizontal line connection between parents and children
 				if child_branch_ws.len() == 0 {return;} // no children
 				
-				d.mv(start_row, start_col + BOX_WIDTH as i32/2);
+				dstate.mv(start_row, start_col + BOX_WIDTH as i32/2);
 				
 				// only one child and no partner, only draw: |
 				if child_branch_ws.len() == 1 && self.noble_pairs[marriage.children[0]].marriage.is_none() {
-					d.addch(disp_chars.vline_char);
+					dstate.addch(dstate.chars.vline_char);
 					return;
 				}
 				
 				// far left child
 				if let Some(child_w) = child_branch_ws.first() {
-					d.addch(disp_chars.ulcorner_char);
-					for _ in 0..(child_w - (BOX_WIDTH/2)) {d.addch(disp_chars.hline_char);}
+					dstate.addch(dstate.chars.ulcorner_char);
+					for _ in 0..(child_w - (BOX_WIDTH/2)) {dstate.addch(dstate.chars.hline_char);}
 				}
 				
 				// middle children
@@ -180,15 +176,15 @@ impl House {
 					// skip last child
 					if child_w_ind == (child_branch_ws.len()-1) {break;}
 					
-					for _ in 0..(*child_w + SPACE_BETWEEN_PAIRS_X) {d.addch(disp_chars.hline_char);}
+					for _ in 0..(*child_w + SPACE_BETWEEN_PAIRS_X) {dstate.addch(dstate.chars.hline_char);}
 				}
 				
 				// last child
 				if child_branch_ws.len() > 1 {
 					let child_w = child_branch_ws.last().unwrap();
 					
-					for _ in 0..(2+child_w - (BOX_WIDTH/2)) {d.addch(disp_chars.hline_char);}
-					d.addch(disp_chars.urcorner_char);
+					for _ in 0..(2+child_w - (BOX_WIDTH/2)) {dstate.addch(dstate.chars.hline_char);}
+					dstate.addch(dstate.chars.urcorner_char);
 				}
 			})();
 			
@@ -196,7 +192,7 @@ impl House {
 			
 			for (child_ind, child_branch_w) in marriage.children.iter().zip(child_branch_ws.iter()) {
 				let child = &self.noble_pairs[*child_ind];
-				self.print_branch(start_row, start_col, child, screen_sz_w, disp_chars, l, d, turn);
+				self.print_branch(start_row, start_col, child, turn, dstate);
 				start_col += (child_branch_w + SPACE_BETWEEN_PAIRS_X) as i32;
 			}
 		}

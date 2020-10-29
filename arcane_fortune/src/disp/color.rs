@@ -1,4 +1,4 @@
-use crate::disp_lib::*;
+use crate::renderer::*;
 use crate::player::Player;
 use crate::buildings::BldgTemplate;
 use crate::units::UnitTemplate;
@@ -78,18 +78,18 @@ const FG_BLACK_OFFSET: i16 = 55; // note: see disp_lib/mod.rs (CWHITE; it should
 
 pub const ESC_COLOR: CInd = CSAND4;
 
-pub const PLAYER_COLORS: &[i32] = &[1, 2, 3, CREDGREEN4, 5, 6, CBLUERED2, CREDSAND1, CGREEN4, 38];
+pub const PLAYER_COLORS: &[i32] = &[1, 2, 3, CREDGREEN4, CREDGRAY, 6, CBLUERED3, CREDSAND1, CGREEN4, 38];
 // ^ zeroth entry is the human player
 
 pub const NOBILITY_COLOR: CInd = CREDBLUE;
 
 #[derive(PartialEq, Clone)]
-pub struct DispSettings {
+pub struct TerminalSettings {
 	pub limit_schars: bool,
 	pub limit_colors: bool
 }
 
-impl_saving!{DispSettings {limit_schars, limit_colors}}
+impl_saving!{TerminalSettings {limit_schars, limit_colors}}
 
 #[derive(Clone)]
 pub struct DispChars {
@@ -109,7 +109,7 @@ pub fn white_fg(color: CInt) -> CInt {
 	color + FG_BLACK_OFFSET as CInt
 }
 
-pub fn init_color_pairs(disp_settings: &DispSettings, d: &mut DispState) -> DispChars {
+pub fn init_color_pairs(terminal_settings: &TerminalSettings, renderer: &mut Renderer) -> DispChars {
 	const COLOR_CONFIG_FILE: &str = "config/colors.txt";
 	let key_sets = config_parse(read_file(COLOR_CONFIG_FILE));
 	
@@ -142,7 +142,7 @@ pub fn init_color_pairs(disp_settings: &DispSettings, d: &mut DispState) -> Disp
 		panicq!("could not find required color configuration `{}` in {}", nm, COLOR_CONFIG_FILE);
 	};
 	
-	let (black, white) = if disp_settings.limit_colors == false {
+	let (black, white) = if terminal_settings.limit_colors == false {
 			(ret_color("black"), ret_color("white"))
 		}else{
 			(ret_color("8_color_black"), ret_color("8_color_white"))
@@ -152,9 +152,9 @@ pub fn init_color_pairs(disp_settings: &DispSettings, d: &mut DispState) -> Disp
 		macro_rules! set{($color: expr, $bg: expr) => {
 			assertq!($color < FG_BLACK_OFFSET as CInd, "all color indices must be less than FG_BLACK_OFFSET");
 			if fg_color == black {
-				d.init_pair($color as i16, ret_color($bg), fg_color)
+				renderer.init_pair($color as i16, ret_color($bg), fg_color)
 			}else{
-				d.init_pair($color as i16 + color_offset, fg_color, ret_color($bg))
+				renderer.init_pair($color as i16 + color_offset, fg_color, ret_color($bg))
 			}
 		};};
 		
@@ -170,11 +170,11 @@ pub fn init_color_pairs(disp_settings: &DispSettings, d: &mut DispState) -> Disp
 		set!(CGREENWHITE, "green");
 		set!(CBLUEWHITE, "blue");
 		
-		if disp_settings.limit_colors == false { // use 256 range
+		if terminal_settings.limit_colors == false { // use 256 range
 			set!(CGRAY, "gray");
 			
-			d.init_pair(9, black, ret_color("green")); //?
-			d.init_pair(10, black, ret_color("blue"));
+			renderer.init_pair(9, black, ret_color("green")); //?
+			renderer.init_pair(10, black, ret_color("blue"));
 			
 			set!(CGREEN5, "green5"); // meadow
 			set!(CGREEN4, "green4");//28); // wetland
@@ -232,8 +232,8 @@ pub fn init_color_pairs(disp_settings: &DispSettings, d: &mut DispState) -> Disp
 		}else{ // 8 colors
 			set!(CGRAY, "8_color_gray");
 			
-			d.init_pair(9, black, ret_color("8_color_green"));
-			d.init_pair(10, black, ret_color("8_color_blue"));
+			renderer.init_pair(9, black, ret_color("8_color_green"));
+			renderer.init_pair(10, black, ret_color("8_color_blue"));
 			
 			set!(CGREEN5, "8_color_green5");
 			set!(CGREEN4, "8_color_green4");
@@ -292,7 +292,7 @@ pub fn init_color_pairs(disp_settings: &DispSettings, d: &mut DispState) -> Disp
 	
 	let shortcut_indicator = || A_UNDERLINE() | COLOR_PAIR(CCYAN);
 	
-	let disp_chars = if disp_settings.limit_schars == false { // use all chars
+	let disp_chars = if terminal_settings.limit_schars == false { // use all chars
 				DispChars {
 					land_char: ACS_CKBOARD() as u64,
 					
@@ -320,12 +320,12 @@ pub fn init_color_pairs(disp_settings: &DispSettings, d: &mut DispState) -> Disp
 				}
 			};
 
-	d.clear();
-	d.attroff(0); // hack (for the ncurses binding code to load in the settings for the default white text -- see that binding for more info)
+	renderer.clear();
+	renderer.attroff(0); // hack (for the ncurses binding code to load in the settings for the default white text -- see that binding for more info)
 	disp_chars
 }
 
-pub fn set_player_color(player: &Player, on: bool, d: &mut DispState){
+pub fn set_player_color(player: &Player, on: bool, d: &mut Renderer){
 	if on { d.attron(COLOR_PAIR(player.personalization.color)); }else{
 		d.attroff(COLOR_PAIR(player.personalization.color)); }
 }

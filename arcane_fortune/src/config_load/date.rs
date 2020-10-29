@@ -26,7 +26,7 @@ THE SOFTWARE.
 #[allow(unused_imports)]
 use std::fmt::{self, Display, Formatter};
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 
 #[derive(Copy, Clone, Debug)]
 pub struct HttpDate {

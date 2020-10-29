@@ -1,7 +1,7 @@
 extern crate ironnetpro;
 use ironnetpro::*;
 use std::time::Instant;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 
 const DICT: &str = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.'\"?!0123456789-,:;$()&/*%";
 const MODEL_DIR: &str = "nn/model_lstm_quotes_w_categories_5layers_512hsz_60seqlen/";

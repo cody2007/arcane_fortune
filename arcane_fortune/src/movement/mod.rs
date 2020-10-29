@@ -5,10 +5,10 @@ use crate::gcore::hashing::{HashedMapEx, HashStruct64};
 use crate::map::*;
 use crate::units::*;
 use crate::buildings::*;
-use crate::gcore::{Relations, Log};
 use crate::disp::*;
 use crate::disp::menus::FindType;
-use crate::disp_lib::*;
+use crate::renderer::*;
+use crate::containers::*;
 use crate::player::Player;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
@@ -114,21 +114,21 @@ struct Node { // will be indexed by the coordinate
 // when this function returns false, do not let user move the cursor with the mouse
 //	(condition where the user is moving the unit with the mouse and the requested position is
 //	 not movable)
-impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 	pub fn update_move_search_ui(&mut self, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
 			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
-			relations: &mut Relations, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
-			logs: &mut Vec<Log>, map_sz: MapSz, turn: usize, d: &mut DispState) {
+			gstate: &mut GameState, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz) {
 		#[cfg(feature="profile")]
 		let _g = Guard::new("update_move_search_ui");
 		
 		//endwin();
+		let iface_settings = &mut self.state.iface_settings;
 		
-		if self.zoom_ind != map_data.max_zoom_ind() && self.zoom_ind != ZOOM_IND_ROOT {return;} // paths only computed at these zoom levels for now
-		let mut end_coord = self.cursor_to_map_coord(map_data); // has to occur outside of loop due to immutable borrow
+		if iface_settings.zoom_ind != map_data.max_zoom_ind() && iface_settings.zoom_ind != ZOOM_IND_ROOT {return;} // paths only computed at these zoom levels for now
+		let mut end_coord = iface_settings.cursor_to_map_coord(map_data); // has to occur outside of loop due to immutable borrow
 		
-		if self.zoom_ind != map_data.max_zoom_ind() {
-			end_coord = end_coord.to_zoom(self.zoom_ind, map_data.max_zoom_ind(), &map_data.map_szs);
+		if iface_settings.zoom_ind != map_data.max_zoom_ind() {
+			end_coord = end_coord.to_zoom(iface_settings.zoom_ind, map_data.max_zoom_ind(), &map_data.map_szs);
 		}
 		
 		macro_rules! update_action_iface{($action_iface: expr) => {
@@ -136,14 +136,14 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 			let mv_vars = MvVars::NonCivil {
 				units,
 				start_owner: units[unit_ind].owner_id,
-				blind_undiscov: Some(&players[self.cur_player as usize].stats.land_discov)
+				blind_undiscov: Some(&players[iface_settings.cur_player as usize].stats.land_discov)
 			};
 			
 			$action_iface.action.action_meta_cont = None; // clear out path on zoomed-out map
 			$action_iface.update_move_search(end_coord, map_data, exs, mv_vars, bldgs);
 		};};
 		
-		match &mut self.add_action_to {
+		match &mut iface_settings.add_action_to {
 			// no unit in particular is being moved
 			AddActionTo::None | AddActionTo::NoUnit {..} |
 			AddActionTo::BrigadeBuildList {..} => {}
@@ -155,27 +155,27 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				if let ActionType::MvWithCursor = &action_iface.action.action_type {
 					let unit_ind = action_iface.unit_ind.unwrap();
 					let u = &mut units[unit_ind];
-					if self.zoom_ind == map_data.max_zoom_ind() {
+					if iface_settings.zoom_ind == map_data.max_zoom_ind() {
 						if action_iface.action.path_coords.len() > 0 {
 							u.action = vec![action_iface.action.clone()];
 							
 							let mut disband_unit_inds = Vec::new();
-							mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, relations, map_sz, DelAction::Record(&mut disband_unit_inds), logs, turn);
+							mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds));
 							
 							// ex. if unit boards a boat
 							if disband_unit_inds.contains(&unit_ind) {
-								self.add_action_to = AddActionTo::None;
+								iface_settings.add_action_to = AddActionTo::None;
 							}else{
 								let u = &mut units[unit_ind];
 								
 								// no actions remain
 								if u.actions_used.is_none() {
 									u.action.pop();
-									self.add_action_to = AddActionTo::None;
-									self.set_auto_turn(AutoTurn::Off, d);
+									iface_settings.add_action_to = AddActionTo::None;
+									self.state.set_auto_turn(AutoTurn::Off);
 									// \/ update move search should be false otherwise there will be infinite recursion
-									self.center_on_next_unmoved_menu_item(false, FindType::Coord(u.return_coord()), map_data, exs, units, bldgs, relations, players, logs, turn, d);
-									self.ui_mode = UIMode::MvWithCursorNoActionsRemainAlert {unit_ind};
+									self.center_on_next_unmoved_menu_item(false, FindType::Coord(u.return_coord()), map_data, exs, units, bldgs, gstate, players);
+									self.ui_mode = UIMode::MvWithCursorNoActionsRemainAlert(MvWithCursorNoActionsRemainAlertState {unit_ind});
 									return;
 								}
 								
@@ -183,10 +183,10 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 								action_iface.start_coord = Coord::frm_ind(u.return_coord(), map_sz);
 							}
 							
-							disband_units(disband_unit_inds, self.cur_player, units, map_data, exs, players, relations, map_sz, logs, turn);
+							disband_units(disband_unit_inds, self.state.iface_settings.cur_player, units, map_data, exs, players, gstate, map_sz);
 						}else{
 							// \/ update move search should be false otherwise there will be infinite recursion
-							self.center_on_next_unmoved_menu_item(false, FindType::Coord(u.return_coord()), map_data, exs, units, bldgs, relations, players, logs, turn, d);
+							self.center_on_next_unmoved_menu_item(false, FindType::Coord(u.return_coord()), map_data, exs, units, bldgs, gstate, players);
 						}
 					}
 				}

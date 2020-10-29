@@ -1,10 +1,10 @@
-use crate::disp_lib::*;
+use crate::renderer::*;
 use super::vars::*;
 
-pub fn getmaxyxu(d: &mut DispState) -> ScreenSz {
+pub fn getmaxyxu(r: &Renderer) -> ScreenSz {
 	let mut h_i32 = 0;
 	let mut w_i32 = 0;
-	d.getmaxyx(stdscr(), &mut h_i32, &mut w_i32);
+	r.getmaxyx(stdscr(), &mut h_i32, &mut w_i32);
 	ScreenSz {h: h_i32 as usize, w: w_i32 as usize,
 		sz: (h_i32 * w_i32) as usize}
 }
@@ -32,23 +32,23 @@ use super::addstr_attr;
 // each tag has a `key`, `val` and `color`.
 // the `key` text is replaced with the `val` text and colorized with `color`
 pub fn color_tags_print(txt: &str, tags: &Vec<KeyValColor>, 
-		def_txt_color_pair: Option<chtype>, d: &mut DispState) {
+		def_txt_color_pair: Option<chtype>, r: &mut Renderer) {
 	if let Some(tag) = tags.first() {
 		let splits = txt.split(&tag.key).collect::<Vec<&str>>();
 		let remaining_tags = if tags.len() > 1 {tags[1..].to_vec()} else {Vec::new()};
 		
 		// parse remaining
-		color_tags_print(splits[0], &remaining_tags, def_txt_color_pair, d);
+		color_tags_print(splits[0], &remaining_tags, def_txt_color_pair, r);
 		for split in splits.iter().skip(1) {
 			// print `val` in place of `key`
-			addstr_attr(&tag.val, tag.attr, d);
+			addstr_attr(&tag.val, tag.attr, r);
 			// parse remaining
-			color_tags_print(split, &remaining_tags, def_txt_color_pair, d);
+			color_tags_print(split, &remaining_tags, def_txt_color_pair, r);
 		}
 	////////////////////////
 	// nothing to replace just print (optionally) colored text
 	}else if let Some(color_pair) = def_txt_color_pair {
-		addstr_attr(txt, color_pair, d);
-	}else{d.addstr(txt);}
+		addstr_attr(txt, color_pair, r);
+	}else{r.addstr(txt);}
 }
 

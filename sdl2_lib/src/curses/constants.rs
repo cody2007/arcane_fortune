@@ -1,3 +1,5 @@
+pub const TEXT_MODE: bool = false;
+
 pub type chtype = u32;
 pub type CInd = i32;
 pub type CShort = i16;

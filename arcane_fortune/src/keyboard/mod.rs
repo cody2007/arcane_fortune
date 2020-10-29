@@ -1,16 +1,73 @@
+use crate::renderer::*;
 use crate::config_load::*;
+
+#[derive(Clone)]
+pub enum MouseClick {Left, Right, Middle}
+
+impl MouseClick {
+	pub fn released(&self, mouse_event: &Option<MEVENT>) -> bool {
+		match self {
+			MouseClick::Left => {lbutton_released(mouse_event)}
+			MouseClick::Right => {rbutton_released(mouse_event)}
+			MouseClick::Middle => {mbutton_released(mouse_event)}
+		}
+	}
+	
+	pub fn clicked(&self, mouse_event: &Option<MEVENT>) -> bool {
+		match self {
+			MouseClick::Left => {lbutton_clicked(mouse_event)}
+			MouseClick::Right => {rbutton_clicked(mouse_event)}
+			MouseClick::Middle => {mbutton_clicked(mouse_event)}
+		}
+	}
+	
+	pub fn pressed(&self, mouse_event: &Option<MEVENT>) -> bool {
+		match self {
+			MouseClick::Left => {lbutton_pressed(mouse_event)}
+			MouseClick::Right => {rbutton_pressed(mouse_event)}
+			MouseClick::Middle => {mbutton_pressed(mouse_event)}
+		}
+	}
+	
+	pub fn dragging(&self, mouse_event: &Option<MEVENT>) -> bool {
+		match self {
+			MouseClick::Left => {ldragging(mouse_event)}
+			MouseClick::Right => {rdragging(mouse_event)}
+			MouseClick::Middle => {mdragging(mouse_event)}
+		}
+	}
+	
+	pub fn released_clicked_or_dragging(&self, mouse_event: &Option<MEVENT>) -> bool {
+		self.released(mouse_event) || self.clicked(mouse_event) || self.dragging(mouse_event)
+	}
+	
+	pub fn released_clicked_pressed_or_dragging(&self, mouse_event: &Option<MEVENT>) -> bool {
+		self.released(mouse_event) || self.clicked(mouse_event) || self.pressed(mouse_event) || self.dragging(mouse_event)
+	}
+
+}
 
 macro_rules! create_keys{($($entry:ident = $nm: expr)*) => (
 	// each field's value is the value we should actually
 	// expect from the keyboard
 	#[derive(Clone)]
-	pub struct KeyboardMap {$(pub $entry: i32),*}
+	pub struct KeyboardMap {
+		$(pub $entry: i32),*,
+		pub map_drag: MouseClick,
+		pub action_drag: MouseClick,
+		pub action_cancel: MouseClick
+	}
 	
 	impl KeyboardMap {
 		pub fn new() -> Self {
 			const KEYBOARD_CONFIG: &str = "config/keyboard.txt";
 			let key_sets = config_parse(read_file(KEYBOARD_CONFIG));
-			Self {$($entry: find_kbd_key($nm, &key_sets)),*}
+			Self {
+				$($entry: find_kbd_key($nm, &key_sets)),*,
+				map_drag: find_mouse_click("map_drag", &key_sets),
+				action_drag: find_mouse_click("action_drag", &key_sets),
+				action_cancel: find_mouse_click("action_cancel", &key_sets)
+			}
 		}
 	}
 );}
@@ -55,6 +112,7 @@ create_keys!(
 	finish_all_unit_actions = "finish_all_unit_actions"
 	change_brigade_repair = "change_brigade_repair"
 	clear_brigade_repair = "clear_brigade_repair"
+	center_on_next_unmoved_unit = "center_on_next_unmoved_unit"
 	
 	/////// unit actions
 	disband = "disband"
@@ -93,6 +151,7 @@ create_keys!(
 	decrease_tax = "decrease_tax"
 	
 	//////// text mode tabbing (used with screen readers)
+	start_tabbing_through_window_screen_mode = "start_tabbing_through_window_screen_mode"
 	start_tabbing_through_bottom_screen_mode = "start_tabbing_through_bottom_screen_mode"
 	start_tabbing_through_right_screen_mode = "start_tabbing_through_right_screen_mode"
 	forward_tab = "forward_tab"

@@ -1,7 +1,8 @@
 use super::*;
 use crate::saving::SmSvType;
-use crate::gcore::{XorState, Relations, Log, LogType};
+use crate::gcore::*;
 use crate::doctrine::DoctrineTemplate;
+use crate::containers::*;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 
@@ -26,11 +27,11 @@ pub enum HappinessCategory {
 
 // local statistics for a given zone_ex
 impl ZoneAgnosticStats {
-	fn set_happiness(&mut self, cur_player: usize, war_time: usize, cur_doctrine: &DoctrineTemplate, logs: &Vec<Log>, turn: usize) {
+	fn set_happiness(&mut self, cur_player: usize, war_time: usize, cur_doctrine: &DoctrineTemplate, gstate: &GameState) {
 		let n_massacres = {
 			let mut n_massacres = 0;
-			for log in logs.iter().rev() {
-				if (turn - log.turn) > MAX_TIME_MASSACRE {break;}
+			for log in gstate.logs.iter().rev() {
+				if (gstate.turn - log.turn) > MAX_TIME_MASSACRE {break;}
 				if let LogType::RiotersAttacked {owner_id} = &log.val {
 					if *owner_id == cur_player {
 						n_massacres += 1;
@@ -95,16 +96,15 @@ impl ZoneAgnosticStats {
 	// starts at map location coord, and then finds paths to the closest buildings
 	// that contribute to agnostic zone stats
 	fn new(coord: u64, owner_id: SmSvType, map_data: &mut MapData, exs: &mut Vec<HashedMapEx>,
-			bldgs: &Vec<Bldg>, doctrine: &DoctrineTemplate, doctrine_templates: &Vec<DoctrineTemplate>,
-			relations: &Relations, logs: &Vec<Log>, map_sz: MapSz, turn: usize) -> Self {
+			bldgs: &Vec<Bldg>, doctrine: &DoctrineTemplate, doctrine_templates: &Vec<DoctrineTemplate>, gstate: &GameState, map_sz: MapSz) -> Self {
 		const N_ZONE_AGNOSTIC_SAMPLES: usize = 9;
 		
 		let start_c = Coord::frm_ind(coord, map_sz);
 		let exf = exs.last().unwrap();
-		let mut zone_agnostic_stats = Self::default_init(turn, doctrine_templates);
+		let mut zone_agnostic_stats = Self::default_init(gstate.turn, doctrine_templates);
 		
 		macro_rules! set_happiness {($zstats: expr) => {
-			$zstats.set_happiness(owner_id as usize, relations.war_lengths(owner_id as usize, turn), doctrine, logs, turn);
+			$zstats.set_happiness(owner_id as usize, gstate.relations.war_lengths(owner_id as usize, gstate.turn), doctrine, gstate);
 			return $zstats;
 		};};
 		
@@ -163,16 +163,15 @@ const N_TURNS_RECOMP_ZONE_AGNOSTIC_STATS: usize = 30*12;//*5; //30*12 * 1;//75;
 // returns happiness, recomputes if needed
 pub fn return_happiness<'z>(mut coord: u64, map_data: &mut MapData, 
 		exs: &mut Vec<HashedMapEx>, bldgs: &Vec<Bldg>, player: &'z mut Player,
-		doctrine_templates: &Vec<DoctrineTemplate>, relations: &Relations, logs: &Vec<Log>,
-		map_sz: MapSz, turn: usize) -> &'z ZoneAgnosticStats {
+		doctrine_templates: &Vec<DoctrineTemplate>, gstate: &GameState, map_sz: MapSz) -> &'z ZoneAgnosticStats {
 	
 	//////////// compute zone demands on a spaced grid, unless zone doesn't match the grid
 	coord = return_zone_coord(coord, map_sz);
 	let zone_ex = player.zone_exs.get_mut(&coord).unwrap(); // should be created by add_zone() method in FogVars
 	
 	////// check if we re-compute or use old vals
-	if (zone_ex.zone_agnostic_stats.turn_computed + N_TURNS_RECOMP_ZONE_AGNOSTIC_STATS) < turn || zone_ex.zone_agnostic_stats.turn_computed == 0 {
-		let stats_new = ZoneAgnosticStats::new(coord, player.id, map_data, exs, bldgs, player.stats.doctrine_template, doctrine_templates, relations, logs, map_sz, turn);
+	if (zone_ex.zone_agnostic_stats.turn_computed + N_TURNS_RECOMP_ZONE_AGNOSTIC_STATS) < gstate.turn || zone_ex.zone_agnostic_stats.turn_computed == 0 {
+		let stats_new = ZoneAgnosticStats::new(coord, player.id, map_data, exs, bldgs, player.stats.doctrine_template, doctrine_templates, gstate, map_sz);
 		let stats_old = &mut zone_ex.zone_agnostic_stats;
 		
 		//////////////////////
@@ -187,18 +186,16 @@ pub fn return_happiness<'z>(mut coord: u64, map_data: &mut MapData,
 
 // randomly updates old happiness values
 pub fn randomly_update_happiness<'bt,'ut,'rt,'dt>(map_data: &mut MapData, 
-		exs: &mut Vec<HashedMapEx>, players: &mut Vec<Player>,
-		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
-		doctrine_templates: &'dt Vec<DoctrineTemplate>, relations: &Relations,
-		logs: &Vec<Log>, map_sz: MapSz, turn: usize, rng: &mut XorState) {
+		exs: &mut Vec<HashedMapEx>, players: &mut Vec<Player>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
+		doctrine_templates: &'dt Vec<DoctrineTemplate>, gstate: &mut GameState, map_sz: MapSz) {
 	#[cfg(feature="profile")]
 	let _g = Guard::new("randomly_update_happiness");
 	
 	let exf = exs.last().unwrap();
-	if let Some(coord) = SampleType::ZoneAgnostic.coord_frm_turn_computed(players, exf, map_sz, turn, rng) {
+	if let Some(coord) = SampleType::ZoneAgnostic.coord_frm_turn_computed(players, exf, map_sz, gstate) {
 		if let Some(ex) = exf.get(&coord) {
 			if let Some(owner_id) = ex.actual.owner_id {
-				let zone_agnostic_stats = return_happiness(coord, map_data, exs, bldgs, &mut players[owner_id as usize], doctrine_templates, relations, logs, map_sz, turn);
+				let zone_agnostic_stats = return_happiness(coord, map_data, exs, bldgs, &mut players[owner_id as usize], doctrine_templates, gstate, map_sz);
 				
 				// get max doctrinality of the zone
 				let max_doc = {

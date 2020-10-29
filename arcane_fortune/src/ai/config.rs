@@ -4,7 +4,7 @@ use crate::units::UnitTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::config_load::{config_parse, read_file, find_opt_key_parse, find_opt_key_resources};
 use crate::saving::*;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 
 #[derive(Clone, PartialEq)]
 pub struct AIConfig<'rt> {

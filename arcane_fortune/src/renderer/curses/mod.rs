@@ -39,10 +39,12 @@ pub const KEY_ESC: i32 = 27;
 pub const COLOR_BLACK: i16 = 0;
 pub const COLOR_WHITE: i16 = 7;
 
+pub const TEXT_MODE: bool = true;
+
 use std::os::raw::{c_int, c_short};
 pub type mmask_t = u32;//c_uint;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct MEVENT {
 	pub id: c_short, // used to distinguish multiple devices
@@ -78,6 +80,30 @@ pub fn rbutton_pressed(mouse_event: &Option<MEVENT>) -> bool {
 	}
 }
 
+pub fn mbutton_clicked(mouse_event: &Option<MEVENT>) -> bool {
+	if let Some(MEVENT {bstate, ..}) = &mouse_event {
+		(bstate & BUTTON2_CLICKED) != 0
+	}else{
+		false
+	}
+}
+
+pub fn mbutton_released(mouse_event: &Option<MEVENT>) -> bool {
+	if let Some(MEVENT {bstate, ..}) = &mouse_event {
+		(bstate & BUTTON2_RELEASED) != 0
+	}else{
+		false
+	}
+}
+
+pub fn mbutton_pressed(mouse_event: &Option<MEVENT>) -> bool {
+	if let Some(MEVENT {bstate, ..}) = &mouse_event {
+		(bstate & BUTTON2_PRESSED) != 0
+	}else{
+		false
+	}
+}
+
 pub fn lbutton_clicked(mouse_event: &Option<MEVENT>) -> bool {
 	if let Some(MEVENT {bstate, ..}) = &mouse_event {
 		(bstate & BUTTON1_CLICKED) != 0
@@ -102,9 +128,28 @@ pub fn lbutton_pressed(mouse_event: &Option<MEVENT>) -> bool {
 	}
 }
 
-pub fn dragging(mouse_event: &Option<MEVENT>) -> bool {
+pub fn ldragging(mouse_event: &Option<MEVENT>) -> bool {
 	if let Some(MEVENT {bstate, ..}) = &mouse_event {
-		(bstate & REPORT_MOUSE_POSITION) != 0
+		(bstate & REPORT_MOUSE_POSITION) != 0// &&
+		//((bstate & BUTTON1_PRESSED) != 0) <--- never seems to be true w/ REPORT_MOUSE_POSITION
+	}else{
+		false
+	}
+}
+
+pub fn rdragging(mouse_event: &Option<MEVENT>) -> bool {
+	if let Some(MEVENT {bstate, ..}) = &mouse_event {
+		(bstate & REPORT_MOUSE_POSITION) != 0// &&
+		//((bstate & BUTTON3_PRESSED) != 0) <--- never seems to be true w/ REPORT_MOUSE_POSITION
+	}else{
+		false
+	}
+}
+
+pub fn mdragging(mouse_event: &Option<MEVENT>) -> bool {
+	if let Some(MEVENT {bstate, ..}) = &mouse_event {
+		(bstate & REPORT_MOUSE_POSITION) != 0// &&
+		//((bstate & BUTTON2_PRESSED) != 0) <--- never seems to be true w/ REPORT_MOUSE_POSITION
 	}else{
 		false
 	}
@@ -126,10 +171,10 @@ pub fn scroll_down(mouse_event: &Option<MEVENT>) -> bool {
 	}
 }
 
-pub struct DispState {}
+pub struct Renderer {}
 
 // not supported...
-impl DispState {
+impl Renderer {
 	pub fn mouse_pos(&self) -> Option<(i32, i32)> {None}
 	pub fn set_mouse_to_arrow(&mut self) {}
 	pub fn set_mouse_to_hand(&mut self) {}

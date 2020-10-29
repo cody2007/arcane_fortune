@@ -24,6 +24,7 @@
 const fn SDL_BUTTON(x: u32) -> u32 {1 << (x-1)}
 pub const SDL_BUTTON_LMASK: u32 = SDL_BUTTON(ButtonInd::SDL_BUTTON_LEFT as u32);
 pub const SDL_BUTTON_RMASK: u32 = SDL_BUTTON(ButtonInd::SDL_BUTTON_RIGHT as u32);
+pub const SDL_BUTTON_MMASK: u32 = SDL_BUTTON(ButtonInd::SDL_BUTTON_MIDDLE as u32);
 
 use std::slice;
 use std::os::raw::{c_int, c_char};
@@ -57,9 +58,10 @@ pub type SDL_Texture = *mut SDL_Texture_Struct;
 pub type SDL_Cursor = *mut SDL_Cursor_Struct;
 pub type TTF_Font = *mut TTF_Font_Struct;
 
+// containers
 pub struct Window {pub val: SDL_Window}
 pub struct Surface {pub val: SDL_Surface}
-pub struct Renderer {pub val: SDL_Renderer}
+pub struct SDLRenderer {pub val: SDL_Renderer}
 pub struct Texture {pub val: SDL_Texture}
 pub struct Cursor {pub val: SDL_Cursor}
 pub struct Font {
@@ -73,7 +75,7 @@ pub struct Size {
 	pub h: c_int
 }
 
-impl Drop for Renderer {
+impl Drop for SDLRenderer {
 	fn drop(&mut self) {
 		unsafe {SDL_DestroyRenderer(self.val);}
 	}
@@ -123,14 +125,14 @@ impl Surface {
 }
 
 impl Texture {
-	pub fn from_img(renderer: &Renderer, file: &str) -> Self {
+	pub fn from_img(renderer: &SDLRenderer, file: &str) -> Self {
 		let c_str = CString::new(file).expect("CString::new failed in creating file name");
 		let tex = unsafe {IMG_LoadTexture(renderer.val, c_str.as_ptr())};
 		assert!(!tex.is_null(), "Failed loading image: `{}` to texture", file);
 		Self {val: tex}
 	}
 	
-	pub fn from_surface(renderer: &Renderer, surface: Surface) -> Self {
+	pub fn from_surface(renderer: &SDLRenderer, surface: Surface) -> Self {
 		#[cfg(feature="profile")]
 		let _g = Guard::new("texture.from_surface() [SDL_CreateTextureFromSurface]");
 
@@ -139,7 +141,7 @@ impl Texture {
 		Self {val: tex}
 	}
 	
-	pub fn from_font(renderer: &Renderer, font: &Font, txt: &str, fg: SDL_Color) -> Self {
+	pub fn from_font(renderer: &SDLRenderer, font: &Font, txt: &str, fg: SDL_Color) -> Self {
 		Texture::from_surface(renderer, font.render_blended(txt, fg))
 	}
 	
@@ -180,7 +182,7 @@ impl Window {
 	}
 }
 
-impl Renderer {
+impl SDLRenderer {
 	pub fn new(window: &Window) -> Self {
 		let mut flags = SDL_RendererFlags::SDL_RENDERER_SOFTWARE as u32; //SDL_RendererFlags::SDL_RENDERER_ACCELERATED as u32;
 		// ^ note screen recording w/ OBS on linux flickers when the flags are set to SDL_RendererFlags::SDL_RENDERER_ACCELERATED

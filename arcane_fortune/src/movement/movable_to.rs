@@ -3,7 +3,7 @@ use crate::buildings::*;
 use crate::units::*;
 use crate::saving::SmSvType;
 use crate::gcore::hashing::HashedMapEx;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 use crate::zones::StructureData;
 
 // given to update_move_search

@@ -7,7 +7,7 @@ use crate::units::*;
 use crate::gcore::hashing::*;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 use crate::player::Player;
 
 pub mod disp; pub use disp::*;
