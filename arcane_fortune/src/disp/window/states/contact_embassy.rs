@@ -18,6 +18,105 @@ pub enum ContactEmbassyWindowState {
 	}
 }
 
+pub fn print_leader_mood_and_key_instructions(mut row: i32, w: i32, w_pos: Coord,
+		other_player_id: usize, players: &Vec<Player>, relations: &Relations, dstate: &mut DispState) {
+	let y = w_pos.y as i32 + 1;
+	let x = w_pos.x as i32 + 2;
+	macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;}};
+	
+	{ ///////// print mood
+		let loc = ScreenCoord {y: w_pos.y + 3, x: w_pos.x + 1 + w as isize};
+		relations.print_mood_factors(other_player_id, dstate.iface_settings.cur_player as usize, players, loc, dstate);
+	}
+	
+	{ // print key instructions
+		let txt_len = "<Left arrow> go back    <Enter> Perform action".len();
+		let gap = (w as usize - txt_len) / 2;
+		let mut sp = String::with_capacity(gap);
+		for _ in 0..gap {sp.push(' ');}
+		
+		let col2 = x + gap as i32 + "<Left arrow> go back".len() as i32 + 3;
+		
+		mvl!();
+		dstate.addstr(&sp);
+		dstate.buttons.Esc_to_close.print(None, &dstate.local, &mut dstate.renderer);
+		
+		dstate.mv(row-1 + y, col2);
+		addstr_c(&dstate.local.Up_Down_arrows, ESC_COLOR, &mut dstate.renderer);
+		dstate.addch(' ');
+		dstate.renderer.addstr(&dstate.local.select);
+		
+		mvl!();
+		dstate.addstr(&sp);
+		addstr_c(&dstate.local.Left_arrow, ESC_COLOR, &mut dstate.renderer);
+		dstate.addch(' ');
+		dstate.renderer.addstr(&dstate.local.to_go_back); 
+		
+		dstate.mv(row-1 + y, col2);
+		addstr_c(&dstate.local.Enter_key, ESC_COLOR, &mut dstate.renderer);
+		dstate.addch(' ');
+		dstate.renderer.addstr(&dstate.local.perform_action);
+	}
+}
+
+enum EmbassyButtonID {
+	SuggestATrade,
+	ReviewTradeDeals,
+	Threaten,
+	JoinAsKingdom,
+	SuggestPeaceTreaty,
+	DeclareWar
+}
+
+struct EmbassyButton<'b> {
+	button: &'b mut Button,
+	id: EmbassyButtonID
+}
+
+impl <'b>EmbassyButton<'b> {
+	fn new(button: &'b mut Button, id: EmbassyButtonID) -> Self {
+		Self {button, id}
+	}
+}
+
+// to associate buttons w/ an ID so that specific actions can be looked up
+// from the index of the activated button (the index is returned from button_mode_update_and_action())
+fn embassy_response_button_ids<'b>(empire_id: usize, cur_player: usize,
+		gstate: &GameState, buttons: &'b mut Buttons) -> Vec<EmbassyButton<'b>> {
+	let mut buttons_show = Vec::with_capacity(6);
+	
+	buttons_show.push(EmbassyButton::new(&mut buttons.Suggest_a_trade, EmbassyButtonID::SuggestATrade));
+	buttons_show.push(EmbassyButton::new(&mut buttons.Lets_review_our_current_trade_deals, EmbassyButtonID::ReviewTradeDeals));
+	buttons_show.push(EmbassyButton::new(&mut buttons.Threaten, EmbassyButtonID::Threaten));
+	
+	// join as kingdom
+	if !gstate.relations.kingdom(empire_id, cur_player) {
+		buttons_show.push(EmbassyButton::new(&mut buttons.Join_as_kingdom, EmbassyButtonID::JoinAsKingdom));
+	}
+	
+	// at war
+	if gstate.relations.at_war(empire_id, cur_player) {
+		buttons_show.push(EmbassyButton::new(&mut buttons.Suggest_a_peace_treaty, EmbassyButtonID::SuggestPeaceTreaty));
+		
+	// no peace treaty in effect -- show declare war button
+	}else if gstate.relations.peace_treaty_turns_remaining(empire_id, cur_player, gstate.turn).is_none() {
+		buttons_show.push(EmbassyButton::new(&mut buttons.Declare_war, EmbassyButtonID::DeclareWar));
+	}
+	
+	buttons_show
+}
+
+// the buttons only wo ids, the input into button_mode_update_and_action()
+fn embassy_response_buttons<'b>(empire_id: usize, cur_player: usize,
+		gstate: &GameState, buttons: &'b mut Buttons) -> Vec<&'b mut Button> {
+	let buttons_show = embassy_response_button_ids(empire_id, cur_player, gstate, buttons);
+	let mut buttons_wo_ids = Vec::with_capacity(buttons_show.len());
+	for button_show in buttons_show {
+		buttons_wo_ids.push(button_show.button);
+	}
+	buttons_wo_ids
+}
+
 impl ContactEmbassyWindowState {
 	pub fn print<'bt,'ut,'rt,'dt>(&mut self, players: &Vec<Player>, gstate: &GameState, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		match self {
@@ -27,8 +126,8 @@ impl ContactEmbassyWindowState {
 				dstate.renderer.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
 			} Self::DialogSelection{mode, owner_id, ref mut quote_printer} => {
 				let o = &players[*owner_id];
-				let w = 70;
-				let w_pos = dstate.print_window(ScreenSz{w, h: 5+2+3+2+2, sz:0});
+				let w = 72;
+				let w_pos = dstate.print_window(ScreenSz{w, h: 17, sz:0});
 				
 				let y = w_pos.y as i32 + 1;
 				let x = w_pos.x as i32 + 2;
@@ -38,31 +137,51 @@ impl ContactEmbassyWindowState {
 				let mut row = 0;
 				macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;}};
 				
-				let mut screen_reader_cur_loc = (0,0);
 				let cur_player = dstate.iface_settings.cur_player as usize;
 				
 				{ ///////////// title -- country name
-					mvl!();
-					let txt_len = format!("The {} Embassy", o.personalization.nm).len();
-					let g = (w as usize - txt_len) / 2;
-					let mut sp = String::with_capacity(g);
-					for _ in 0..g {sp.push(' ');}
+					// The_country_Embassy: "The [country] Embassy" 
+					let tags = vec![KeyValColor {
+						key: "[country]".to_string(),
+						val: o.personalization.nm.clone(),
+						attr: COLOR_PAIR(o.personalization.color)
+					}];
 					
-					dstate.addstr(&sp);
-					dstate.addstr("The ");
+					// Kingdom_of_country: "(Kingdom of [country])"
+					let (kingdom_txt_len, kingdom_tags) = if let Some(parent_empire_ind) = gstate.relations.kingdom_of(*owner_id) {
+						let parent_empire = &players[parent_empire_ind].personalization;
+						let kingdom_tags = vec![KeyValColor {
+							key: "[country]".to_string(),
+							val: parent_empire.nm.clone(),
+							attr: COLOR_PAIR(parent_empire.color)
+						}];
+						let kingdom_txt_len = color_tags_txt(&dstate.local.Kingdom_of_country, &kingdom_tags).len();
+						(kingdom_txt_len, Some(kingdom_tags))
+					}else{(0, None)};
+ 					
+ 					mvl!();
+ 					
+					{ // center txt (print spacer)
+						let txt_len = color_tags_txt(&dstate.local.The_country_Embassy, &tags).len() + kingdom_txt_len;
+						
+						let g = (w as usize - txt_len) / 2;
+						let mut sp = String::with_capacity(g);
+						for _ in 0..g {sp.push(' ');}
+						dstate.addstr(&sp);
+					}
 					
-					set_player_color(o, true, &mut dstate.renderer);
-					dstate.addstr(&o.personalization.nm);
-					set_player_color(o, false, &mut dstate.renderer);
+					color_tags_print(&dstate.local.The_country_Embassy, &tags, None, &mut dstate.renderer);
 					
-					dstate.addstr(" Embassy");
+					if let Some(kingdom_tags) = kingdom_tags {
+						color_tags_print(&dstate.local.Kingdom_of_country, &kingdom_tags, None, &mut dstate.renderer);
+					}
 					
 					mvl!();
 				}
 				
 				{ //////////// ruler
 					mvl!();
-					dstate.addstr(&format!("Their leader, {} {}, ", o.personalization.ruler_nm.first, o.personalization.ruler_nm.last));
+					dstate.addstr(&format!("Their leader, {}, ", o.personalization.ruler_nm.txt()));
 					gstate.relations.print_mood_action(*owner_id, cur_player, players, dstate);
 					dstate.addstr(" says:");
 					
@@ -70,70 +189,31 @@ impl ContactEmbassyWindowState {
 					dstate.addstr(&format!("   \"{}\"", quote_printer.gen()));
 					
 					mvl!();mvl!();
-					center_txt("How do you respond?", w, None, &mut dstate.renderer);
+					center_txt(&dstate.local.How_do_you_respond, w, None, &mut dstate.renderer);
 				}
 				
+				let mut screen_reader_cur_loc = (0,0);
 				{ /////////// options
 					mvl!();
 					
 					let screen_w = dstate.iface_settings.screen_sz.w as i32;
 					
-					// todo: add Trade technology
-					dstate.buttons.Threaten.print_centered_selection(row + y, *mode == 0, &mut screen_reader_cur_loc, screen_w, &mut dstate.renderer);
-					row += 1;
+					let mut show_buttons = embassy_response_button_ids(*owner_id, cur_player, gstate, &mut dstate.buttons);
 					
-					//center_txt("Demand tribute", w, None);
-					//mvl!();
-					
-					// at war
-					if gstate.relations.at_war(*owner_id, cur_player) {
-						dstate.buttons.Suggest_a_peace_treaty.print_centered_selection(row + y, *mode == 1, &mut screen_reader_cur_loc, screen_w, &mut dstate.renderer);
-					// peace treaty in effect
-					}else if let Some(expiry) = gstate.relations.peace_treaty_turns_remaining(*owner_id, cur_player, gstate.turn) {
-						center_txt(&dstate.local.Peace_treaty_expires_in.replace("[]", &dstate.local.date_interval_str(expiry as f32)), w, Some(COLOR_PAIR(CGREEN3)), &mut dstate.renderer);
-					// at peace but no peace treaty in effect
-					}else{
-						dstate.buttons.Declare_war.print_centered_selection(row + y, *mode == 1, &mut screen_reader_cur_loc, screen_w, &mut dstate.renderer);
+					for (button_id, button) in show_buttons.iter_mut().enumerate() {
+						button.button.print_centered_selection(row + y, *mode == button_id, &mut screen_reader_cur_loc, screen_w, &mut dstate.renderer);
+						row += 1;
 					}
 					
-					mvl!(); mvl!();
-				}
-				
-				////////// print mood
-				{
-					let loc = ScreenCoord {y: w_pos.y + 3, x: w_pos.x + 1 + w as isize};
-					gstate.relations.print_mood_factors(*owner_id, cur_player, loc, dstate);
-				}
-				
-				// print key instructions
-				{
-					let txt_len = "<Left arrow> go back    <Enter> Perform action".len();
-					let g = (w as usize - txt_len) / 2;
-					let mut sp = String::with_capacity(g);
-					for _ in 0..g {sp.push(' ');}
-					
-					let col2 = x + g as i32 + "<Left arrow> go back".len() as i32 + 3;
+					// peace treaty in effect
+					if let Some(expiry) = gstate.relations.peace_treaty_turns_remaining(*owner_id, cur_player, gstate.turn) {
+						center_txt(&dstate.local.Peace_treaty_expires_in.replace("[]", &dstate.local.date_interval_str(expiry as f32)), w, Some(COLOR_PAIR(CGREEN3)), &mut dstate.renderer);
+					}
 					
 					mvl!();
-					dstate.addstr(&sp);
-					dstate.buttons.Esc_to_close.print(None, &dstate.local, &mut dstate.renderer);
-					
-					dstate.mv(row-1 + y, col2);
-					addstr_c(&dstate.local.Up_Down_arrows, ESC_COLOR, &mut dstate.renderer);
-					dstate.addch(' ');
-					dstate.renderer.addstr(&dstate.local.select);
-					
-					mvl!();
-					dstate.addstr(&sp);
-					addstr_c(&dstate.local.Left_arrow, ESC_COLOR, &mut dstate.renderer);
-					dstate.addch(' ');
-					dstate.renderer.addstr(&dstate.local.to_go_back); 
-					
-					dstate.mv(row-1 + y, col2);
-					addstr_c(&dstate.local.Enter_key, ESC_COLOR, &mut dstate.renderer);
-					dstate.addch(' ');
-					dstate.renderer.addstr(&dstate.local.perform_action);
 				}
+				
+				print_leader_mood_and_key_instructions(row, w, w_pos, *owner_id, players, &gstate.relations, dstate);
 				
 				dstate.renderer.mv(screen_reader_cur_loc.0, screen_reader_cur_loc.1);
 				
@@ -307,131 +387,92 @@ impl ContactEmbassyWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
-			gstate: &mut GameState, dstate: &mut DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, 
+			temps: &Templates<'bt,'ut,'rt,'dt,'_>, dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		match self {
 			Self::CivSelection {ref mut mode} => {
 				let list = contacted_civilizations_list(gstate, players, dstate.iface_settings.cur_player, &dstate.local);
 				
-				macro_rules! enter_action{($mode: expr) => {
-					let owner_id = if let ArgOptionUI::OwnerInd(owner_ind) = list.options[$mode].arg {
+				if list_mode_update_and_action(mode, list.options.len(), dstate) {
+					let owner_id = if let ArgOptionUI::OwnerInd(owner_ind) = list.options[*mode].arg {
 						owner_ind
 					}else{panicq!("list argument option not properly set");};
 					
 					let quote_category = TxtCategory::from_relations(&gstate.relations, owner_id, dstate.iface_settings.cur_player as usize, players);
 					
-					*self= Self::DialogSelection {
+					*self = Self::DialogSelection {
 						mode: 0,
 						owner_id,
 						quote_printer: TxtPrinter::new(quote_category, gstate.rng.gen())
 					};
 					return UIModeControl::UnChgd;
-				};};
-				if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {enter_action!(ind);}
-				
-				let kbd = &dstate.kbd;
-				match dstate.key_pressed {
-					// down
-					k if kbd.down(k) => {
-						if (*mode + 1) <= (list.options.len()-1) {
-							*mode += 1;
-						}else{
-							*mode = 0;
-						}
-					
-					// up
-					} k if kbd.up(k) => {
-						if *mode > 0 {
-							*mode -= 1;
-						}else{
-							*mode = list.options.len() - 1;
-						}
-						
-					// enter
-					} k if k == kbd.enter => {
-						enter_action!(*mode);
-					} _ => {}
 				}
 			} Self::DialogSelection {ref mut mode, owner_id, ..} => {
 				let cur_player = dstate.iface_settings.cur_player as usize;
-				let n_options = if gstate.relations.at_war(cur_player, *owner_id) {
-						2 // threaten, declare peace
-					}else if None == gstate.relations.peace_treaty_turns_remaining(cur_player, *owner_id, gstate.turn) {
-						2 // threaten, declare war
-					}else {1 // threaten (active peace treaty prevents war)
-				};
+				let show_buttons_wo_ids = embassy_response_buttons(*owner_id, cur_player, gstate, &mut dstate.buttons);
 				
-				macro_rules! threaten{() => {
-					gstate.relations.threaten(cur_player, *owner_id, gstate.turn);
-					let quote_category = TxtCategory::from_relations(&gstate.relations, *owner_id, cur_player, players);
-					
-					*self = Self::Threaten {
-						owner_id: *owner_id,
-						quote_printer: TxtPrinter::new(quote_category, gstate.rng.gen())
-					};
-					return UIModeControl::UnChgd;
-				};};
-				
-				// declare peace (move to treaty proposal page)
-				macro_rules! declare_peace{() => {
-					let quote_category = TxtCategory::from_relations(&gstate.relations, *owner_id, cur_player, players);
-					dstate.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VISIBLE);
-					
-					const DEFAULT_GOLD: &str = "0";
-					
-					*self = Self::DeclarePeaceTreaty {
-						owner_id: *owner_id,
-						quote_printer: TxtPrinter::new(quote_category, gstate.rng.gen()),
-						curs_col: DEFAULT_GOLD.len() as isize,
-						gold_offering: String::from(DEFAULT_GOLD),
-						treaty_rejected: false
-					};
-					return UIModeControl::UnChgd;
-				};};
-				
-				macro_rules! declare_war{() => {
-					let owner_id = *owner_id;
-					let quote_category = TxtCategory::from_relations(&gstate.relations, owner_id, cur_player, players);
-					
-					*self = Self::DeclareWar {
-						owner_id,
-						quote_printer: TxtPrinter::new(quote_category, gstate.rng.gen())
-					};
-					if let Some(new_ui_mode) = gstate.relations.declare_war_ret_ui_mode(cur_player, owner_id, &mut gstate.logs, players, gstate.turn, dstate.iface_settings.cur_player_paused(players), &mut gstate.rng, dstate) {
-						return UIModeControl::New(new_ui_mode);
-					}
-					return UIModeControl::UnChgd;
-				};};
-					
-				if dstate.buttons.Threaten.activated(0, &dstate.mouse_event) {threaten!();} else
-				if dstate.buttons.Suggest_a_peace_treaty.activated(0, &dstate.mouse_event) {declare_peace!();} else
-				if dstate.buttons.Declare_war.activated(0, &dstate.mouse_event) {declare_war!();}
-				
-				if dstate.buttons.Threaten.hovered(&dstate.mouse_event) {*mode = 0;} else
-				if dstate.buttons.Suggest_a_peace_treaty.hovered(&dstate.mouse_event) {*mode = 1;} else
-				if dstate.buttons.Declare_war.hovered(&dstate.mouse_event) {*mode = 1;}
-				
-				let kbd = &dstate.kbd;
-				match dstate.key_pressed {
-					k if kbd.up(k) => {if *mode > 0 {*mode -= 1;} else {*mode = n_options-1;}
-					} k if kbd.down(k) => {if *mode < (n_options-1) {*mode += 1;} else {*mode = 0;}
-					// enter
-					} k if k == kbd.enter => {
-						match *mode {
-							0 => {threaten!();
+				if let Some(mode) = button_mode_update_and_action(mode, show_buttons_wo_ids, dstate.key_pressed, &dstate.mouse_event, &dstate.kbd) {
+					let show_buttons = embassy_response_button_ids(*owner_id, cur_player, gstate, &mut dstate.buttons);
+					return match show_buttons[mode].id {
+						EmbassyButtonID::SuggestATrade => {
+							UIModeControl::New(UIMode::Trade(TradeState::new(*owner_id, gstate.turn)))
+						} EmbassyButtonID::ReviewTradeDeals => {
+							UIModeControl::New(UIMode::ViewTrade(ViewTradeState::new(*owner_id)))
+						} EmbassyButtonID::Threaten => {
+							gstate.relations.threaten(cur_player, *owner_id, players, gstate.turn);
+							let quote_category = TxtCategory::from_relations(&gstate.relations, *owner_id, cur_player, players);
+							
+							*self = Self::Threaten {
+								owner_id: *owner_id,
+								quote_printer: TxtPrinter::new(quote_category, gstate.rng.gen())
+							};
+							UIModeControl::UnChgd
+						} EmbassyButtonID::JoinAsKingdom => {
+							// joins as kingdom
+							if willing_to_join_as_kingdom(*owner_id, cur_player, players) {
+								gstate.relations.join_as_kingdom(*owner_id, cur_player, players, &mut gstate.logs, gstate.turn, &mut gstate.rng, temps, dstate);
 								
-							// declare peace or war
-							} 1 => {
-								if gstate.relations.at_war(*owner_id, cur_player)
-									{declare_peace!();} else {declare_war!();}
-							} _ => {panicq!("unknown menu selection for embassy dialog selection ({})", *mode);}
+								UIModeControl::New(UIMode::GenericAlert(GenericAlertState {
+									txt: dstate.local.Trade_accepted.clone()
+								}))
+							
+							// insulted by the offer
+							}else{
+								gstate.relations.add_mood_factor(cur_player, *owner_id, MoodType::YourOfferInsultedUs, gstate.turn);
+								UIModeControl::UnChgd
+							}
+						} EmbassyButtonID::SuggestPeaceTreaty => {
+							// declare peace (move to treaty proposal page)
+							let quote_category = TxtCategory::from_relations(&gstate.relations, *owner_id, cur_player, players);
+							dstate.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VISIBLE);
+							
+							const DEFAULT_GOLD: &str = "0";
+							
+							*self = Self::DeclarePeaceTreaty {
+								owner_id: *owner_id,
+								quote_printer: TxtPrinter::new(quote_category, gstate.rng.gen()),
+								curs_col: DEFAULT_GOLD.len() as isize,
+								gold_offering: String::from(DEFAULT_GOLD),
+								treaty_rejected: false
+							};
+							UIModeControl::UnChgd
+						} EmbassyButtonID::DeclareWar => {
+							let owner_id = *owner_id;
+							let quote_category = TxtCategory::from_relations(&gstate.relations, owner_id, cur_player, players);
+							
+							*self = Self::DeclareWar {
+								owner_id,
+								quote_printer: TxtPrinter::new(quote_category, gstate.rng.gen())
+							};
+							if let Some(new_ui_mode) = gstate.relations.declare_war_ret_ui_mode(cur_player, owner_id, &mut gstate.logs, players, gstate.turn, dstate.iface_settings.cur_player_paused(players), &mut gstate.rng, dstate) {
+								UIModeControl::New(new_ui_mode)
+							}else{
+								UIModeControl::UnChgd
+							}
 						}
-					} KEY_LEFT => {
-						*self = Self::CivSelection {mode: *owner_id};
-					} _ => {}
+					};
 				}
 			} Self::Threaten {..} | Self::DeclareWar {..} | Self::DeclarePeace {..} | Self::DeclaredWarOn {..} => {}
-			
 			
 			Self::DeclarePeaceTreaty {owner_id, ref mut gold_offering, ref mut curs_col,
 					ref mut treaty_rejected, ref mut quote_printer} => {

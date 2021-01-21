@@ -1,12 +1,11 @@
 use super::*;
-use crate::gcore::*;
 use crate::units::ActionType;
 use crate::disp::menus::ArgOptionUI;
 use crate::player::Player;
 
-impl <'f,'bt,'ut,'rt,'st>Disp<'f,'bt,'ut,'rt,'st> {
+impl <'f,'bt,'ut,'rt,'st>Disp<'f,'_,'bt,'ut,'rt,'st> {
 	pub fn print_map(&mut self, map_data: &mut MapData<'rt>, units: &Vec<Unit>, bldgs: &Vec<Bldg>,
-			players: &Vec<Player>, temps: &Templates, exs: &Vec<HashedMapEx>,	gstate: &GameState,
+			players: &Vec<Player>, temps: &Templates, exs: &Vec<HashedMapEx>, gstate: &GameState,
 			frame_stats: &mut FrameStats, alt_ind: usize) {
 		let zoom_ind = self.state.iface_settings.zoom_ind;
 		let map_sz = map_data.map_szs[zoom_ind];
@@ -113,7 +112,7 @@ impl <'f,'bt,'ut,'rt,'st>Disp<'f,'bt,'ut,'rt,'st> {
 							map_coord / map_data.map_szs[zoom_ind].w as u64, map_coord % map_data.map_szs[zoom_ind].w as u64,
 							map_data.map_szs[zoom_ind].h, map_data.map_szs[zoom_ind].w, zoom_ind, map_data.max_zoom_ind());
 						
-						self.plot_land(zoom_ind, map_coord, map_data, units, bldgs, exs, players, &gstate.relations, false, alt_ind);
+						self.plot_land(zoom_ind, map_coord, map_data, units, bldgs, exs, players, gstate, false, alt_ind);
 					}
 				
 				} // screen_loc_x
@@ -211,17 +210,16 @@ impl <'f,'bt,'ut,'rt,'st>Disp<'f,'bt,'ut,'rt,'st> {
 		//  and before rside_stats because this is added to the right side text list
 		//  and should preferrably be at the of the list)
 		{
-			for log in gstate.logs.iter().rev() {
+			for log in gstate.logs.iter().rev()
+					.filter(|log| log.visible(self.state.iface_settings.cur_player as usize, &gstate.relations)) { // only show if civ discovered
+				 
 				// only show if somewhat recent
 				if (log.turn + 30*12*5) <= gstate.turn {break;}
-				
-				// only show if civ discovered
-				if !log.visible(self.state.iface_settings.cur_player as usize, &gstate.relations) {continue;}
 				
 				let date_txt = self.state.local.date_str(log.turn);
 				const DELIM_TXT: &str = ": ";
 				
-				let log_len = print_log(&log.val, false, players, temps.doctrines, &mut self.state);
+				let log_len = log.val.print(false, players, temps.doctrines, &mut self.state);
 				let txt_len = date_txt.len() + log_len + DELIM_TXT.len();
 				
 				if txt_len < screen_sz.w { // only show if enough space
@@ -233,7 +231,7 @@ impl <'f,'bt,'ut,'rt,'st>Disp<'f,'bt,'ut,'rt,'st> {
 					self.state.renderer.addstr(&date_txt);
 					self.attroff(COLOR_PAIR(CYELLOW));
 					self.state.renderer.addstr(DELIM_TXT);
-					print_log(&log.val, true, players, temps.doctrines, &mut self.state);
+					log.val.print(true, players, temps.doctrines, &mut self.state);
 				}
 				break;
 			}
@@ -243,11 +241,11 @@ impl <'f,'bt,'ut,'rt,'st>Disp<'f,'bt,'ut,'rt,'st> {
 		// bottom stats, right side stats, sub map
 		//	(in screen reader mode these may not be shown if a window is active)
 		if !self.ui_mode.hide_map() {
-			self.print_bottom_stats(map_data, exs, player, players, units, &temps.bldg_config, bldgs, gstate);
+			self.print_bottom_stats(map_data, exs, player, players, units, &temps.bldg_config, bldgs, gstate, temps);
 			if !screen_reader_mode() || self.ui_mode.right_side_tabbing() {
-				self.print_rside_stats(frame_stats, gstate.turn, bldgs, players, temps, exf, map_data, map_sz);
+				self.print_rside_stats(frame_stats, gstate, bldgs, players, temps, exf, map_data, map_sz);
 			}
-			self.print_submap(map_data, units, bldgs, exs, players, &gstate.relations, alt_ind);
+			self.print_submap(map_data, units, bldgs, exs, players, gstate, alt_ind);
 		}
 	}
 }

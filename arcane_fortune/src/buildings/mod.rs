@@ -15,6 +15,7 @@ use crate::player::*;
 use crate::containers::*;
 
 mod vars; pub use vars::*;
+mod events; pub use events::*;
 
 const BLDG_CONFIG_FILE: &str = "config/buildings.txt";
 
@@ -44,6 +45,7 @@ pub fn init_bldg_templates<'ut,'rt,'dt>(tech_templates: &Vec<TechTemplate>, unit
 		};
 		
 		let barbarian_only = if let Some(_) = find_key("barbarian_only", keys) {true} else {false};
+		let not_human_buildable = if let Some(_) = find_key("not_human_buildable", keys) {true} else {false};
 		
 		// check that all unit production variables are set or not set
 		if !((units_producable.is_none() && units_producable_txt.is_none() && unit_production_rate == 0) ||
@@ -86,7 +88,7 @@ pub fn init_bldg_templates<'ut,'rt,'dt>(tech_templates: &Vec<TechTemplate>, unit
 				health_bonus: find_key_parse("health_bonus", 0., keys),
 				job_search_bonus: find_key_parse("job_search_bonus", 0., keys),
 				
-				barbarian_only
+				barbarian_only, not_human_buildable
 			} );
 	}
 	
@@ -106,7 +108,12 @@ impl BldgConfig {
 				fire_damage_rate: find_req_key_parse("fire_damage_rate", &keys),
 				fire_repair_rate: find_req_key_parse("fire_repair_rate", &keys),
 				max_bldg_damage: find_req_key_parse("max_bldg_damage", &keys),
-				job_search_bonus_dist: find_req_key_parse("job_search_bonus_dist", &keys)
+				
+				job_search_bonus_dist: find_req_key_parse("job_search_bonus_dist", &keys),
+				
+				birth_celebration_bonus: find_req_key_parse("birth_celebration_bonus", &keys),
+				marriage_celebration_bonus: find_req_key_parse("marriage_celebration_bonus", &keys),
+				funeral_bonus: find_req_key_parse("funeral_bonus", &keys),
 			}
 		}else{panicq!("could not find building configuration entries in {}", BLDG_CONFIG_FILE);}
 	}
@@ -235,7 +242,7 @@ pub fn replace_map_bldg_ind<'bt,'ut,'rt,'dt>(cur_bldg_ind: usize, replace_bldg_i
 	
 	let b = &bldgs[cur_bldg_ind];
 	
-	if b.template.nm[0] == CITY_HALL_NM {
+	if let BldgArgs::PopulationCenter {..} = &b.args {
 		// if bldg whose bldg_ind has been chgd is a city hall, update zones_info.city_hall_bldg_ind
 		if let Some(replace_bldg_ind_un) = replace_bldg_ind {
 			for (_, zi) in players[b.owner_id as usize].zone_exs.iter_mut() {
@@ -250,7 +257,6 @@ pub fn replace_map_bldg_ind<'bt,'ut,'rt,'dt>(cur_bldg_ind: usize, replace_bldg_i
 	} // city hall
 }
 
-#[derive(PartialEq)]
 pub enum UnitDelAction<'d,'u,'bt,'ut,'rt,'dt,'g> {
 	// store to-be-deleted units in disband_unit_inds
 	Record(&'d mut Vec<usize>),
@@ -397,6 +403,7 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 					x: c.x - offsets.1 - 1
 				};
 				ai_state.add_city_plan(city_coord, &mut gstate.rng, map_data, map_sz, temps.bldgs);
+				ai_state.city_states.last_mut().unwrap().population_center_ind = Some(bldgs.len());
 			}
 			
 			// choose name of city, making sure to not choose one that's already been used
@@ -450,10 +457,7 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 			
 			// log
 			//if bt.nm[0] == MANOR_NM {
-				gstate.logs.push(Log {turn: gstate.turn, val: LogType::CityFounded {
-						owner_id,
-						city_nm: nm.clone()
-				}});
+				gstate.log_event(LogType::CityFounded {owner_id, city_nm: nm.clone()});
 			//}
 			
 			BldgArgs::PopulationCenter {

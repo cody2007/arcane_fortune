@@ -36,6 +36,15 @@ pub fn current_war_advantage(owner_id: usize, players: &Vec<Player>, relations: 
 	}
 }
 
+const KINGDOM_MILITARY_FACTOR: f32 = 2.;
+pub fn willing_to_join_as_kingdom(candidate_kingdom_id: usize, candidate_empire_id: usize, players: &Vec<Player>) -> bool {
+	if let Some(kingdom_power) = players[candidate_kingdom_id].stats.military_power() {
+		if let Some(empire_power) = players[candidate_empire_id].stats.military_power() {
+			return (kingdom_power as f32 * KINGDOM_MILITARY_FACTOR) < empire_power as f32;
+		}
+	}
+	false
+}
 
 impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 	// find new city location near an existant city

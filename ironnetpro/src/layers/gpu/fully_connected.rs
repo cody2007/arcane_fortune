@@ -71,7 +71,7 @@ impl Run for FullyConnectedInternals {
 		let K = x.shape.h * x.shape.w; // vec_in
 		let M = self.W.shape.k; // vec_out
 		
-		model.einsum(y, &[0,2], x, &[0,1], &self.W, &[2,1], N, K, M, batch_sz, 0.);
+		model.einsum(y, &[0,2], x, &[0,1], &self.W, &[2,1], N, K, M, batch_sz, 0., self.params.data_type);
 	}
 	
 	fn backward(&self, layer: &Layer, model: &Model) {
@@ -95,7 +95,7 @@ impl Run for FullyConnectedInternals {
 			let K = self.W.shape.k; // vec_out
 			let M = x.shape.h * x.shape.w; // vec_in
 			
-			model.einsum(dx, &[0,1], dy, &[0,2], &self.W, &[2,1], N, K, M, batch_sz, 1.);
+			model.einsum(dx, &[0,1], dy, &[0,2], &self.W, &[2,1], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 		
 		/////////////////////////////////// dW
@@ -104,7 +104,7 @@ impl Run for FullyConnectedInternals {
 			let K = x.shape.n * x.shape.c; // img*t
 			let M = x.shape.h * x.shape.w; // vec_in
 			
-			model.einsum(&self.dW, &[2,1], dy,  &[0,2], x, &[0,1], N, K, M, batch_sz, 1.);
+			model.einsum(&self.dW, &[2,1], dy,  &[0,2], x, &[0,1], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 	}
 	

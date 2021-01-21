@@ -195,7 +195,7 @@ impl DoctrineWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, dstate: &DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, dstate: &DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		self.sel_mv = TreeSelMv::None;
 		
 		tree_window_movement(dstate.key_pressed, &mut self.sel_mv, &mut self.tree_offsets, &DOCTRINE_SZ_PRINT, &dstate.kbd);

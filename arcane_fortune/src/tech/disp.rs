@@ -24,7 +24,7 @@ pub struct TechWindowState {
 
 impl TechWindowState {
 	pub fn print<'bt,'ut,'rt,'dt>(&mut self, temps: &Templates, pstats: &Stats,
-			dstate: &mut DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+			dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		////// init tech sel
 		if self.sel.is_none() {
 			// tech is scheduled
@@ -41,8 +41,7 @@ impl TechWindowState {
 		let d = &mut dstate.renderer;
 		let l = &dstate.local;
 		
-		/////////////////////////////// plotting before/after the tree
-		{
+		{ /////////////////////////////// plotting before/after the tree
 			let title_c = COLOR_PAIR(CGREEN);
 			
 			macro_rules! center_txt{($txt: expr, $w: expr) => {
@@ -234,7 +233,7 @@ impl TechWindowState {
 	}
 	
 	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, pstats: &mut Stats, temps: &Templates,
-			dstate: &DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+			dstate: &DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		self.sel_mv = TreeSelMv::None;
 		
 		tree_window_movement(dstate.key_pressed, &mut self.sel_mv, &mut self.tree_offsets, &TECH_SZ_PRINT, &dstate.kbd);

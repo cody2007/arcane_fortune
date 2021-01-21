@@ -2,7 +2,8 @@ use super::*;
 pub struct DiscoverTechWindowState {pub mode: usize}
 
 impl DiscoverTechWindowState {
-	pub fn print<'bt,'ut,'rt,'dt>(&self, pstats: &Stats, temps: &Templates, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn print<'bt,'ut,'rt,'dt>(&self, pstats: &Stats, temps: &Templates,
+			dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let techs = undiscovered_tech_list(&pstats, temps.techs, &dstate.local);
 		
 		let list_pos = dstate.print_list_window(self.mode, dstate.local.Select_technology.clone(), techs, None, None, 0, None);
@@ -11,8 +12,8 @@ impl DiscoverTechWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, pstats: &mut Stats, temps: &Templates<'bt,'ut,'rt,'dt,'_>, 
-			dstate: &mut DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, pstats: &mut Stats<'bt,'ut,'rt,'dt>, temps: &Templates<'bt,'ut,'rt,'dt,'_>, 
+			dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let list = undiscovered_tech_list(&pstats, temps.techs, &dstate.local);
 		macro_rules! enter_action{($mode: expr) => {
 			if let ArgOptionUI::TechInd(tech_ind) = list.options[$mode].arg {

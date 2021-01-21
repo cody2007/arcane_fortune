@@ -22,19 +22,17 @@ impl ResourcesDiscoveredWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, units: &Vec<Unit>, bldgs: &Vec<Bldg>, players: &Vec<Player>,
-			map_data: &mut MapData, exs: &Vec<HashedMapEx>, temps: &Templates<'bt,'ut,'rt,'dt,'_>, gstate: &GameState,
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, map_data: &mut MapData, temps: &Templates<'bt,'ut,'rt,'dt,'_>, 
 			pstats: &Stats, dstate: &DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let cursor_coord = dstate.iface_settings.cursor_to_map_coord(map_data);
 		
 		let list = discovered_resources_list(&pstats, cursor_coord,	temps.resources, *map_data.map_szs.last().unwrap());
 		
 		macro_rules! enter_action{($mode: expr) => {
-			if let ArgOptionUI::ResourceWCoord {coord, ..} = list.options[$mode].arg {
-				return UIModeControl::CloseAndGoTo(coord);
-			}else{panicq!("invalid UI setting");}
-			
-			return UIModeControl::Closed;
+			return UIModeControl::CloseAndGoTo(
+				if let ArgOptionUI::ResourceWCoord {coord, ..} = list.options[$mode].arg
+					{coord} else {panicq!("invalid UI setting");}
+			);
 		};};
 		if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {	enter_action!(ind);}
 		

@@ -58,6 +58,14 @@ impl Run for ActivationInternals {
 
 impl Model {
 	pub fn add_relu(&mut self, params: ActivationParams) {
+		self.add_activation(cudnnActivationMode_t::CUDNN_ACTIVATION_RELU, params);
+	}
+	
+	pub fn add_tanh(&mut self, params: ActivationParams) {
+		self.add_activation(cudnnActivationMode_t::CUDNN_ACTIVATION_TANH, params);
+	}
+	
+	fn add_activation(&mut self, activation_mode: cudnnActivationMode_t, params: ActivationParams) {
 		let data_type = params.data_type;
 		debug_assert!(self.layers.len() > 0);
 		
@@ -66,10 +74,13 @@ impl Model {
 		
 		let x_shape = layer_prev.y.tensor().shape; // (input to this layer is the output of the previous layer)
 		
-		let activation_desc = ActivationDescriptor::new(
-				cudnnActivationMode_t::CUDNN_ACTIVATION_RELU,
-				NAN_PROP, RELU_COEF
-		);
+		let activation_desc = ActivationDescriptor::new(activation_mode, NAN_PROP, RELU_COEF);
+		
+		let layer_nm = match activation_mode {
+			cudnnActivationMode_t::CUDNN_ACTIVATION_RELU => "relu",
+			cudnnActivationMode_t::CUDNN_ACTIVATION_TANH => "tanh",
+			_ => {panic!("unknown activation mode");}
+		};
 		
 		self.layers.push( Layer::new(
 			vec!{layer_prev_ind; 1},
@@ -78,13 +89,19 @@ impl Model {
 					activation_desc
 			}),
 			Tensor::new(data_type, x_shape),
-			String::from("relu"),
+			String::from(layer_nm),
 			data_type
 		));
 	}
 	
 	pub fn load_relu(&mut self, layer_keys: &Vec<KeyPair>) {
 		self.add_relu(ActivationParams {
+				data_type: find_req_key_parse("data_type", layer_keys)
+		});
+	}
+	
+	pub fn load_tanh(&mut self, layer_keys: &Vec<KeyPair>) {
+		self.add_tanh(ActivationParams {
 				data_type: find_req_key_parse("data_type", layer_keys)
 		});
 	}

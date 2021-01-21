@@ -17,19 +17,42 @@ impl PlayerType<'_,'_,'_,'_> {
 	pub fn is_barbarian(&self) -> bool {
 		if let PlayerType::Barbarian(_) = &self {true} else {false}
 	}
-
+	
+	pub fn is_nobility(&self) -> bool {
+		if let PlayerType::Nobility(_) = &self {true} else {false}
+	}
+	
 	pub fn is_human(&self) -> bool {
 		if let PlayerType::Human(_) = &self {true} else {false}
 	}
+	
+	pub fn personality(&self) -> Option<AIPersonality> {
+		if let Some(house) = self.house() {
+			Some(house.head_personality())
+		}else if let Some(empire_state) = self.empire_state() {
+			Some(empire_state.personality)
+		}else{
+			None
+		}
+	}
+	
+	/*pub fn nm(&self) -> &str {
+		match self {
+			Self::Human(_) => "Human",
+			Self::Empire(_) => "Empire",
+			Self::Barbarian(_) => "Barbarian",
+			Self::Nobility(_) => "Nobility"
+		}
+	}*/
 }
 
 impl Player<'_,'_,'_,'_> {
 	pub fn req_population_center(&self, turn: usize) -> bool {
-		const NO_CITY_HALL_GRACE_TURNS: usize = 100;
+		const NO_CITY_HALL_GRACE_TURNS: usize = 100 + GAME_START_TURN;
 		const NO_MANOR_GRACE_TURNS: usize = NO_CITY_HALL_GRACE_TURNS + NOBILITY_TURN_DELAY;
 		match &self.ptype {
 			PlayerType::Human(_) | PlayerType::Empire(_) => {
-				turn > (GAME_START_TURN + NO_CITY_HALL_GRACE_TURNS)
+				turn > NO_CITY_HALL_GRACE_TURNS
 			}
 			PlayerType::Nobility(_) => {
 				turn > (self.personalization.founded + NO_MANOR_GRACE_TURNS)

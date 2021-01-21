@@ -37,11 +37,11 @@ impl <'bt,'ut,'rt,'dt> CityState <'bt,'ut,'rt,'dt> {
 		}
 		
 		// get boundary around city (used for defense)
-		let city_ul = Coord {y: max(wall_coords.iter().min_by_key(|c| c.y).unwrap().y - BUFFER_AROUND_CITY, 0),
-					   x:     wall_coords.iter().min_by_key(|c| c.x).unwrap().x - BUFFER_AROUND_CITY}.wrap(map_sz);
+		let city_ul = Coord {y: max(wall_coords.iter().map(|c| c.y).min().unwrap() - BUFFER_AROUND_CITY, 0),
+					   x:     wall_coords.iter().map(|c| c.x).min().unwrap() - BUFFER_AROUND_CITY}.wrap(map_sz);
 		
-		let city_lr = Coord {y: min(wall_coords.iter().max_by_key(|c| c.y).unwrap().y + BUFFER_AROUND_CITY, map_sz.h as isize - 1),
-					   x:     wall_coords.iter().max_by_key(|c| c.x).unwrap().x + BUFFER_AROUND_CITY}.wrap(map_sz);
+		let city_lr = Coord {y: min(wall_coords.iter().map(|c| c.y).max().unwrap() + BUFFER_AROUND_CITY, map_sz.h as isize - 1),
+					   x:     wall_coords.iter().map(|c| c.x).max().unwrap() + BUFFER_AROUND_CITY}.wrap(map_sz);
 
 		// put on worker todo list to build the grid and wall
 		// (the wall is pushed second so it is popped off sooner)

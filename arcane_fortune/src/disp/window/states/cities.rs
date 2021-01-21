@@ -16,8 +16,7 @@ impl CitiesWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, units: &Vec<Unit>, bldgs: &Vec<Bldg>, players: &Vec<Player>,
-			map_data: &mut MapData, exs: &Vec<HashedMapEx>, gstate: &GameState, dstate: &DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, bldgs: &Vec<Bldg>, map_data: &mut MapData, gstate: &GameState, dstate: &DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let mut w = 0;
 		let mut label_txt_opt = None;
 		let map_sz = *map_data.map_szs.last().unwrap();
@@ -30,7 +29,7 @@ impl CitiesWindowState {
 		macro_rules! enter_action {($mode: expr) => {
 			// move cursor to entry
 			let coord = match entries.options[$mode].arg {
-				ArgOptionUI::BldgInd(bldg_ind) => {bldgs[bldg_ind].coord}
+				ArgOptionUI::CityInd(bldg_ind) => {bldgs[bldg_ind].coord}
 				_ => {panicq!("inventory list argument option not properly set");}
 			};
 			

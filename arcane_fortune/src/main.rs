@@ -35,7 +35,7 @@ mod containers;
 use renderer::*;
 use map::*;
 use disp::*;
-use disp::menus::{init_menus, do_menu_shortcut, UIRet, FindType};
+use disp::menus::{do_menu_shortcut, UIRet, FindType};
 use disp::window::{init_bldg_prod_windows, do_window_keys};
 use units::*;
 use gcore::*;
@@ -48,7 +48,6 @@ use tech::init_tech_templates;
 use resources::init_resource_templates;
 use doctrine::init_doctrine_templates;
 use keyboard::KeyboardMap;
-use localization::Localization;
 use player::*;
 use containers::*;
 
@@ -56,18 +55,15 @@ fn main(){
 	disp::show_version_status_console();
 	
 	let mut game_control = GameControl::TitleScreen;
-	let mut game_opts = GameOptions {
-		zoom_in_depth: 2,
-		n_players: PLAYER_COLORS.len(),
-		
-		ai_bonuses: Default::default()
-	};
+	let mut game_opts = GameOptions::new();
 	let game_difficulties = load_game_difficulties();
 	
 	let doctrine_templates_junk = Vec::new();
 	let resource_templates_junk = Vec::new();
 	let unit_templates_junk = Vec::new();
 	let bldg_templates_junk = Vec::new();
+	
+	let mut renderer = setup_disp_lib();
 	
 	///////////////
 	// loop through (1) loading or creating a new game (2) playing the game
@@ -85,7 +81,7 @@ fn main(){
 		let mut bldg_config = BldgConfig::default();
 		let mut nms = Nms::default(); // city names
 		
-		let mut disp = Disp::new();
+		let mut disp = Disp::new(&mut renderer);
 		
 		let mut gstate = GameState::default();
 		let mut map_data = MapData::default(Vec::new(), 0, 0, 7, 0, &resource_templates_junk);
@@ -208,6 +204,11 @@ fn main(){
 			UIMode::InitialGameWindow(_) => {}
 			_ => {disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VISIBLE);}
 		}
+		
+		/*printlnq!("units {} rioters {}",
+			units.len(),
+			units.iter().filter(|u| u.template.nm[0] == "Rioter").count()
+		);*/
 		
 		///////////////////
 		// (2) play game after it's been loaded or a new one's been created
@@ -442,22 +443,22 @@ fn main(){
 				let _g = Guard::new("main frame loop -> map/screen printing");
 				
 				disp.print_map(&mut map_data, &units, &bldgs, &players, &temps, &exs, &gstate, &mut frame_stats, alt_ind);
-				disp.print_windows(&mut map_data, exs.last().unwrap(), &units, &bldgs, &temps, &players, &gstate, &game_difficulties);
+				disp.print_windows(&mut map_data, exs.last().unwrap(), &units, &bldgs, &temps, &mut players, &gstate, &game_difficulties);
 				
 				// dbg, show cursor coordinates
 				/*{
-					d.mv(0, 85);
+					disp.mv(0, 85);
 					//if let Some(mouse_event) = mouse_event {
 					//	d.addstr(&format!("{} {}", mouse_event.y, mouse_event.x));//, mouse_event.bstate));
 					//}
-					d.addstr(&format!("{} zoom {} {}", iface_settings.cur_player, iface_settings.zoom_ind, iface_settings.cursor_to_map_coord(&map_data)));
+					disp.addstr(&format!("{} zoom {} {}", disp.state.iface_settings.cur_player, disp.state.iface_settings.zoom_ind, disp.state.iface_settings.cursor_to_map_coord(&map_data)));
 				}*/
 				
 				// dbg show buffer utilization
 				/*d.mv(30,0);
 				addstr(&num_format(map_data.deque_zoom_in.len()));*/
 				
-				if !disp.state.iface_settings.show_expanded_submap {
+				if !disp.state.iface_settings.show_expanded_submap.is_open() {
 					disp.state.buttons.print_tool_tip(&disp.state.chars, &mut disp.state.renderer);
 				}else{
 					disp.state.renderer.set_mouse_to_arrow();

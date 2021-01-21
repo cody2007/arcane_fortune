@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::time::Instant;
-use crate::disp_lib::endwin;
+use crate::renderer::endwin;
 
 pub struct StackElapsed {
 	stack_nm: Vec<&'static str>,

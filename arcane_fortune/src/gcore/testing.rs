@@ -1,11 +1,13 @@
-#[cfg(any(feature="opt_debug", debug_assertions))]
-use crate::renderer::*;
+//#[cfg(any(feature="opt_debug", debug_assertions))]
+//use crate::renderer::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]
 use crate::map::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]
 use crate::buildings::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]
 use crate::units::*;
+#[cfg(any(feature="opt_debug", debug_assertions))]
+use crate::gcore::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]
 use crate::gcore::hashing::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]
@@ -14,8 +16,8 @@ use crate::zones::ZONE_SPACING;
 use crate::disp::Coord;
 #[cfg(any(feature="opt_debug", debug_assertions))]
 use crate::gcore::{approx_eq_tol, in_debt};
-#[cfg(any(feature="opt_debug", debug_assertions))]
-use crate::ai::*;
+//#[cfg(any(feature="opt_debug", debug_assertions))]
+//use crate::ai::*;
 #[cfg(any(feature="opt_debug", debug_assertions))]
 use crate::doctrine::DoctrineTemplate;
 #[cfg(any(feature="opt_debug", debug_assertions))]
@@ -27,7 +29,7 @@ use crate::player::{Stats, Player, PlayerType};
 pub const TOL: f32 = 0.01;
 
 #[cfg(any(feature="opt_debug", debug_assertions))]
-pub fn chk_data(units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, players: &Vec<Player>,
+pub fn chk_data(units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, players: &Vec<Player>, relations: &Relations,
 		doctrine_templates: &Vec<DoctrineTemplate>, map_data: &mut MapData, map_sz: MapSz) {
 	macro_rules! X {($test:expr, $($p:expr),*) => {
 			if !$test {
@@ -319,7 +321,7 @@ pub fn chk_data(units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, pl
 				"recomputed zone demand: {} old: {}", zone_demand_sum_map[owner_id][zt], pstatsz.demand_weighted_sum());
 		}
 		
-		let cond = !in_debt(&player.stats) || (s.alive && s.population != 0) || (!s.alive && s.population == 0);
+		let cond = !in_debt(&player.stats, players, relations) || (s.alive && s.population != 0) || (!s.alive && s.population == 0);
 		if !cond {
 			endwin();	
 			println!("owner_id {}", owner_id);

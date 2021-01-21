@@ -7,12 +7,11 @@ pub struct CivilizationIntelWindowState {
 ////////////////////////// civilization intel
 impl CivilizationIntelWindowState {
 	pub fn print<'bt,'ut,'rt,'dt> (&self, players: &Vec<Player>, gstate: &GameState, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt>  {
-		let l = &dstate.local;
-		let contacted_civs = contacted_civilizations_list(gstate, players, dstate.iface_settings.cur_player, l);
+		let contacted_civs = contacted_civilizations_list(gstate, players, dstate.iface_settings.cur_player, &dstate.local);
 		
 		// select civilization
 		if self.selection_phase {
-			let list_pos = dstate.print_list_window(self.mode, l.Select_civilization.clone(), contacted_civs, None, None, 0, Some(players));
+			let list_pos = dstate.print_list_window(self.mode, dstate.local.Select_civilization.clone(), contacted_civs, None, None, 0, Some(players));
 			dstate.renderer.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
 		// show information for civilization
 		}else{
@@ -21,7 +20,7 @@ impl CivilizationIntelWindowState {
 			
 			let player = &players[owner_id];
 			let o = player;
-			let motto_txt = format!("{} \"{}\"", l.National_motto, o.personalization.motto);
+			let motto_txt = format!("{} \"{}\"", dstate.local.National_motto, o.personalization.motto);
 			let w = max("Our intelligence tells us this is an aggressive and mythological culture.".len(),
 					motto_txt.len()) + 4;
 			let w_pos = dstate.print_window(ScreenSz{w, h: 8+3, sz:0});
@@ -90,41 +89,15 @@ impl CivilizationIntelWindowState {
 			if let PlayerType::Empire(EmpireState {personality, ..}) = &player.ptype {
 				mvl!();mvl!(true);
 				
-				d.addstr("Our intelligence tells us this is a");
-				
-				const SPACE: f32 = 2./3.;
-				if personality.friendliness < (SPACE - 1.) {
-					d.addch('n');
-					d.attron(COLOR_PAIR(CRED));
-					d.addstr(" aggressive");
-					d.attroff(COLOR_PAIR(CRED));
-				}else if personality.friendliness < (2.*SPACE - 1.) {
-					d.addstr(" reserved");
-				}else{
-					d.attron(COLOR_PAIR(CGREEN1));
-					d.addstr(" friendly");
-					d.attroff(COLOR_PAIR(CGREEN1));
-				}
-				
-				d.addstr(" and ");
-				
-				d.addstr(if personality.spirituality < (SPACE - 1.) {
-					"scientific"
-				}else if personality.spirituality < (2.*SPACE - 1.) {
-					"pragmatic"
-				}else if personality.spirituality < (2.5*SPACE - 1.) {
-					"religious"
-				}else{
-					"mythological"
-				});
-				d.addstr(" culture.");
+				color_tags_print(&dstate.local.Our_intelligence_tells_us,
+					&personality.color_tags(&dstate.local), None, &mut dstate.renderer);
 			}
 		}
 		UIModeControl::UnChgd
 	}
 	
 	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, gstate: &GameState, players: &Vec<Player>,
-			dstate: &DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+			dstate: &DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		// civilization selection window
 		if self.selection_phase {
 			let list = contacted_civilizations_list(gstate, players, dstate.iface_settings.cur_player, &dstate.local);

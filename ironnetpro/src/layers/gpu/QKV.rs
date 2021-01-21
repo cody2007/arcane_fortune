@@ -88,7 +88,7 @@ impl Run for QKVInternals {
 		let y_tmp = model.shared_workspace.as_ref().unwrap();
 		
 		// y_tmp[2,0,3] = x[0,1] * W[2,1,3]
-		model.einsum(&y_tmp.w_shape(y.shape()), &[2,0,3], x, &[0,1], &self.W, &[2,1,3], N, K, M, batch_sz, 0.);
+		model.einsum(&y_tmp.w_shape(y.shape()), &[2,0,3], x, &[0,1], &self.W, &[2,1,3], N, K, M, batch_sz, 0., self.params.data_type);
 		
 		// y = y_tmp + bias (bias is broadcast added)
 		unsafe {cudnnOpTensor(model.handle.cudnn_val,
@@ -149,7 +149,7 @@ impl Run for QKVInternals {
 			let K = self.params.n_heads * self.W.shape.h; // h*vec_out
 			let M = x.shape.h; // vec_in
 			
-			model.einsum(dx, &[0,1], dy, &[2,0,3], &self.W, &[2,1,3], N, K, M, batch_sz, 1.);
+			model.einsum(dx, &[0,1], dy, &[2,0,3], &self.W, &[2,1,3], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 		
 		/////////////////////////////////// dW
@@ -159,7 +159,7 @@ impl Run for QKVInternals {
 			let K = x.shape.n * x.shape.c; // img*t
 			let M = self.W.shape.h; // vec_out
 			
-			model.einsum(&self.dW, &[2,1,3], x,  &[0,1], dy, &[2,0,3], N, K, M, batch_sz, 1.);
+			model.einsum(&self.dW, &[2,1,3], x,  &[0,1], dy, &[2,0,3], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 	}
 	

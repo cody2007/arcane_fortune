@@ -20,7 +20,12 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 		if coord.y >= (map_sz.h - city_height - 3) as isize ||
 		   coord.x >= (map_sz.w - city_width - 3) as isize ||
 		   square_clear(coord.to_ind(map_sz) as u64, ScreenSz{h: city_height, w: city_width, sz: 0}, Quad::Lr, map_data, exf) == None {
-		   	   return None;
+				/*printlnq!("{} {} {} {} {} {}",
+					coord.y >= (map_sz.h - city_height - 3) as isize,
+					coord.x >= (map_sz.w - city_width - 3) as isize,
+					square_clear(coord.to_ind(map_sz) as u64, ScreenSz{h: city_height, w: city_width, sz: 0}, Quad::Lr, map_data, exf) == None,
+					coord, city_height, city_width);*/
+				return None;
 		   }
 		
 		let city_state = CityState::new(coord, city_grid_height, min_dist_frm_city_center, taxable_template, rng, map_data, map_sz);
@@ -36,6 +41,14 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 			
 			paused: false
 		})
+	}
+	
+	pub fn doctrine_txt(&self, l: &Localization) -> String {
+		if let Some(doctrine) = self.goal_doctrine {
+			doctrine.nm[l.lang_ind].clone()
+		}else{
+			l.no_doctrine.clone()
+		}
 	}
 }
 

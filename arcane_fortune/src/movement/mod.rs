@@ -114,7 +114,7 @@ struct Node { // will be indexed by the coordinate
 // when this function returns false, do not let user move the cursor with the mouse
 //	(condition where the user is moving the unit with the mouse and the requested position is
 //	 not movable)
-impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn update_move_search_ui(&mut self, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
 			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 			gstate: &mut GameState, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz) {
@@ -160,7 +160,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 							u.action = vec![action_iface.action.clone()];
 							
 							let mut disband_unit_inds = Vec::new();
-							mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds));
+							mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds), &mut None);
 							
 							// ex. if unit boards a boat
 							if disband_unit_inds.contains(&unit_ind) {

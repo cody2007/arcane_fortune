@@ -16,10 +16,15 @@ use crate::gcore::*;
 use crate::player::Player;
 use crate::movement::{manhattan_dist, manhattan_dist_components, MvVars, movable_to};
 use crate::containers::*;
+use crate::localization::Localization;
 #[cfg(feature="profile")]
 use crate::gcore::profiling::*;
 
 pub const AI_MAX_SEARCH_DEPTH: usize = 300*4*2; // 300*4 was not enough to move to the gate
+
+// tags created by ai_personality.color_tags();
+pub const FRIENDLINESS_TAG: &str = "[friendliness]";
+pub const SPIRITUALITY_TAG: &str = "[spirituality]";
 
 pub mod config; pub use config::*;
 pub mod common; pub use common::*; // `AIState` common between nobility and empire AIs
@@ -36,6 +41,74 @@ pub struct AIPersonality {
 }
 
 impl_saving!{AIPersonality {friendliness, spirituality} }
+
+const PERSONALITY_VALS_SPACING: f32 = 2./3.;
+
+impl AIPersonality {
+	pub fn concerned_about_uncommon_doctrines(&self) -> bool {
+		self.spirituality > (2.*PERSONALITY_VALS_SPACING - 1.)
+	}
+	
+	pub fn diplomatic_friendliness_bonus(&self) -> bool {
+		self.friendliness > (2.*PERSONALITY_VALS_SPACING - 1.)
+	}
+	
+	pub fn diplomatic_friendliness_penalty(&self) -> bool {
+		self.friendliness < (PERSONALITY_VALS_SPACING - 1.)
+	}
+	
+	pub fn scientific(&self) -> bool {
+		self.spirituality < (PERSONALITY_VALS_SPACING - 1.) 	
+	}
+	
+	// for printing w/ color_tags_print()
+	pub fn color_tags(&self, l: &Localization) -> Vec<KeyValColor> {
+		let mut tags = Vec::with_capacity(2);
+		
+		// friendliness/aggression txt
+		tags.push({
+			if self.diplomatic_friendliness_penalty() {
+				KeyValColor {
+					key: FRIENDLINESS_TAG.to_string(),
+					val: l.aggressive.clone(),
+					attr: COLOR_PAIR(CRED)
+				}
+			}else if self.friendliness < (2.*PERSONALITY_VALS_SPACING - 1.) {
+				KeyValColor {
+					key: FRIENDLINESS_TAG.to_string(),
+					val: l.reserved.clone(),
+					attr: COLOR_PAIR(CWHITE)
+				}
+			}else{
+				KeyValColor {
+					key: FRIENDLINESS_TAG.to_string(),
+					val: l.friendly.clone(),
+					attr: COLOR_PAIR(CGREEN1)
+				}
+			}
+		});
+		
+		// scientific/spirituality txt
+		tags.push(
+			KeyValColor {
+				key: SPIRITUALITY_TAG.to_string(),
+				val: 
+					if self.scientific() {
+						l.scientific.clone()
+					}else if self.spirituality < (2.*PERSONALITY_VALS_SPACING - 1.) {
+						l.pragmatic.clone()
+					}else if self.spirituality < (2.5*PERSONALITY_VALS_SPACING - 1.) {
+						l.religious.clone()
+					}else{
+						l.mythological.clone()
+					},
+				attr: COLOR_PAIR(CWHITE)
+			}
+		);
+		
+		tags
+	}
+}
 
 // returns true on success
 pub fn set_target_attackable<'bt,'ut,'rt,'dt>(target: &ActionType<'bt,'ut,'rt,'dt>, attacker_ind: usize,

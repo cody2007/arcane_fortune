@@ -13,14 +13,14 @@ impl SelectExploreTypeState {
 			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>,
 			gstate: &mut GameState,
 			map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			dstate: &mut DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+			dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let cur_player = dstate.iface_settings.cur_player as usize;
 		if let Some(unit_inds) = dstate.iface_settings.unit_inds_frm_sel(&players[cur_player].stats, units, map_data, exs.last().unwrap()) {
 			let list = explore_types_list(&dstate.local);
 			
-			macro_rules! enter_action{($mode: expr) => {
+			if list_mode_update_and_action(&mut self.mode, list.options.len(), dstate) {
 				let map_sz = *map_data.map_szs.last().unwrap();
-				let explore_type = ExploreType::from($mode);
+				let explore_type = ExploreType::from(self.mode);
 				
 				for unit_ind in unit_inds {
 					let u = &mut units[unit_ind];
@@ -29,39 +29,15 @@ impl SelectExploreTypeState {
 					
 					if let Some(new_action) = explore_type.find_square_unexplored(unit_ind, u.return_coord(), map_data, exs, units, bldgs, land_discov, map_sz, true, &mut gstate.rng) {
 						units[unit_ind].action.push(new_action);
-						mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Delete);
+						mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Delete, &mut None);
 						//dstate.iface_settings.reset_unit_subsel();
 						dstate.iface_settings.update_all_player_pieces_mvd_flag(units);
 					}
 				}
 				dstate.iface_settings.add_action_to = AddActionTo::None;
 				return UIModeControl::Closed;
-			};};
-			if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {enter_action!(ind);}
-			
-			let kbd = &dstate.kbd;
-			match dstate.key_pressed {
-				// down
-				k if kbd.down(k) => {
-					if (self.mode + 1) <= (list.options.len()-1) {
-						self.mode += 1;
-					}else{
-						self.mode = 0;
-					}
-				
-				// up
-				} k if kbd.up(k) => {
-					if self.mode > 0 {
-						self.mode -= 1;
-					}else{
-						self.mode = list.options.len() - 1;
-					}
-					
-				// enter
-				} k if k == kbd.enter => {
-					enter_action!(self.mode);
-				} _ => {}
 			}
+			
 			return UIModeControl::UnChgd;
 		}
 		UIModeControl::Closed

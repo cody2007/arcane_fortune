@@ -40,9 +40,11 @@ pub struct FogVars<'bt,'ut,'rt,'dt> {
 	// for zoomed out views:
 	pub max_bldg_template: Option<&'bt BldgTemplate<'ut,'rt,'dt>>,
 	pub max_city_nm: Option<String>,
+	
+	pub turn_represented: usize
 }
 
-impl_saving! { FogVars<'bt,'ut,'rt,'dt>{ owner_id, structure, zone_type, max_bldg_template, max_city_nm }}
+impl_saving! { FogVars<'bt,'ut,'rt,'dt>{ owner_id, structure, zone_type, max_bldg_template, max_city_nm, turn_represented }}
 
 impl Default for FogVars<'_,'_,'_,'_> {
 	fn default() -> Self {
@@ -51,7 +53,8 @@ impl Default for FogVars<'_,'_,'_,'_> {
 			structure: None,
 			zone_type: None,
 			max_bldg_template: None,
-			max_city_nm: None
+			max_city_nm: None,
+			turn_represented: 0
 		}
 	}
 }
@@ -242,7 +245,7 @@ pub struct ZoneAgnosticContribFracs {
 	pub doctrine: f32,
 	pub pacifism: f32,
 	
-	// health + unemployment + crime
+	// health + unemployment + crime = 1.
 	pub health: f32,
 	pub unemployment: f32,
 	pub crime: f32,
@@ -268,7 +271,7 @@ impl_saving!{ZoneAgnosticLocallyLogged{happiness_sum, doctrinality_sum, pacifism
 #[derive(Clone, PartialEq, Debug)]
 pub struct ZoneAgnosticStats {
 	pub turn_computed: usize,
-	pub gov_bldg_happiness_sum: f32, // ex from things like parks; has no pstats analog
+	pub gov_bldg_happiness_sum: f32, // ex from things like parks & public events; has no pstats analog
 	
 	pub locally_logged: ZoneAgnosticLocallyLogged, // happiness, doctrinality, pacifism
 	// ^ and contributions of doctrinality, pacifism, crime, health, unemployment to local sum

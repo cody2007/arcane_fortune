@@ -45,9 +45,7 @@ pub fn init_bldg_prod_windows<'bt,'ut,'rt,'dt>(bldg_templates: &'bt Vec<BldgTemp
 		let mut txt_w_none = vec!{"N|one"};
 		let mut bldg_template_inds = vec!{None};
 		
-		for bt in bldg_templates.iter() {
-			if bt.barbarian_only {continue;}
-			
+		for bt in bldg_templates.iter().filter(|bt| !bt.barbarian_only && !bt.not_human_buildable) {
 			if let BldgType::Gov(_) = bt.bldg_type {
 				if bt.available(pstats) {
 					if let Some(menu_txt) = &bt.menu_txt {
@@ -59,8 +57,7 @@ pub fn init_bldg_prod_windows<'bt,'ut,'rt,'dt>(bldg_templates: &'bt Vec<BldgTemp
 				}
 			}
 		}
-		let mut worker_options = OptionsUI {options: Vec::with_capacity(txt_w_none.len()), max_strlen: 0};
-		register_shortcuts(&txt_w_none, &mut worker_options);
+		let mut worker_options = OptionsUI::new(&txt_w_none);
 		
 		// set argument options to associate unit_template index with menu entry
 		for (opt, bldg_template_ind) in worker_options.options.iter_mut().zip(bldg_template_inds.iter().cloned()) {
@@ -91,12 +88,8 @@ pub fn init_bldg_prod_windows<'bt,'ut,'rt,'dt>(bldg_templates: &'bt Vec<BldgTemp
 				}
 			}
 			
-			production_options.bldgs[bt.id as usize] = Some(OptionsUI {
-								options: Vec::with_capacity(txt_w_none.len()),
-								max_strlen: 0});
-			
-			register_shortcuts(&txt_w_none, production_options.bldgs[bt.id as usize].as_mut().unwrap());
-			
+			production_options.bldgs[bt.id as usize] = Some(OptionsUI::new(&txt_w_none));
+					
 			// set argument options to associate unit_template index with menu entry
 			for (opt, unit_template_ind) in production_options.bldgs[bt.id as usize].as_mut().unwrap().options.iter_mut().
 									zip(unit_template_inds.iter().cloned()) {
@@ -125,7 +118,7 @@ pub fn center_txt(txt: &str, w: i32, color: Option<chtype>, renderer: &mut Rende
 }
 
 // returns the upper left corner where the window was printed
-impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 	fn print_window(&mut self, window_sz: ScreenSz) -> Coord {
 		let screen_sz = self.iface_settings.screen_sz;
 		let r = &mut self.renderer;
@@ -197,21 +190,22 @@ impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
 }
 
 // prints windows
-impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn print_windows(&mut self, map_data: &mut MapData<'rt>, exf: &HashedMapEx<'bt,'ut,'rt,'dt>, units: &Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>,
-			temps: &Templates<'bt,'ut,'rt,'dt,'_>, players: &Vec<Player>, gstate: &GameState, game_difficulties: &GameDifficulties) {
-		let h = self.state.iface_settings.screen_sz.h as i32;
-		let w = self.state.iface_settings.screen_sz.w as i32;
+			temps: &Templates<'bt,'ut,'rt,'dt,'_>, players: &mut Vec<Player>, gstate: &GameState, game_difficulties: &GameDifficulties) {
 		let cur_player = self.state.iface_settings.cur_player as usize;
 		let dstate = &mut self.state;
 		let pstats = &players[cur_player].stats;
 		
 		let ret = match &mut self.ui_mode {
 			UIMode::None | UIMode::SetTaxes(_) | UIMode::TextTab {..} | UIMode::Menu {..} => {UIModeControl::UnChgd}
+			UIMode::SetNobleTax(state) => {state.print(dstate)}
+			UIMode::NobilityDeclaresIndependenceWindow(state) => {state.print(players, dstate)}
 			UIMode::BldgsWindow(state) => {state.print(pstats, bldgs, temps, map_data, dstate)}
 			UIMode::MvWithCursorNoActionsRemainAlert(state) => {state.print(units, dstate)}
 			UIMode::CivilizationIntelWindow(state) => {state.print(players, gstate, dstate)}
-			UIMode::ContactNobilityWindow(state) => {state.print(dstate)}
+			UIMode::ContactNobilityWindow(state) => {state.print(gstate, players, bldgs, exf, dstate)}
+			UIMode::NobilityRequestWindow(state) => {state.print(players, dstate)}
 			UIMode::ResourcesAvailableWindow(state) => {state.print(pstats, temps, dstate)}
 			UIMode::ResourcesDiscoveredWindow(state) => {state.print(pstats, map_data, temps, dstate)}
 			UIMode::RiotingAlert(state) => {state.print(dstate)}
@@ -234,6 +228,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 			UIMode::NoblePedigree(state) => {state.print(gstate, players, dstate)}
 			UIMode::NobleUnitsWindow(state) => {state.print(players, units, map_data, temps, gstate, dstate)}
 			UIMode::InitialGameWindow(state) => {state.print(players, dstate)}
+			UIMode::IntroNobilityJoinOptions(state) => {state.print(gstate.turn, dstate)}
 			UIMode::EndGameWindow(state) => {state.print(players, dstate)}
 			UIMode::SaveAutoFreqWindow(state) => {state.print(dstate)}
 			UIMode::GoToCoordinateWindow(state) => {state.print(dstate)}
@@ -255,9 +250,11 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 			UIMode::CreateSectorAutomation(state) => {state.print(pstats, map_data, dstate)}
 			UIMode::ContactEmbassyWindow(state) => {state.print(players, gstate, dstate)}
 			UIMode::WarStatusWindow(state) => {state.print(&gstate.relations, players, dstate)}
+			UIMode::FriendsAndFoesWindow(state) => {state.print(&gstate.relations, players, dstate)}
 			UIMode::UnitsWindow(state) => {state.print(players, units, map_data, temps, dstate)}
 			UIMode::SelectExploreType(state) => {state.print(dstate)}
-			UIMode::Trade(state) => {state.print(dstate)}
+			UIMode::Trade(state) => {state.print(players, gstate, temps, dstate)}
+			UIMode::ViewTrade(state) => {state.print(gstate, temps, players, dstate)}
 		};
 	
 		match ret {

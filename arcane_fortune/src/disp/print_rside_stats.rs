@@ -23,8 +23,8 @@ pub fn crop_txt(txt: &str, w: usize) -> String {
 	}
 }
 
-impl Disp<'_,'_,'_,'_,'_> {
-	pub fn print_rside_stats(&mut self, frame_stats: &FrameStats, turn: usize, bldgs: &Vec<Bldg>,
+impl Disp<'_,'_,'_,'_,'_,'_> {
+	pub fn print_rside_stats(&mut self, frame_stats: &FrameStats, gstate: &GameState, bldgs: &Vec<Bldg>,
 			players: &Vec<Player>, temps: &Templates, exf: &HashedMapEx, map_data: &MapData, map_sz: MapSz) {
 		
 		let screen_sz = self.state.iface_settings.screen_sz;
@@ -56,15 +56,13 @@ impl Disp<'_,'_,'_,'_,'_> {
 		
 		let mut roff = TURN_ROW + 5;
 		macro_rules! mvclr{() => (self.mv(roff, turn_col); roff += 1; self.state.renderer.clrtoeol());}
-		macro_rules! mvclr3{() => (mvclr!(); mvclr!(); mvclr!(););}
 		
 		let pstats = &players[self.state.iface_settings.cur_player as usize].stats;
 		
-		///////////////////////////////////////// display date and next turn keys
-		{
+		{ ////////// display date & next turn keys
 			self.mv(TURN_ROW, turn_col);
 			self.state.renderer.clrtoeol();
-			ralign_txt!(&self.state.local.date_str(turn));
+			ralign_txt!(&self.state.local.date_str(gstate.turn));
 			
 			for j in 1..=6 {
 				self.mv(TURN_ROW+j, turn_col);
@@ -111,13 +109,12 @@ impl Disp<'_,'_,'_,'_,'_> {
 		
 		// budget, demographics, tech, zone demands
 		if pstats.alive {
-			////// display budget
-			{
+			{ ///////// display budget
 				mvclr!(); center_txt!(&self.state.local.Budget); mvclr!();
 				
 				self.state.txt_list.add_r(&mut self.state.renderer);
 				self.state.renderer.addstr(&self.state.local.Taxes); self.addch(':');
-				ralign_txt!(&format!("{:.1}", pstats.tax_income));
+				ralign_txt!(&format!("{:.1}", pstats.tax_income(players, &gstate.relations)));
 				mvclr!();
 				
 				self.state.txt_list.add_r(&mut self.state.renderer);
@@ -136,7 +133,7 @@ impl Disp<'_,'_,'_,'_,'_> {
 				mvclr!();
 				self.state.txt_list.add_r(&mut self.state.renderer);
 				self.state.renderer.addstr(&self.state.local.Net); self.addch(':');
-				let net_val = pstats.tax_income - pstats.unit_expenses - pstats.bldg_expenses;
+				let net_val = pstats.net_income(players, &gstate.relations);
 				let net_color = COLOR_PAIR(if net_val >= 0. {CGREEN} else {CRED});
 				self.attron(net_color);
 				ralign_txt!(&format!("{:.1}", net_val));
@@ -155,11 +152,11 @@ impl Disp<'_,'_,'_,'_,'_> {
 					ralign_txt!(&self.state.local.date_interval_str(-pstats.gold/net_val));
 				}
 				
-				mvclr3!();
+				mvclr!();
+				mvclr!();
 			}
 			
-			/////////// demographics
-			{
+			{ ///////// demographics
 				mvclr!(); center_txt!(&self.state.local.Demographics); mvclr!();
 				self.state.txt_list.add_r(&mut self.state.renderer);
 				self.state.renderer.addstr(&self.state.local.Rsdnts);
@@ -173,11 +170,11 @@ impl Disp<'_,'_,'_,'_,'_> {
 					self.state.renderer.addstr(&self.state.local.Unemp);
 					ralign_txt!(&format!("{}%", (unemp*100.).round()));
 				}
-				mvclr3!();
+				mvclr!();
+				mvclr!();
 			}
 		
-			///////// tech
-			{
+			{ /////// tech
 				mvclr!(); center_txt!(&self.state.local.Tech);
 				mvclr!(); self.state.txt_list.add_r(&mut self.state.renderer); self.state.renderer.addstr(&format!("{}: ", &self.state.local.Rsrch_turn));
 				self.state.txt_list.add_r(&mut self.state.renderer); self.state.renderer.addstr(&format!("{}", pstats.research_per_turn));
@@ -207,9 +204,9 @@ impl Disp<'_,'_,'_,'_,'_> {
 				}
 			}
 			
-			////// zone demands
-			{
-				mvclr3!();
+			{ ///////// zone demands
+				mvclr!();
+				mvclr!();
 				center_txt!(&self.state.local.Zone_demands);
 				
 				zones::disp::show_zone_demand_scales(&mut roff, turn_col, ZonePlotType::All {
@@ -219,8 +216,7 @@ impl Disp<'_,'_,'_,'_,'_> {
 				}, &mut self.state);
 			}
 			
-			////// local zone demand
-			{
+			{ //////// local zone demand
 				let plot_local_demand = {
 					let mut ret_val = false;
 					if self.state.iface_settings.zoom_ind == map_data.max_zoom_ind() {
@@ -279,8 +275,7 @@ impl Disp<'_,'_,'_,'_,'_> {
 			}
 		}else{mvclr!();mvclr!();}
 		
-		///////// arrow keys mode
-		{
+		{ ////// arrow keys mode
 			self.state.txt_list.add_r(&mut self.state.renderer);
 			self.state.renderer.addstr(&self.state.local.Arrow_keys_mv); mvclr!();
 			
@@ -295,14 +290,27 @@ impl Disp<'_,'_,'_,'_,'_> {
 					self.state.txt_list.add_r(&mut self.state.renderer);
 					self.state.renderer.addstr(&format!("* {}", &self.state.local.Screen)); mvclr!();
 					self.state.txt_list.add_r(&mut self.state.renderer);
-					self.state.renderer.addstr(&format!("  {}", &self.state.local.Cursor)); show_toggle!();
+					self.state.renderer.addstr(&format!("  {}", &self.state.local.Cursor)); show_toggle!(); mvclr!();
+					self.state.txt_list.add_r(&mut self.state.renderer);
+					self.state.renderer.addstr(&format!("  {}", &self.state.local.Float));
 				}
 				ViewMvMode::Cursor => {
 					self.state.txt_list.add_r(&mut self.state.renderer);
+					self.state.renderer.addstr(&format!("  {}", &self.state.local.Screen)); mvclr!();
+					self.state.txt_list.add_r(&mut self.state.renderer);
+					self.state.renderer.addstr(&format!("* {}", &self.state.local.Cursor)); mvclr!();
+					self.state.txt_list.add_r(&mut self.state.renderer);
+					self.state.renderer.addstr(&format!("  {}", &self.state.local.Float)); show_toggle!();
+				}
+				ViewMvMode::Float => {
+					self.state.txt_list.add_r(&mut self.state.renderer);
 					self.state.renderer.addstr(&format!("  {}", &self.state.local.Screen)); show_toggle!(); mvclr!();
 					self.state.txt_list.add_r(&mut self.state.renderer);
-					self.state.renderer.addstr(&format!("* {}", &self.state.local.Cursor));
+					self.state.renderer.addstr(&format!("  {}", &self.state.local.Cursor)); mvclr!();
+					self.state.txt_list.add_r(&mut self.state.renderer);
+					self.state.renderer.addstr(&format!("* {}", &self.state.local.Float));
 				}
+	
 				ViewMvMode::N => {}
 			}
 			
@@ -310,6 +318,15 @@ impl Disp<'_,'_,'_,'_,'_> {
 				mvclr!();
 			}
 			self.mv(roff, turn_col); self.state.renderer.clrtoeol();
+		}
+		
+		{ // cursor location
+			mvclr!();
+			self.state.txt_list.add_r(&mut self.state.renderer);
+			self.state.renderer.addstr(&self.state.local.Cursor_location);
+			self.mv(roff, turn_col); self.state.renderer.clrtoeol();
+			self.state.txt_list.add_r(&mut self.state.renderer);
+			self.state.renderer.addstr(&self.state.iface_settings.cursor_to_map_string(map_data));
 		}
 		
 		/////////////// FPS

@@ -7,10 +7,10 @@ use super::*;
 use super::vars::*;
 use super::color::*;
 
-impl Disp<'_,'_,'_,'_,'_> {
+impl Disp<'_,'_,'_,'_,'_,'_> {
 	pub fn print_submap(&mut self, map_data: &mut MapData, units: &Vec<Unit>,
 			bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, players: &Vec<Player>, 
-			relations: &Relations, alt_ind: usize) {
+			gstate: &GameState, alt_ind: usize) {
 		////////// print bounding box
 		macro_rules! bounding_box{($map_sz: expr) => {
 			// -
@@ -114,14 +114,14 @@ impl Disp<'_,'_,'_,'_,'_> {
 						sub_map_y >= map_view_start.y && sub_map_y <= map_view_end.y && x_in_bounds
 					};
 					let map_coord = sub_map_y*submap_sz.w as isize + sub_map_x;
-					self.plot_land($submap_zoom_ind, map_coord as u64, map_data, units, bldgs, exs, players, relations, sel, alt_ind);
+					self.plot_land($submap_zoom_ind, map_coord as u64, map_data, units, bldgs, exs, players, gstate, sel, alt_ind);
 					
 				// show cursor
 				}else{self.addch((self.state.chars.land_char as chtype) | COLOR_PAIR(CRED));}
 			}}
 		};};
 		
-		if !self.state.iface_settings.show_expanded_submap {
+		if !self.state.iface_settings.show_expanded_submap.is_open() {
 			///////// text line above sub-map
 			{
 				self.mv((self.state.iface_settings.screen_sz.h - MAP_ROW_STOP_SZ) as i32, 0);
@@ -215,8 +215,9 @@ impl Disp<'_,'_,'_,'_,'_> {
 				button.print(Some(&self.ui_mode), &self.state.local, &mut self.state.renderer);
 				self.addch(' ');
 			}
-			
-		}else if self.state.iface_settings.show_expanded_submap {
+		
+		// show expanded submap
+		}else{
 			let map_sz = map_data.map_szs[ZOOM_IND_EXPANDED_SUBMAP];
 			let box_start_row = (self.state.iface_settings.screen_sz.h - map_sz.h-2) as i32;
 			self.mv(box_start_row, 0);

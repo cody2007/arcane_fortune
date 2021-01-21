@@ -31,6 +31,7 @@ pub mod bias; pub use bias::*;
 pub mod bias_channels_custom; pub use bias_channels_custom::*;
 pub mod fully_connected; pub use fully_connected::*;
 pub mod fully_connected_w_bias; pub use fully_connected_w_bias::*;
+pub mod fully_connected_w_bias_relu; pub use fully_connected_w_bias_relu::*;
 pub mod elementwise_affine; pub use elementwise_affine::*;
 
 ////// multi-head attn components
@@ -52,9 +53,20 @@ pub mod QK_plus_Qpos_mask_future_times_softmax_w; pub use QK_plus_Qpos_mask_futu
 	//	5. scale outputs
 	//	6. softmax across w dimension (time2)
 
+pub mod QK_plus_Qpos_mask_future_times_softmaxw_mul_V; pub use QK_plus_Qpos_mask_future_times_softmaxw_mul_V::*;
+	//  ^
+	//	1. QK 	(output shape: y[h,img,time1,time2], inputs both: x[h,img,time1,vec_out)
+	//	2. Q*pos 	(output shape: ", pos: x[h,vec_out, time2]
+	// 	3. Q*K + Q*pos 	(both of shape: x]h,img,time1,time2]
+	//	4. mask future time: for all time2 > time1, set to negative infinity
+	//	5. scale outputs
+	//	6. QKP = softmax across w dimension (time2)
+	//	7. QKP * V
+
 //////////////////////////////////////////////// derived from primitive layers
 pub mod softmax_cross_entropy_loss; pub use softmax_cross_entropy_loss::*;
 pub mod correlation_loss; pub use correlation_loss::*;
+pub mod least_square_loss; pub use least_square_loss::*;
 pub mod multi_head_attn; pub use multi_head_attn::*;
 pub mod layer_norm; pub use layer_norm::*;
 
@@ -70,6 +82,7 @@ pub enum InternalTypes {
 	LSTM(LSTMInternals),
 	QKV(QKVInternals),
 	QKPlusQPosMaskFutureTimesSoftmaxW(QKPlusQPosMaskFutureTimesSoftmaxWInternals),
+	QKPlusQPosMaskFutureTimesSoftmaxWMulV(QKPlusQPosMaskFutureTimesSoftmaxWMulVInternals),
 	
 	MulQK(MulQKInternals),
 	MulQAndPos(MulQAndPosInternals),
@@ -85,6 +98,7 @@ pub enum InternalTypes {
 	BiasChannelsCustom(BiasChannelsCustomInternals),
 	FullyConnected(FullyConnectedInternals),
 	FullyConnectedWBias(FullyConnectedWBiasInternals),
+	FullyConnectedWBiasRelu(FullyConnectedWBiasReluInternals),
 	ElementwiseAffine(ElementwiseAffineInternals),
 	Img(ImgInternals),
 	TimeSeries(TimeSeriesInternals)
@@ -104,6 +118,7 @@ macro_rules! run_internal{($internals: expr => $fn: ident ($($args:expr),* )) =>
 		InternalTypes::LSTM(internals) => {internals.$fn($($args),*);}
 		InternalTypes::QKV(internals) => {internals.$fn($($args),*);}
 		InternalTypes::QKPlusQPosMaskFutureTimesSoftmaxW(internals) => {internals.$fn($($args),*);}
+		InternalTypes::QKPlusQPosMaskFutureTimesSoftmaxWMulV(internals) => {internals.$fn($($args),*);}
 		
 		InternalTypes::MulQK(internals) => {internals.$fn($($args),*);}
 		InternalTypes::MulQAndPos(internals) => {internals.$fn($($args),*);}
@@ -119,6 +134,7 @@ macro_rules! run_internal{($internals: expr => $fn: ident ($($args:expr),* )) =>
 		InternalTypes::BiasChannelsCustom(internals) => {internals.$fn($($args),*);}
 		InternalTypes::FullyConnected(internals) => {internals.$fn($($args),*);}
 		InternalTypes::FullyConnectedWBias(internals) => {internals.$fn($($args),*);}
+		InternalTypes::FullyConnectedWBiasRelu(internals) => {internals.$fn($($args),*);}
 		InternalTypes::ElementwiseAffine(internals) => {internals.$fn($($args),*);}
 		
 		InternalTypes::Img(internals) => {internals.$fn($($args),*);}
@@ -140,6 +156,7 @@ macro_rules! run_composite{($internals: expr => $fn_outer: ident ( $fn: ident ($
 		InternalTypes::LSTM(internals) => {internals.$fn($($args),*)}
 		InternalTypes::QKV(internals) => {internals.$fn($($args),*)}
 		InternalTypes::QKPlusQPosMaskFutureTimesSoftmaxW(internals) => {internals.$fn($($args),*)}
+		InternalTypes::QKPlusQPosMaskFutureTimesSoftmaxWMulV(internals) => {internals.$fn($($args),*)}
 		
 		InternalTypes::MulQK(internals) => {internals.$fn($($args),*)}
 		InternalTypes::MulQAndPos(internals) => {internals.$fn($($args),*)}
@@ -155,6 +172,7 @@ macro_rules! run_composite{($internals: expr => $fn_outer: ident ( $fn: ident ($
 		InternalTypes::BiasChannelsCustom(internals) => {internals.$fn($($args),*)}
 		InternalTypes::FullyConnected(internals) => {internals.$fn($($args),*)}
 		InternalTypes::FullyConnectedWBias(internals) => {internals.$fn($($args),*)}
+		InternalTypes::FullyConnectedWBiasRelu(internals) => {internals.$fn($($args),*)}
 		InternalTypes::ElementwiseAffine(internals) => {internals.$fn($($args),*)}
 		
 		InternalTypes::Img(internals) => {internals.$fn($($args),*)}
@@ -175,6 +193,7 @@ macro_rules! run_internal_ret_val{($internals: expr => $fn: ident ($($args:expr)
 		InternalTypes::LSTM(internals) => {internals.$fn($($args),*)}
 		InternalTypes::QKV(internals) => {internals.$fn($($args),*)}
 		InternalTypes::QKPlusQPosMaskFutureTimesSoftmaxW(internals) => {internals.$fn($($args),*)}
+		InternalTypes::QKPlusQPosMaskFutureTimesSoftmaxWMulV(internals) => {internals.$fn($($args),*)}
 		
 		InternalTypes::MulQK(internals) => {internals.$fn($($args),*)}
 		InternalTypes::MulQAndPos(internals) => {internals.$fn($($args),*)}
@@ -190,6 +209,7 @@ macro_rules! run_internal_ret_val{($internals: expr => $fn: ident ($($args:expr)
 		InternalTypes::BiasChannelsCustom(internals) => {internals.$fn($($args),*)}
 		InternalTypes::FullyConnected(internals) => {internals.$fn($($args),*)}
 		InternalTypes::FullyConnectedWBias(internals) => {internals.$fn($($args),*)}
+		InternalTypes::FullyConnectedWBiasRelu(internals) => {internals.$fn($($args),*)}
 		InternalTypes::ElementwiseAffine(internals) => {internals.$fn($($args),*)}
 		
 		InternalTypes::Img(internals) => {internals.$fn($($args),*)}

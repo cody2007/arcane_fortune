@@ -6897,9 +6897,9 @@ extern "C" {
         format: Uint32,
     ) -> *mut SDL_Surface;
 }
-extern "C" {
+/*extern "C" {
     pub fn SDL_FreeSurface(surface: *mut SDL_Surface);
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Set the palette used by a surface."]
     #[doc = ""]
@@ -7730,7 +7730,7 @@ extern "C" {
     #[doc = "  \\brief Get the pixel format associated with the window."]
     pub fn SDL_GetWindowPixelFormat(window: *mut SDL_Window) -> Uint32;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Create a window with the specified position, dimensions, and flags."]
     #[doc = ""]
     #[doc = "  \\param title The title of the window, in UTF-8 encoding."]
@@ -7779,7 +7779,7 @@ extern "C" {
         h: c_int,
         flags: Uint32,
     ) -> *mut SDL_Window;
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Create an SDL window from an existing native window."]
     #[doc = ""]
@@ -7814,13 +7814,13 @@ extern "C" {
     #[doc = "  \\sa SDL_SetWindowTitle()"]
     pub fn SDL_GetWindowTitle(window: *mut SDL_Window) -> *const c_char;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Set the icon for a window."]
     #[doc = ""]
     #[doc = "  \\param window The window for which the icon should be set."]
     #[doc = "  \\param icon The icon for the window."]
     pub fn SDL_SetWindowIcon(window: *mut SDL_Window, icon: *mut SDL_Surface);
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Associate an arbitrary named pointer with a window."]
     #[doc = ""]
@@ -8068,7 +8068,7 @@ extern "C" {
     #[doc = "  \\sa SDL_MinimizeWindow()"]
     pub fn SDL_RestoreWindow(window: *mut SDL_Window);
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Set a window's fullscreen state."]
     #[doc = ""]
     #[doc = "  \\return 0 on success, or -1 if setting the display mode failed."]
@@ -8099,7 +8099,7 @@ extern "C" {
     #[doc = "  \\sa SDL_GetWindowSurface()"]
     #[doc = "  \\sa SDL_UpdateWindowSurfaceRects()"]
     pub fn SDL_UpdateWindowSurface(window: *mut SDL_Window) -> c_int;
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Copy a number of rectangles on the window surface to the screen."]
     #[doc = ""]
@@ -9400,7 +9400,7 @@ extern "C" {
     #[doc = "  \\brief Get the window which currently has keyboard focus."]
     pub fn SDL_GetKeyboardFocus() -> *mut SDL_Window;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Get a snapshot of the current state of the keyboard."]
     #[doc = ""]
     #[doc = "  \\param numkeys if non-NULL, receives the length of the returned array."]
@@ -9415,7 +9415,7 @@ extern "C" {
     #[doc = "  }"]
     #[doc = "  \\endcode"]
     pub fn SDL_GetKeyboardState(numkeys: *mut c_int) -> *const Uint8;
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Get the current key modifier state for the keyboard."]
     pub fn SDL_GetModState() -> SDL_Keymod;
@@ -9551,7 +9551,7 @@ extern "C" {
     #[doc = "  \\brief Get the window which currently has mouse focus."]
     pub fn SDL_GetMouseFocus() -> *mut SDL_Window;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Retrieve the current state of the mouse."]
     #[doc = ""]
     #[doc = "  The current button state is returned as a button bitmask, which can"]
@@ -9559,7 +9559,7 @@ extern "C" {
     #[doc = "  mouse cursor position relative to the focus window for the currently"]
     #[doc = "  selected mouse.  You can pass NULL for either x or y."]
     pub fn SDL_GetMouseState(x: *mut c_int, y: *mut c_int) -> Uint32;
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Get the current state of the mouse, in relation to the desktop"]
     #[doc = ""]
@@ -9701,16 +9701,16 @@ extern "C" {
         hot_y: c_int,
     ) -> *mut SDL_Cursor;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Create a system cursor."]
     #[doc = ""]
     #[doc = "  \\sa SDL_FreeCursor()"]
     pub fn SDL_CreateSystemCursor(id: SDL_SystemCursor) -> *mut SDL_Cursor;
-}
-extern "C" {
+}*/
+/*extern "C" {
     #[doc = "  \\brief Set the active cursor."]
     pub fn SDL_SetCursor(cursor: *mut SDL_Cursor);
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Return the active cursor."]
     pub fn SDL_GetCursor() -> *mut SDL_Cursor;
@@ -9719,14 +9719,14 @@ extern "C" {
     #[doc = "  \\brief Return the default cursor."]
     pub fn SDL_GetDefaultCursor() -> *mut SDL_Cursor;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Frees a cursor created with SDL_CreateCursor() or similar functions."]
     #[doc = ""]
     #[doc = "  \\sa SDL_CreateCursor()"]
     #[doc = "  \\sa SDL_CreateColorCursor()"]
     #[doc = "  \\sa SDL_CreateSystemCursor()"]
     pub fn SDL_FreeCursor(cursor: *mut SDL_Cursor);
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Toggle whether or not the cursor is shown."]
     #[doc = ""]
@@ -16383,7 +16383,7 @@ extern "C" {
         renderer: *mut *mut SDL_Renderer,
     ) -> c_int;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Create a 2D rendering context for a window."]
     #[doc = ""]
     #[doc = "  \\param window The window where rendering is displayed."]
@@ -16412,7 +16412,7 @@ extern "C" {
     #[doc = "  \\sa SDL_CreateRenderer()"]
     #[doc = "  \\sa SDL_DestroyRenderer()"]
     pub fn SDL_CreateSoftwareRenderer(surface: *mut SDL_Surface) -> *mut SDL_Renderer;
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Get the renderer associated with a window."]
     pub fn SDL_GetRenderer(window: *mut SDL_Window) -> *mut SDL_Renderer;
@@ -16458,7 +16458,7 @@ extern "C" {
         h: c_int,
     ) -> *mut SDL_Texture;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Create a texture from an existing surface."]
     #[doc = ""]
     #[doc = "  \\param renderer The renderer."]
@@ -16494,7 +16494,7 @@ extern "C" {
         w: *mut c_int,
         h: *mut c_int,
     ) -> c_int;
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Set an additional color value used in render copy operations."]
     #[doc = ""]
@@ -16775,12 +16775,12 @@ extern "C" {
     pub fn SDL_RenderSetViewport(renderer: *mut SDL_Renderer, rect: *const SDL_Rect)
         -> c_int;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Get the drawing area for the current target."]
     #[doc = ""]
     #[doc = "  \\sa SDL_RenderSetViewport()"]
     pub fn SDL_RenderGetViewport(renderer: *mut SDL_Renderer, rect: *mut SDL_Rect);
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Set the clip rectangle for the current target."]
     #[doc = ""]
@@ -16842,7 +16842,7 @@ extern "C" {
     #[doc = "  \\sa SDL_RenderSetScale()"]
     pub fn SDL_RenderGetScale(renderer: *mut SDL_Renderer, scaleX: *mut f32, scaleY: *mut f32);
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Set the color used for drawing operations (Rect, Line and Clear)."]
     #[doc = ""]
     #[doc = "  \\param renderer The renderer for which drawing color should be set."]
@@ -16860,7 +16860,7 @@ extern "C" {
         b: Uint8,
         a: Uint8,
     ) -> c_int;
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Get the color used for drawing operations (Rect, Line and Clear)."]
     #[doc = ""]
@@ -16911,7 +16911,7 @@ extern "C" {
         blendMode: *mut SDL_BlendMode,
     ) -> c_int;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Clear the current rendering target with the drawing color"]
     #[doc = ""]
     #[doc = "  This function clears the entire rendering target, ignoring the viewport and"]
@@ -16919,7 +16919,7 @@ extern "C" {
     #[doc = ""]
     #[doc = "  \\return 0 on success, or -1 on error"]
     pub fn SDL_RenderClear(renderer: *mut SDL_Renderer) -> c_int;
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Draw a point on the current rendering target."]
     #[doc = ""]
@@ -17003,7 +17003,7 @@ extern "C" {
         count: c_int,
     ) -> c_int;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Fill a rectangle on the current rendering target with the drawing color."]
     #[doc = ""]
     #[doc = "  \\param renderer The renderer which should fill a rectangle."]
@@ -17012,7 +17012,7 @@ extern "C" {
     #[doc = ""]
     #[doc = "  \\return 0 on success, or -1 on error"]
     pub fn SDL_RenderFillRect(renderer: *mut SDL_Renderer, rect: *const SDL_Rect) -> c_int;
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Fill some number of rectangles on the current rendering target with the drawing color."]
     #[doc = ""]
@@ -17027,7 +17027,7 @@ extern "C" {
         count: c_int,
     ) -> c_int;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Copy a portion of the texture to the current rendering target."]
     #[doc = ""]
     #[doc = "  \\param renderer The renderer which should copy parts of a texture."]
@@ -17044,7 +17044,7 @@ extern "C" {
         srcrect: *const SDL_Rect,
         dstrect: *const SDL_Rect,
     ) -> c_int;
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Copy a portion of the source texture to the current rendering target, rotating it by angle around the given center"]
     #[doc = ""]
@@ -17236,7 +17236,7 @@ extern "C" {
         pitch: c_int,
     ) -> c_int;
 }
-extern "C" {
+/*extern "C" {
     #[doc = "  \\brief Update the screen with rendering performed."]
     pub fn SDL_RenderPresent(renderer: *mut SDL_Renderer);
 }
@@ -17253,7 +17253,7 @@ extern "C" {
     #[doc = ""]
     #[doc = "  \\sa SDL_CreateRenderer()"]
     pub fn SDL_DestroyRenderer(renderer: *mut SDL_Renderer);
-}
+}*/
 extern "C" {
     #[doc = "  \\brief Force the rendering context to flush any pending commands to the"]
     #[doc = "         underlying rendering API."]

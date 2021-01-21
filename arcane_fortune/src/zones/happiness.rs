@@ -96,12 +96,12 @@ impl ZoneAgnosticStats {
 	// starts at map location coord, and then finds paths to the closest buildings
 	// that contribute to agnostic zone stats
 	fn new(coord: u64, owner_id: SmSvType, map_data: &mut MapData, exs: &mut Vec<HashedMapEx>,
-			bldgs: &Vec<Bldg>, doctrine: &DoctrineTemplate, doctrine_templates: &Vec<DoctrineTemplate>, gstate: &GameState, map_sz: MapSz) -> Self {
+			bldgs: &Vec<Bldg>, doctrine: &DoctrineTemplate, temps: &Templates, gstate: &GameState, map_sz: MapSz) -> Self {
 		const N_ZONE_AGNOSTIC_SAMPLES: usize = 9;
 		
 		let start_c = Coord::frm_ind(coord, map_sz);
 		let exf = exs.last().unwrap();
-		let mut zone_agnostic_stats = Self::default_init(gstate.turn, doctrine_templates);
+		let mut zone_agnostic_stats = Self::default_init(gstate.turn, temps.doctrines);
 		
 		macro_rules! set_happiness {($zstats: expr) => {
 			$zstats.set_happiness(owner_id as usize, gstate.relations.war_lengths(owner_id as usize, gstate.turn), doctrine, gstate);
@@ -115,24 +115,31 @@ impl ZoneAgnosticStats {
 				if $b.owner_id == owner_id && $b.construction_done == None && !action_iface.too_far(start_c, $b, bldgs, exf, exs, map_data, map_sz) {
 					let dist = manhattan_dist(start_c, Coord::frm_ind($b.coord, map_sz), map_sz) as f32;
 					
-					let bt = &$b.template;
-					zone_agnostic_stats.crime_sum += bt.crime_bonus / dist;
-					zone_agnostic_stats.gov_bldg_happiness_sum += bt.happiness_bonus / dist;
-					zone_agnostic_stats.locally_logged.doctrinality_sum[$b.doctrine_dedication.id] += bt.doctrinality_bonus / dist;
-					zone_agnostic_stats.locally_logged.pacifism_sum += bt.pacifism_bonus / dist;
-					zone_agnostic_stats.health_sum += bt.health_bonus / dist;
-					
-					// unemployment sum
-					match bt.bldg_type {
-						BldgType::Taxable(_) => {
-							let frac = $b.operating_frac();
-							debug_assertq!(frac >= 0. && frac <= 1.);
-							zone_agnostic_stats.unemployment_sum += 1. - frac;
+					// public event, get bonus from public event type
+					if let BldgArgs::PublicEvent {public_event_type, ..} = $b.args {
+						zone_agnostic_stats.gov_bldg_happiness_sum += public_event_type.happiness_bonus(&temps.bldg_config);
+					// get bonuses from building template
+					}else{
+						let bt = &$b.template;
+						zone_agnostic_stats.crime_sum += bt.crime_bonus / dist;
+						zone_agnostic_stats.gov_bldg_happiness_sum += bt.happiness_bonus / dist;
+						zone_agnostic_stats.locally_logged.doctrinality_sum[$b.doctrine_dedication.id] += bt.doctrinality_bonus / dist;
+						zone_agnostic_stats.locally_logged.pacifism_sum += bt.pacifism_bonus / dist;
+						zone_agnostic_stats.health_sum += bt.health_bonus / dist;
+						
+						// unemployment sum
+						match bt.bldg_type {
+							BldgType::Taxable(_) => {
+								let frac = $b.operating_frac();
+								debug_assertq!(frac >= 0. && frac <= 1.);
+								zone_agnostic_stats.unemployment_sum += 1. - frac;
+							}
+							BldgType::Gov(_) => {}
 						}
-						BldgType::Gov(_) => {}
 					}
 					
 					n_conn_found += 1;
+					// found enough bldgs, return
 					if n_conn_found > N_ZONE_AGNOSTIC_SAMPLES {
 						set_happiness!(zone_agnostic_stats);
 					}
@@ -140,7 +147,16 @@ impl ZoneAgnosticStats {
 			};};
 			
 			///////////////////////////
-			// loop over bldgs until we find enough or we run out (first search for gov bldgs)
+			// loop over bldgs until we find enough or we run out 
+			
+			// first search for public events
+			for b in bldgs {
+				if let BldgArgs::PublicEvent {..} = b.args {
+					add_bldg_stats!(b);
+				}
+			}
+			
+			// then search for gov bldgs
 			for b in bldgs {
 				if let BldgType::Gov(_) = b.template.bldg_type {
 					add_bldg_stats!(b);
@@ -163,7 +179,7 @@ const N_TURNS_RECOMP_ZONE_AGNOSTIC_STATS: usize = 30*12;//*5; //30*12 * 1;//75;
 // returns happiness, recomputes if needed
 pub fn return_happiness<'z>(mut coord: u64, map_data: &mut MapData, 
 		exs: &mut Vec<HashedMapEx>, bldgs: &Vec<Bldg>, player: &'z mut Player,
-		doctrine_templates: &Vec<DoctrineTemplate>, gstate: &GameState, map_sz: MapSz) -> &'z ZoneAgnosticStats {
+		temps: &Templates, gstate: &GameState, map_sz: MapSz) -> &'z ZoneAgnosticStats {
 	
 	//////////// compute zone demands on a spaced grid, unless zone doesn't match the grid
 	coord = return_zone_coord(coord, map_sz);
@@ -171,7 +187,7 @@ pub fn return_happiness<'z>(mut coord: u64, map_data: &mut MapData,
 	
 	////// check if we re-compute or use old vals
 	if (zone_ex.zone_agnostic_stats.turn_computed + N_TURNS_RECOMP_ZONE_AGNOSTIC_STATS) < gstate.turn || zone_ex.zone_agnostic_stats.turn_computed == 0 {
-		let stats_new = ZoneAgnosticStats::new(coord, player.id, map_data, exs, bldgs, player.stats.doctrine_template, doctrine_templates, gstate, map_sz);
+		let stats_new = ZoneAgnosticStats::new(coord, player.id, map_data, exs, bldgs, player.stats.doctrine_template, temps, gstate, map_sz);
 		let stats_old = &mut zone_ex.zone_agnostic_stats;
 		
 		//////////////////////
@@ -187,7 +203,7 @@ pub fn return_happiness<'z>(mut coord: u64, map_data: &mut MapData,
 // randomly updates old happiness values
 pub fn randomly_update_happiness<'bt,'ut,'rt,'dt>(map_data: &mut MapData, 
 		exs: &mut Vec<HashedMapEx>, players: &mut Vec<Player>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
-		doctrine_templates: &'dt Vec<DoctrineTemplate>, gstate: &mut GameState, map_sz: MapSz) {
+		temps: &Templates<'bt,'ut,'rt,'dt,'_>, gstate: &mut GameState, map_sz: MapSz) {
 	#[cfg(feature="profile")]
 	let _g = Guard::new("randomly_update_happiness");
 	
@@ -195,15 +211,15 @@ pub fn randomly_update_happiness<'bt,'ut,'rt,'dt>(map_data: &mut MapData,
 	if let Some(coord) = SampleType::ZoneAgnostic.coord_frm_turn_computed(players, exf, map_sz, gstate) {
 		if let Some(ex) = exf.get(&coord) {
 			if let Some(owner_id) = ex.actual.owner_id {
-				let zone_agnostic_stats = return_happiness(coord, map_data, exs, bldgs, &mut players[owner_id as usize], doctrine_templates, gstate, map_sz);
+				let zone_agnostic_stats = return_happiness(coord, map_data, exs, bldgs, &mut players[owner_id as usize], temps, gstate, map_sz);
 				
 				// get max doctrinality of the zone
 				let max_doc = {
 					let mut max_doc_sum = zone_agnostic_stats.locally_logged.doctrinality_sum[0];
-					let mut max_doc = &doctrine_templates[0];
+					let mut max_doc = &temps.doctrines[0];
 					
 					for (ds, doc) in zone_agnostic_stats.locally_logged.doctrinality_sum.iter()
-							.zip(doctrine_templates.iter()).skip(1) {
+							.zip(temps.doctrines.iter()).skip(1) {
 						if *ds > max_doc_sum {
 							max_doc_sum = *ds;
 							max_doc = doc;

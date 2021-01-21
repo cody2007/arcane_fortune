@@ -5,6 +5,9 @@ Used primarily with rioters, and separately for markets.
 	fire_repair_rate: 1
 	max_bldg_damage: 500
 	job_search_bonus_dist: 120
+	birth_celebration_bonus: 10
+	marriage_celebration_bonus: 10
+	funeral_bonus: -10
 }
 
 ----------------------------------------------
@@ -28,8 +31,8 @@ Note: workers by default do 3000 actions_per_turn
 		└──────────┘
 	]
 	plot_zoomed: C
-	units_producable: Worker, Explorer
-	units_producable_txt: Wor|k|er, E|xplorer
+	units_producable: Worker, Explorer, Assassin
+	units_producable_txt: Wor|k|er, E|xplorer, A|ssassin
 	unit_production_rate: 10
 	construction_req: 1080000
 	residential_bonus: 150
@@ -128,6 +131,22 @@ Note: workers by default do 3000 actions_per_turn
 	construction_req: 2160000
 	upkeep: 10
 	tech_req: Rowing
+}
+
+{
+	nm: Public event
+	menu_txt: None
+	print_str: [
+		┌───────────────┐
+		│  / \     / \  │
+		│ /   \   /   \ │
+		│| [#] | | [#] |│
+		└───────────────┘
+	]
+	plot_zoomed: E
+	upkeep: 1
+	construction_req: 0
+	not_human_buildable: true
 }
 
 {
@@ -304,6 +323,7 @@ Note: workers by default do 3000 actions_per_turn
 	business_bonus: 200
 	agricultural_bonus: 200
 	industrial_bonus: 200
+	not_human_buildable: true
 }
 
 {

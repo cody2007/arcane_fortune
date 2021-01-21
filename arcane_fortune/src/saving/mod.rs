@@ -141,6 +141,7 @@ impl_frm_cast!(SectorUnitEnterAction, SmSvType);
 impl_frm_cast!(SectorCreationType, SmSvType);
 impl_frm_cast!(PacifismMilitarism, SmSvType);
 impl_frm_cast!(MoodType, SmSvType);
+impl_frm_cast!(PublicEventType, SmSvType);
 
 ////////////////////////// saving/loading non-castable (to integer) primitives
 
@@ -236,6 +237,13 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for &'dt DoctrineTemplate {
 }}
 
 //////////////////////////////////////// Enums w/ embeded values
+impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for ShowExpandedSubmap {
+	fn sv(&self, _res: &mut Vec<u8>){}
+	
+	fn ld(&mut self, _res: &Vec<u8>, _o: &mut usize, _bldg_templates: &Vec<BldgTemplate>, _unit_templates: &Vec<UnitTemplate<'rt>>, _resource_templates: &'rt Vec<ResourceTemplate>, _doctrine_templates: &'dt Vec<DoctrineTemplate>){
+		*self = Self::Closed(Instant::now());
+}}
+
 impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for HappinessCategory {
 	fn sv(&self, res: &mut Vec<u8>){
 		match self {
@@ -393,20 +401,82 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for AttackFrontState {
 	}
 }
 
+///////////// TradeItem
+impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for TradeItem {
+	fn sv(&self, res: &mut Vec<u8>){
+		match self {
+			Self::LumpGold(gold) => {
+				res.push(0);
+				gold.sv(res);
+			} Self::GoldPerTurn(gpt) => {
+				res.push(1);
+				gpt.sv(res);
+			} Self::Resource(ind) => {
+				res.push(2);
+				ind.sv(res);
+			} Self::Tech(ind) => {
+				res.push(3);
+				ind.sv(res);
+			} Self::DefensivePact => {res.push(4);
+			} Self::WorldMap => {res.push(5);}
+		}
+	}
+	
+	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
+		*o += 1;
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		
+		*self = match res[*o-1] {
+			0 => {
+				let mut d = Self::LumpGold(0.);
+				if let Self::LumpGold(ref mut gold) = d {
+					ld_vals!(gold);
+				}else{panicq!("invalid value");}
+				d
+			} 1 => {
+				let mut d = Self::GoldPerTurn(0.);
+				if let Self::GoldPerTurn(ref mut gpt) = d {
+					ld_vals!(gpt);
+				}else{panicq!("invalid value");}
+				d
+			} 2 => {
+				let mut d = Self::Resource(0);
+				if let Self::Resource(ref mut ind) = d {
+					ld_vals!(ind);
+				}else{panicq!("invalid value");}
+				d
+			} 3 => {
+				let mut d = Self::Tech(0);
+				if let Self::Tech(ref mut ind) = d {
+					ld_vals!(ind);
+				}else{panicq!("invalid value");}
+				d
+			} 4 => {Self::DefensivePact
+			} 5 => {Self::WorldMap}
+			_ => {panicq!("unknown trade item type")}
+		}
+	}
+}
+
 ///////////// RelationStatus
 impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for RelationStatus {
 	fn sv(&self, res: &mut Vec<u8>){
 		match self {
 			RelationStatus::Undiscovered => {res.push(0);
-			} RelationStatus::Peace {turn_started} => {
+			} RelationStatus::Peace(trade_status) => {
 				res.push(1);
-				turn_started.sv(res);
+				trade_status.sv(res);
 			} RelationStatus::War {turn_started} => {
 				res.push(2);
 				turn_started.sv(res);
-			} RelationStatus::Fiefdom {turn_joined} => {
+			} RelationStatus::Fiefdom {tax_rate, trade_status} => {
 				res.push(3);
-				turn_joined.sv(res);
+				tax_rate.sv(res);
+				trade_status.sv(res);
+			} RelationStatus::Kingdom {kingdom_id, trade_status} => {
+				res.push(4);
+				kingdom_id.sv(res);
+				trade_status.sv(res);
 			}
 		}
 	}
@@ -418,9 +488,9 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for RelationStatus {
 		*self = match res[*o-1] {
 			0 => {RelationStatus::Undiscovered
 			} 1 => {
-				let mut d = RelationStatus::Peace {turn_started: 0};
-				if let RelationStatus::Peace {ref mut turn_started} = d {
-					ld_vals!(turn_started);
+				let mut d = RelationStatus::Peace(TradeStatus::default());
+				if let RelationStatus::Peace(ref mut trade_status) = d {
+					ld_vals!(trade_status);
 				}
 				d
 			} 2 => {
@@ -430,13 +500,18 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for RelationStatus {
 				}
 				d
 			} 3 => {
-				let mut d = RelationStatus::Fiefdom {turn_joined: 0};
-				if let RelationStatus::Fiefdom {ref mut turn_joined} = d {
-					ld_vals!(turn_joined);
+				let mut d = RelationStatus::Fiefdom {tax_rate: 0, trade_status: TradeStatus::default()};
+				if let RelationStatus::Fiefdom {ref mut tax_rate, ref mut trade_status} = d {
+					ld_vals!(tax_rate, trade_status);
 				}
 				d
-			}
-			_ => {panicq!("unknown relationstatus type")}
+			} 4 => {
+				let mut d = RelationStatus::Kingdom {kingdom_id: 0, trade_status: TradeStatus::default()};
+				if let RelationStatus::Kingdom {ref mut kingdom_id, ref mut trade_status} = d {
+					ld_vals!(kingdom_id, trade_status);
+				}
+				d
+			} _ => {panicq!("unknown relationstatus type")}
 		}
 	}
 }
@@ -636,7 +711,20 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for LogType {
 				reason.sv(res);
 			} LogType::NobleHouseJoinedEmpire {house_id, empire_id} => {res.push(19);
 				house_id.sv(res); empire_id.sv(res);
-			} LogType::Debug {txt, owner_id} => {res.push(20);
+			} LogType::GenericEvent {location, event_type, owner_id} => {res.push(20);
+				location.sv(res); event_type.sv(res); owner_id.sv(res);
+			} LogType::NoNobleSuccessor {owner_id} => {res.push(21);
+				owner_id.sv(res);
+			} LogType::LeaderAssassinated {owner_id, city_nm} => {res.push(22);
+				owner_id.sv(res);
+				city_nm.sv(res);
+			} LogType::HouseDeclaresIndependence {house_id, empire_id} => {res.push(23);
+				house_id.sv(res);
+				empire_id.sv(res);
+			} LogType::KingdomJoinedEmpire {kingdom_id, empire_id} => {res.push(24);
+				kingdom_id.sv(res);
+				empire_id.sv(res);
+			} LogType::Debug {txt, owner_id} => {res.push(25);
 				txt.sv(res);
 				owner_id.sv(res);
 			}}}
@@ -851,6 +939,36 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for LogType {
 				}else{panicq!("invalid log type");}
 				d
 			} 20 => {
+				let mut d = LogType::GenericEvent {location: String::new(), event_type: String::new(), owner_id: 0};
+				if let LogType::GenericEvent {ref mut location, ref mut event_type, ref mut owner_id} = d {
+					ld_vals!(location, event_type, owner_id);
+				}else{panicq!("invalid log type");}
+				d
+			} 21 => {
+				let mut d = LogType::NoNobleSuccessor {owner_id: 0};
+				if let LogType::NoNobleSuccessor {ref mut owner_id} = d {
+					ld_vals!(owner_id);
+				}else{panic!("invalid log type");}
+				d
+			} 22 => {
+				let mut d = LogType::LeaderAssassinated {owner_id: 0, city_nm: String::new()};
+				if let LogType::LeaderAssassinated {ref mut owner_id, ref mut city_nm} = d {
+					ld_vals!(owner_id, city_nm);
+				}else{panic!("invalid log type");}
+				d
+			} 23 => {
+				let mut d = LogType::HouseDeclaresIndependence {house_id: 0, empire_id: 0};
+				if let LogType::HouseDeclaresIndependence {ref mut house_id, ref mut empire_id} = d {
+					ld_vals!(house_id, empire_id);
+				}else{panicq!("invalid log type");}
+				d
+			} 24 => {
+				let mut d = LogType::KingdomJoinedEmpire {kingdom_id: 0, empire_id: 0};
+				if let LogType::KingdomJoinedEmpire {ref mut kingdom_id, ref mut empire_id} = d {
+					ld_vals!(kingdom_id, empire_id);
+				}else{panicq!("invalid log type");}
+				d
+			} 25 => {
 				let mut d = LogType::Debug {
 					txt: String::new(),
 					owner_id: None
@@ -929,8 +1047,13 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for BldgArgs<'ut,'rt> {
 			} BldgArgs::GenericProducable {production} => {
 				res.push(1);
 				production.sv(res);
-			} BldgArgs::None => {
+			} BldgArgs::PublicEvent {public_event_type, nm, turn_created} => {
 				res.push(2);
+				public_event_type.sv(res);
+				nm.sv(res);
+				turn_created.sv(res);
+			} BldgArgs::None => {
+				res.push(3);
 	}}}
 	
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
@@ -947,11 +1070,17 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for BldgArgs<'ut,'rt> {
 				args
 			} 1 => {
 				let mut args = BldgArgs::GenericProducable {production: Vec::new()};
-				if let BldgArgs::GenericProducable {ref mut production}  = args {
+				if let BldgArgs::GenericProducable {ref mut production} = args {
 					ld_vals!(production);
-				}
+				}else{panicq!("invalid bldg args");}
 				args
-			} 2 => {BldgArgs::None
+			} 2 => {
+				let mut args = BldgArgs::PublicEvent {public_event_type: PublicEventType::Marriage, nm: String::new(), turn_created: 0};
+				if let BldgArgs::PublicEvent {ref mut public_event_type, ref mut nm, ref mut turn_created} = args {
+					ld_vals!(public_event_type, nm, turn_created);
+				}else{panicq!("invalid bldg args");}
+				args
+			} 3 => {BldgArgs::None
 			} _ => {panicq!("invalid BldArgs id")
 }}}}
 
@@ -960,7 +1089,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for ActionType<'bt,'ut,'rt,'dt
 	fn sv(&self, res: &mut Vec<u8>){
 		match self {
 			ActionType::Mv => {res.push(0);
-			} ActionType::MvIgnoreWalls => {res.push(1);
+			} ActionType::MvIgnoreWallsAndOntoPopulationCenters => {res.push(1);
 			} ActionType::MvIgnoreOwnWalls => {res.push(2);
 			} ActionType::CivilianMv => {res.push(3);
 			} ActionType::AutoExplore {start_coord, explore_type} => {
@@ -1028,6 +1157,10 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for ActionType<'bt,'ut,'rt,'dt
 				res.push(20);
 				start_coord.sv(res);
 				end_coord.sv(res);
+			} ActionType::ScaleWalls => {res.push(21);
+			} ActionType::Assassinate {attack_coord} => {
+				res.push(22);
+				attack_coord.sv(res);
 	}}}
 	
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
@@ -1037,7 +1170,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for ActionType<'bt,'ut,'rt,'dt
 		
 		*self = match res[*o-1] {
 			0 => {ActionType::Mv
-			} 1 => {ActionType::MvIgnoreWalls
+			} 1 => {ActionType::MvIgnoreWallsAndOntoPopulationCenters
 			} 2 => {ActionType::MvIgnoreOwnWalls
 			} 3 => {ActionType::CivilianMv
 			} 4 => {
@@ -1136,6 +1269,13 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for ActionType<'bt,'ut,'rt,'dt
 				};
 				if let ActionType::WorkerRmZonesAndBldgs {ref mut start_coord, ref mut end_coord} = at {
 					ld_vals!(start_coord, end_coord);
+				}else{panicq!("load error");}
+				at
+			} 21 => {ActionType::ScaleWalls
+			} 22 => {
+				let mut at = ActionType::Assassinate {attack_coord: None};
+				if let ActionType::Assassinate {ref mut attack_coord} = at {
+					ld_vals!(attack_coord);
 				}else{panicq!("load error");}
 				at
 			} _ => {panicq!("unknown ActionType id {}", res[*o-1]) }};}}

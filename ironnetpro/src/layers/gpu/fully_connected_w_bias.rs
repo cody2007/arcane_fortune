@@ -79,7 +79,7 @@ impl Run for FullyConnectedWBiasInternals {
 		let y_tmp = model.shared_workspace.as_ref().unwrap();
 		
 		// y_tmp = x*W
-		model.einsum(&y_tmp.w_shape(y.shape()), &[0,2], x, &[0,1], &self.W, &[2,1], N, K, M, batch_sz, 0.);
+		model.einsum(&y_tmp.w_shape(y.shape()), &[0,2], x, &[0,1], &self.W, &[2,1], N, K, M, batch_sz, 0., self.params.data_type);
 		
 		// y = y_tmp + bias (bias is broadcast added)
 		unsafe {cudnnOpTensor(model.handle.cudnn_val,
@@ -129,7 +129,7 @@ impl Run for FullyConnectedWBiasInternals {
 			let K = self.W.shape.k; // vec_out
 			let M = x.shape.h * x.shape.w; // vec_in
 			
-			model.einsum(dx, &[0,1], dy, &[0,2], &self.W, &[2,1], N, K, M, batch_sz, 1.);
+			model.einsum(dx, &[0,1], dy, &[0,2], &self.W, &[2,1], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 		
 		/////////////////////////////////// dW
@@ -138,7 +138,7 @@ impl Run for FullyConnectedWBiasInternals {
 			let K = x.shape.n * x.shape.c; // img*t
 			let M = x.shape.h * x.shape.w; // vec_in
 			
-			model.einsum(&self.dW, &[2,1], dy,  &[0,2], x, &[0,1], N, K, M, batch_sz, 1.);
+			model.einsum(&self.dW, &[2,1], dy,  &[0,2], x, &[0,1], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 	}
 	

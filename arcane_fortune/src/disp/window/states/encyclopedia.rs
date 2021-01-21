@@ -18,9 +18,7 @@ impl EncyclopediaWindowState {
 		match self {
 			///////////////////////////////////////// first page shown when window is first created, prompting for category type
 			Self::CategorySelection {mode} => {
-				let mut category_options = OptionsUI {options: Vec::with_capacity(ENCYCLOPEDIA_CATEGORY_NMS.len()), max_strlen: 0};
-				
-				register_shortcuts(ENCYCLOPEDIA_CATEGORY_NMS, &mut category_options);
+				let category_options = OptionsUI::new(ENCYCLOPEDIA_CATEGORY_NMS);
 				let list_pos = dstate.print_list_window(*mode, dstate.local.What_would_you_like_to_learn_about.clone(), category_options, Some(dstate.local.What_would_you_like_to_learn_about.len()+4), None, 0, None);
 				dstate.renderer.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
 			
@@ -32,9 +30,7 @@ impl EncyclopediaWindowState {
 						let mut exemplar_nms = Vec::with_capacity($templates.len());
 						for template in $templates.iter() {exemplar_nms.push(template.nm[dstate.local.lang_ind].as_str());}
 						
-						let mut exemplar_options = OptionsUI {options: Vec::with_capacity(exemplar_nms.len()), max_strlen: 0};
-						
-						register_shortcuts(exemplar_nms.as_slice(), &mut exemplar_options);
+						let exemplar_options = OptionsUI::new(exemplar_nms.as_slice());
 						let list_pos = dstate.print_list_window(*mode, format!("Select a {}:", $txt), exemplar_options, Some(30), None, 0, None);
 						dstate.renderer.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
 					};};
@@ -68,7 +64,7 @@ impl EncyclopediaWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, temps: &Templates, dstate: &DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, temps: &Templates, dstate: &DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		const N_CATEGORIES: usize = 5; // unit, bldg, tech, doctrine, resource
 		
 		let n_options = |category| {
@@ -94,8 +90,7 @@ impl EncyclopediaWindowState {
 		
 		// shortcut key pressed? (they are only on the main category selection screen)
 		if let Self::CategorySelection {..} = self {
-			let mut category_options = OptionsUI {options: Vec::with_capacity(ENCYCLOPEDIA_CATEGORY_NMS.len()), max_strlen: 0};
-			register_shortcuts(ENCYCLOPEDIA_CATEGORY_NMS, &mut category_options);
+			let category_options = OptionsUI::new(ENCYCLOPEDIA_CATEGORY_NMS);
 			
 			for (new_menu_ind, option) in category_options.options.iter().enumerate() {
 				// match found

@@ -10,7 +10,7 @@ impl CitizenDemandAlertState {
 				reason: self.reason.clone()
 			};
 		let w = {
-			let log_len = print_log(&log_type, false, players, temps.doctrines, dstate);
+			let log_len = log_type.print(false, players, temps.doctrines, dstate);
 			max(dstate.local.Advisor_caution.len(), log_len) + 4
 		};
 		let w_pos = dstate.print_window(ScreenSz{w, h: 2+4+3, sz:0});
@@ -24,7 +24,7 @@ impl CitizenDemandAlertState {
 		
 		mvl!(); dstate.buttons.Esc_to_close.print(None, &dstate.local, &mut dstate.renderer);
 		mvl!(); mvl!();
-		print_log(&log_type, true, players, temps.doctrines, dstate);
+		log_type.print(true, players, temps.doctrines, dstate);
 		mvl!(); mvl!(1);
 		dstate.renderer.addstr(&dstate.local.Advisor_caution); // update the width calculation above if this changes
 		UIModeControl::UnChgd

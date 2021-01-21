@@ -71,7 +71,7 @@ impl Run for MulQKInternals {
 		let K = query.shape.w; // vec_out
 		let M = query.shape.h; // time2
 		
-		model.einsum(y, &[0,1,3], query, &[0,1,2], key, &[0,3,2], N, K, M, batch_sz, 0.);
+		model.einsum(y, &[0,1,3], query, &[0,1,2], key, &[0,3,2], N, K, M, batch_sz, 0., self.params.data_type);
 	}
 	
 	fn backward(&self, layer: &Layer, model: &Model) {
@@ -99,7 +99,7 @@ impl Run for MulQKInternals {
 			let K = query.shape.h; // time2
 			let M = query.shape.w; // vec_out
 			
-			model.einsum(dquery, &[0,1,2], dy, &[0,1,3], key, &[0,3,2], N, K, M, batch_sz, 1.);
+			model.einsum(dquery, &[0,1,2], dy, &[0,1,3], key, &[0,3,2], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 		
 		///////////////////////// dK
@@ -108,7 +108,7 @@ impl Run for MulQKInternals {
 			let K = key.shape.h; // time1
 			let M = key.shape.w; // vec_out
 			
-			model.einsum(dkey, &[0,3,2], dy, &[0,1,3], query, &[0,1,2], N, K, M, batch_sz, 1.);
+			model.einsum(dkey, &[0,3,2], dy, &[0,1,3], query, &[0,1,2], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 	}
 	

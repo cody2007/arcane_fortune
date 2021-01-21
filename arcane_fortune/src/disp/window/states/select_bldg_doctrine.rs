@@ -8,7 +8,7 @@ pub struct SelectBldgDoctrineState<'bt,'ut,'rt,'dt> {
 
 ////////////////////////// select doctrine dedication
 impl <'bt,'ut,'rt,'dt>SelectBldgDoctrineState<'bt,'ut,'rt,'dt> {
-	pub fn print(&self, pstats: &Stats, temps: &Templates, dstate: &mut DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn print(&self, pstats: &Stats, temps: &Templates, dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let list = doctrines_available_list(&pstats, temps.doctrines, &dstate.local);
 		
 		let list_pos = dstate.print_list_window(self.mode, dstate.local.Dedicate_to.clone(), list.clone(), None, None, 0, None);
@@ -24,7 +24,7 @@ impl <'bt,'ut,'rt,'dt>SelectBldgDoctrineState<'bt,'ut,'rt,'dt> {
 	
 	pub fn keys(&mut self, units: &Vec<Unit<'bt,'ut,'rt,'dt>>, 
 			pstats: &Stats, map_data: &mut MapData, exf: &HashedMapEx, 
-			temps: &Templates<'bt,'ut,'rt,'dt,'_>, dstate: &mut DispState<'_,'bt,'ut,'rt,'dt>) 
+			temps: &Templates<'bt,'ut,'rt,'dt,'_>, dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) 
 				-> UIModeControl<'bt,'ut,'rt,'dt> {
 		if let Some(unit_inds) = dstate.iface_settings.unit_inds_frm_sel(pstats, units, map_data, exf) {
 			let list = doctrines_available_list(pstats, temps.doctrines, &dstate.local);

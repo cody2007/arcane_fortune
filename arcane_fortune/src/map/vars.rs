@@ -150,13 +150,19 @@ pub struct LandDiscov {
 	pub frac_j: f32, // map_sz_discov.w / map_sz.w
 	// ^ both should be <= 1.
 	
-	// note: `coords` may be on a sparse grid and not reprsent direct coordinates (like zone info)
-	//pub coords: HashedCoords // entry indicates coordinate has been discovered
-	pub discovered: Vec<u8>
+	/*
+		// note: `coords` may be on a sparse grid and not reprsent direct coordinates (like zone info)
+		//pub coords: HashedCoords // entry indicates coordinate has been discovered
+	*/
+	pub discovered: Vec<u8>,
 	// use .discover() and .discovered() to access
+	// ^ `discovered` is a binary map with each element reprsenting 8 separate map locations.
+	//   self.map_sz & self.map_sz_discov control how many land plots are represented by one bit in `discovered`
+	
+	pub n_discovered: usize // # of one bits in `discovered`
 }
 
-impl_saving! {LandDiscov {map_sz_discov, map_sz, frac_i, frac_j, discovered}}
+impl_saving! {LandDiscov {map_sz_discov, map_sz, frac_i, frac_j, discovered, n_discovered}}
 
 impl LandDiscov {
 	// convert map coord (ex. MapEx coord) to discovered map coord
@@ -218,7 +224,12 @@ impl LandDiscov {
 		
 		let coord = self.map_to_discov_coord(coord);
 		debug_assertq!(coord < (self.map_sz_discov.h*self.map_sz_discov.w));
-		self.discovered[coord / 8] |= 1 << (coord % 8);
+		let bit = 1 << (coord % 8);
+		let discovered = &mut self.discovered[coord / 8];
+		if (*discovered & bit) == 0 {
+			self.n_discovered += 1;
+			*discovered |= bit;
+		}
 	}
 }
 

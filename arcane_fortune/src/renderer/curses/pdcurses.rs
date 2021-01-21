@@ -3,7 +3,7 @@ use std::ffi::CString;
 use std::convert::TryInto;
 use super::*;
 use super::direct_pdcurses;
-use crate::disp_lib::MAX_DELAY_FRAMES;
+use crate::renderer::MAX_DELAY_FRAMES;
 pub use super::direct_pdcurses::{CInt, CShort, chtype,
 	WINDOW, mousemask};
 
@@ -48,7 +48,14 @@ impl Renderer {
 	wrap!(clear);
 	
 	pub fn init_pair(&mut self, a: CShort, b: CShort, c: CShort) {unsafe{direct_pdcurses::init_pair(a,b,c);}}
-	pub fn mv(&mut self, y: CInt, x: CInt) {unsafe{direct_pdcurses::mv(y,x);}}
+	pub fn mv<Y: TryInto<CInt>, X: TryInto<CInt>>(&mut self, y: Y, x: X) {
+		if let Ok(y) = y.try_into() {
+		if let Ok(x) = x.try_into() {
+			unsafe{direct_pdcurses::mv(y,x);}
+			return;
+		}}
+		panicq!("could not convert arguments into integers");
+	}
 	wrap_try_into!(addch);
 	wrap_try_into!(attroff);
 	wrap_try_into!(attron);

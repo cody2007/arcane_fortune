@@ -27,11 +27,13 @@ pub struct ResourceTemplate {
 	
 	pub zone: ZoneType,
 	pub zone_bonuses: Vec<Option<isize>>, // zone bonuses given to neighboring regions indexed by ZoneType
-	pub arability_probs: Vec<Option<f32>> // probability of resource occuring at each ArabilityType (which it is indexed by)
+	pub arability_probs: Vec<Option<f32>>, // probability of resource occuring at each ArabilityType (which it is indexed by)
+	
+	pub ai_valuation: f32 // how much the AI values this resource in trade negotiations
 }
 
 impl_saving_template!{ResourceTemplate {id, nm, tech_req, sz, print_str,
-	plot_zoomed, zone, zone_bonuses, arability_probs}}
+	plot_zoomed, zone, zone_bonuses, arability_probs, ai_valuation}}
 
 impl ResourceTemplate {
 	pub fn frm_str<'rt>(txt: &str, resource_templates: &'rt Vec<ResourceTemplate>) -> &'rt ResourceTemplate {
@@ -82,7 +84,9 @@ pub fn init_resource_templates(tech_templates: &Vec<TechTemplate>,
 			
 			zone: find_req_key_parse("zone", keys),
 			zone_bonuses: load_zone_bonuses(keys),
-			arability_probs
+			arability_probs,
+			
+			ai_valuation: find_req_key_parse("ai_valuation", keys)
 		} );
 	}
 	

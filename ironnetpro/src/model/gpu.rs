@@ -31,6 +31,9 @@ pub struct Model {
 	pub errs_batch: Vec<u64>, // should be the same length as above
 	pub compute_times: Vec<f32>, // should be the same length as above (in secs)
 	
+	pub test_errs: Vec<f32>, // this and the following line don't need to have the same length as above -- testing can occur less freq than training
+	pub test_errs_batch: Vec<u64>,
+	
 	pub t_batch_start: u64, // used for adding new entry in `compute_times`
 	
 	////
@@ -91,6 +94,9 @@ impl Model {
 			errs: Vec::new(),
 			errs_batch: Vec::new(),
 			compute_times: Vec::new(),
+			
+			test_errs: Vec::new(),
+			test_errs_batch: Vec::new(),
 			
 			t_batch_start: cur_time,
 			
@@ -216,7 +222,7 @@ impl Model {
 	
 	pub fn backward(&mut self, req_layers: &Vec<usize>) {
 		for layer_ind in req_layers.iter().rev() {
-			//println!("layer_ind {}", layer_ind);
+			//println!("layer_ind {} {}", layer_ind, self.layers[*layer_ind].nm);
 			let layer = &self.layers[*layer_ind];
 			run_internal!{layer.internals => backward(layer, self) };
 		}
@@ -549,8 +555,7 @@ impl Model {
 	pub fn sv(&self, model_dir: &str) {
 		let mut config_txt = String::new();
 		
-		// model meta parameters
-		{
+		{ // model meta parameters
 			config_txt.push_str("{\n");
 			config_txt.push_str(&format!("\tEPS: {}\n", self.eps_f32[0]));
 			config_txt.push_str(&format!("\tt_created: {}\n", self.t_created));
@@ -565,10 +570,12 @@ impl Model {
 		self.errs_batch.sv(model_dir, "errs_batch");
 		self.compute_times.sv(model_dir, "compute_times");
 		
+		self.test_errs.sv(model_dir, "test_errs");
+		self.test_errs_batch.sv(model_dir, "test_errs_batch");
+		
 		// layers
 		for (layer_ind, layer) in self.layers.iter().enumerate() {
-			// layer meta data / arch data
-			{
+			{ // layer meta data / arch data 
 				config_txt.push_str("\n{\n");
 				config_txt.push_str(&format!("\ttype: {}\n", layer.nm));
 				
@@ -583,8 +590,7 @@ impl Model {
 				config_txt.push_str("}\n");
 			}
 			
-			// weights / array data (ex. optimizer data)
-			{
+			{ // weights / array data (ex. optimizer data)
 				let file_nm = &format!("{}_{}", layer_ind, layer.nm);		
 				run_internal!{layer.internals => sv_weights(layer, self, &format!("{}/weights", model_dir), file_nm) };
 				
@@ -641,6 +647,9 @@ impl Model {
 			model.errs_batch = load_numpy(&format!("{}/errs_batch.npy", model_dir));
 			model.compute_times = load_numpy(&format!("{}/compute_times.npy", model_dir));
 			
+			model.test_errs = load_numpy(&format!("{}/test_errs.npy", model_dir));
+			model.test_errs_batch = load_numpy(&format!("{}/test_errs_batch.npy", model_dir));
+			
 			model
 		};
 		
@@ -665,6 +674,7 @@ impl Model {
 				"softmax_across_w" => {model.load_softmax_across_w(layer_keys);}
 				"softmax_log" => {model.load_softmax_log(layer_keys);}
 				"relu" => {model.load_relu(layer_keys);}
+				"tanh" => {model.load_tanh(layer_keys);}
 				"add" => {model.load_add(&x_layers, layer_keys);}
 				"mul" => {model.load_mul(&x_layers, layer_keys);}
 				"sum_reduce" => {model.load_sum_reduce(layer_keys);}
@@ -673,6 +683,8 @@ impl Model {
 				"imgs" => {model.load_imgs(layer_keys);}
 				"FullyConnected" => {model.load_fully_connected(layer_keys, &mut rng);}
 				"FullyConnectedWBias" => {model.load_fully_connected_w_bias(layer_keys, &mut rng);}
+				"FullyConnectedWBiasRelu" => {model.load_fully_connected_w_bias_relu(layer_keys, &mut rng);}
+				"FullyConnectedWBiasReluInputSupplied" => {model.load_fully_connected_w_bias_relu_input_supplied(&x_layers, layer_keys, &mut rng);}
 				"QKV" => {model.load_QKV_layer(&x_layers, layer_keys, &mut rng);}
 				"MulQK" => {model.load_mul_Q_K_layer(&x_layers, layer_keys);}
 				"Scale" => {model.load_scale(layer_keys);}
@@ -680,6 +692,7 @@ impl Model {
 				"MulSoftmaxQKAndV" => {model.load_mul_softmaxQK_and_V(&x_layers, layer_keys);}
 				"MulQAndPos" => {model.load_mul_Q_and_pos(&x_layers, layer_keys, &mut rng);}
 				"QKPlusQPosMaskFutureTimesSoftmaxW" => {model.load_QK_plus_Qpos_mask_future_times_softmax_w(&x_layers, layer_keys, &mut rng);}
+				"QKPlusQPosMaskFutureTimesSoftmaxWMulV" => {model.load_QK_plus_Qpos_mask_future_times_softmaxw_mul_V(&x_layers, layer_keys, &mut rng);}
 				"TransposeReshape" => {model.load_transpose_reshape(layer_keys);}
 				"Bias" => {model.load_bias(layer_keys, &mut rng);}
 				"BiasChannels" => {model.load_bias_channels(layer_keys, &mut rng);}
@@ -730,6 +743,7 @@ impl Model {
 				InternalTypes::LSTM(_) |
 				InternalTypes::QKV(_) |
 				InternalTypes::QKPlusQPosMaskFutureTimesSoftmaxW(_) |
+				InternalTypes::QKPlusQPosMaskFutureTimesSoftmaxWMulV(_) |
 				
 				InternalTypes::MulQK(_) |
 				InternalTypes::MulSoftmaxQKAndV(_) |
@@ -744,6 +758,7 @@ impl Model {
 				InternalTypes::BiasChannelsCustom(_) |
 				InternalTypes::FullyConnected(_) |
 				InternalTypes::FullyConnectedWBias(_) |
+				InternalTypes::FullyConnectedWBiasRelu(_) |
 				InternalTypes::MulQAndPos(_) |
 				InternalTypes::ElementwiseAffine(_) => {}
 				
@@ -763,6 +778,12 @@ impl Model {
 		self.errs_batch.push(self.batch);
 	}
 	
+	// if a testing or validation set is used
+	pub fn log_test_err(&mut self, err: f32) {
+		self.test_errs.push(err);
+		self.test_errs_batch.push(self.batch);
+	}
+
 	/////////////////
 	
 	// allocate shared workspace

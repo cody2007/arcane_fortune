@@ -16,6 +16,7 @@ impl HistoryWindowState {
 		let title_c = Some(COLOR_PAIR(TITLE_COLOR));
 		
 		dstate.renderer.clear();
+		dstate.mv(0,0);
 		let events = match self.htype {
 			HistoryType::World => {
 				center_txt(&dstate.local.World_History, w, title_c, &mut dstate.renderer);
@@ -53,24 +54,17 @@ impl HistoryWindowState {
 			}
 		}
 		
-		// plot log
-		{
-			let mut row_counter = 0;
-			
-			for log in events[self.scroll_first_line..].iter() {
-				if row_counter >= n_rows_plot {break;}
-				if !log.visible(cur_player, &gstate.relations) {continue;}
-				
-				dstate.mv(LOG_START_ROW + row_counter, 0);
+		{ // plot log
+			for (row_counter, log) in events[self.scroll_first_line..].iter()
+					.filter(|log| log.visible(cur_player, &gstate.relations))
+					.take(n_rows_plot as usize).enumerate() {
+				dstate.mv(LOG_START_ROW + row_counter as i32, 0);
 				dstate.local.print_date_log(log.turn, &mut dstate.renderer);
-				print_log(&log.val, true, players, temps.doctrines, dstate);
-				
-				row_counter += 1;
+				log.val.print(true, players, temps.doctrines, dstate);
 			}
 		}
 		
-		/////// print scroll instructions
-		{
+		{ /////// print scroll instructions
 			/*let center_txt = |txt: &str, w| {
 				let g = (w as usize - txt.len())/2;
 				let mut sp = String::new();
@@ -127,13 +121,9 @@ impl HistoryWindowState {
 		let cur_player = dstate.iface_settings.cur_player as usize;
 		
 		let events = match self.htype {
-			HistoryType::World {..} => {
-				world_history_events(cur_player, gstate)
-			} HistoryType::Battle {..} => {
-				battle_history_events(cur_player, gstate)
-			} HistoryType::Economic {..} => {
-				economic_history_events(cur_player, gstate)
-			} _ => {panicq!("unhandled UI mode");}
+			HistoryType::World {..} => {world_history_events(cur_player, gstate)}
+			HistoryType::Battle {..} => {battle_history_events(cur_player, gstate)}
+			HistoryType::Economic {..} => {economic_history_events(cur_player, gstate)}
 		};
 		
 		let h = dstate.iface_settings.screen_sz.h;
@@ -198,6 +188,10 @@ pub fn world_history_events(player_id: usize, gstate: &GameState) -> Vec<Log> {
 			.filter(|log| log.visible(player_id, &gstate.relations)) {
 		match log.val {
 			LogType::CivCollapsed {..} |
+			LogType::KingdomJoinedEmpire {..} |
+			LogType::HouseDeclaresIndependence {..} |
+			LogType::LeaderAssassinated {..} |
+			LogType::NoNobleSuccessor {..} |
 			LogType::CivDestroyed {..} |
 			LogType::CityCaptured {..} |
 			LogType::CityDisbanded {..} |
@@ -211,6 +205,7 @@ pub fn world_history_events(player_id: usize, gstate: &GameState) -> Vec<Log> {
 			LogType::NobleHouseJoinedEmpire {..} |
 			LogType::RiotersAttacked {..} |
 			LogType::CitizenDemand {..} |
+			LogType::GenericEvent {..} |
 			LogType::ICBMDetonation {..} => {
 				events.push(log.clone());
 			}
@@ -231,6 +226,10 @@ pub fn battle_history_events(player_id: usize, gstate: &GameState) -> Vec<Log> {
 	for log in gstate.logs.iter().filter(|log| log.visible(player_id, &gstate.relations)) {
 		match log.val {
 			LogType::CivCollapsed {..} |
+			LogType::HouseDeclaresIndependence {..} |
+			LogType::KingdomJoinedEmpire {..} |
+			LogType::LeaderAssassinated {..} |
+			LogType::NoNobleSuccessor {..} |
 			LogType::UnitDisbanded {..} |
 			LogType::BldgDisbanded {..} |
 			LogType::CityDisbanded {..} |
@@ -251,6 +250,7 @@ pub fn battle_history_events(player_id: usize, gstate: &GameState) -> Vec<Log> {
 			LogType::ICBMDetonation {..} |
 			LogType::UnitDestroyed {..} |
 			LogType::UnitAttacked {..} |
+			LogType::GenericEvent {..} |
 			LogType::StructureAttacked {..} => {
 				events.push(log.clone());
 			}
@@ -265,6 +265,10 @@ pub fn economic_history_events(player_id: usize, gstate: &GameState) -> Vec<Log>
 			.filter(|log| log.visible(player_id, &gstate.relations)) {
 		match log.val {
 			LogType::CivCollapsed {..} |
+			LogType::KingdomJoinedEmpire {..} |
+			LogType::HouseDeclaresIndependence {..} |
+			LogType::LeaderAssassinated {..} |
+			LogType::NoNobleSuccessor {..} |
 			LogType::CityDisbanded {..} |
 			LogType::CityDestroyed {..} |
 			LogType::CityFounded {..} |
@@ -281,6 +285,7 @@ pub fn economic_history_events(player_id: usize, gstate: &GameState) -> Vec<Log>
 			LogType::PrevailingDoctrineChanged {..} |
 			LogType::UnitDestroyed {..} |
 			LogType::UnitAttacked {..} |
+			LogType::GenericEvent {..} |
 			LogType::CitizenDemand {..} |
 			LogType::StructureAttacked {..} => {}
 			

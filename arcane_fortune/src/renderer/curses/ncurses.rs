@@ -57,7 +57,14 @@ impl Renderer {
 	wrap!(clear);
 	
 	pub fn init_pair(&mut self, a: CShort, b: CShort, c: CShort) {unsafe{direct_ncurses::init_pair(a,b,c);}}
-	pub fn mv(&mut self, y: CInt, x: CInt) {unsafe{direct_ncurses::mv(y,x);}}
+	pub fn mv<Y: TryInto<CInt>, X: TryInto<CInt>>(&mut self, y: Y, x: X) {
+		if let Ok(y) = y.try_into() {
+		if let Ok(x) = x.try_into() {
+			unsafe{direct_ncurses::mv(y,x);}
+			return;
+		}}
+		panicq!("could not convert arguments into integers");
+	}
 	wrap_try_into!(addch);
 	//wrap_try_into!(attroff);
 	wrap_try_into!(attron);
@@ -70,6 +77,7 @@ impl Renderer {
 				panicq!("could not convert to chtype");
 			}
 		}
+		#[cfg(not(target_env="musl"))]
 		self.attron(COLOR_PAIR(CWHITE));
 	}
 

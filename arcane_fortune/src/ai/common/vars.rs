@@ -137,7 +137,7 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 					}
 				}
 			}
-		}else{panicq!("no minimum city found, unit {}", unit_ind);}
+		}// else{panicq!("no minimum city found, unit {}", unit_ind);} // can occur pressumably before the end of the end_turn loop before a civ is set as not alive
 	}
 	
 	pub fn rm_unit(&mut self, unit_ind: usize, unit_template: &UnitTemplate) {
@@ -386,11 +386,9 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 		}*/
 		
 		if let BldgArgs::PopulationCenter {..} = &b.args {
-			for city in self.city_states.iter_mut() {
-				if city.coord == bldg_coord {
-					city.population_center_ind = Some(bldg_ind);
-					return;
-				}
+			for city in self.city_states.iter_mut().filter(|city| city.coord == bldg_coord) {
+				city.population_center_ind = Some(bldg_ind);
+				return;
 			}
 		}
 		
@@ -515,7 +513,9 @@ use crate::zones::{set_owner, set_all_adj_owner};
 pub fn transfer_city_ai_state<'bt,'ut,'rt,'dt>(population_center_ind: usize, frm_owner_id: usize, to_owner_id: usize, cur_player: usize,
 		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 		temps: &Templates<'bt,'ut,'rt,'dt,'_>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, map_data: &mut MapData,
-		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, map_sz: MapSz) -> Option<CityState<'bt,'ut,'rt,'dt>> {
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState) -> Option<CityState<'bt,'ut,'rt,'dt>> {
+	let map_sz = *map_data.map_szs.last().unwrap();
+	
 	// remove entry from sender
 	let player_frm = &mut players[frm_owner_id];
 	let pstats_frm = &mut player_frm.stats;
@@ -575,7 +575,10 @@ pub fn transfer_city_ai_state<'bt,'ut,'rt,'dt>(population_center_ind: usize, frm
 				
 				return Some(city_state);
 			}
-		}else{
+		}
+		// the following can happen when a barbarian captures an empire's city, then it's recaptured by the empire and then recaptured by the barbarian's
+		// (the barbarian ptype structure does not store city states so it becomes lost and cannot be transfered)
+		/*else{
 			for city in frm_ai_state.city_states.iter() {
 				printlnq!("city coord {} population_center_ind is none {}", Coord::frm_ind(city.coord, map_sz), city.population_center_ind.is_none());
 			}
@@ -589,9 +592,13 @@ pub fn transfer_city_ai_state<'bt,'ut,'rt,'dt>(population_center_ind: usize, frm
 				}
 			}
 			
+			printlnq!("frm {} to {}", players[frm_owner_id].ptype.nm(), players[to_owner_id].ptype.nm());
+			printlnq!("frm nm {}", players[frm_owner_id].personalization.nm);
+			let c = Coord::frm_ind(bldgs[population_center_ind].coord, map_sz);
+			printlnq!("bldg coord {} {}", c.y, c.x);
 			panicq!("could not find city hall in ai states population_center_ind {} frm_owner_id {} to_owner_id {}",
 						population_center_ind, frm_owner_id, to_owner_id);
-		}
+		}*/
 	
 	// should no longer occur because constructing a city hall should create an entry in the ai_state --- add new entry to receiver (sender is human)
 	}/*else if let Some(_) = players[to_owner_id].ptype.ai_state() {

@@ -133,8 +133,8 @@ impl BrigadesWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, players: &mut Vec<Player>, units: &Vec<Unit>, bldgs: &Vec<Bldg>, map_data: &mut MapData,
-			gstate: &GameState, exs: &Vec<HashedMapEx>, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, players: &mut Vec<Player>, units: &Vec<Unit>, map_data: &mut MapData,
+			dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let mut w = 0;
 		let mut label_txt_opt = None;
 		let map_sz = *map_data.map_szs.last().unwrap();
@@ -195,28 +195,22 @@ impl BrigadesWindowState {
 		
 		//////////////////////// handle keys
 		macro_rules! enter_action {($mode: expr) => {
-			// move cursor to entry
-			let coord = match entries.options[$mode].arg {
-				ArgOptionUI::BrigadeInd(brigade_ind) => {
-					// make sure the brigade exists and is non-empty
-					if let Some(brigade) = players[cur_player].stats.brigades.get_mut(brigade_ind) {
-						self.mode = 0;
-						match self.brigade_action {
-							BrigadeAction::ViewBrigades => {
-								self.brigade_action = BrigadeAction::ViewBrigadeUnits{brigade_nm: brigade.nm.clone()};
-								return UIModeControl::UnChgd;
-							} BrigadeAction::Join {unit_ind} => {
-								debug_assertq!(!brigade.unit_inds.contains(&unit_ind));
-								brigade.unit_inds.push(unit_ind);
-								return UIModeControl::Closed;
-							} BrigadeAction::ViewBrigadeUnits {..} => {panicq!("list should supply unit inds, not brigade inds");}
-						}
-					}else{return UIModeControl::Closed;}
-				}
-				_ => {panicq!("unit inventory list argument option not properly set");}
-			};
-			
-			return UIModeControl::CloseAndGoTo(coord);
+			return if let ArgOptionUI::BrigadeInd(brigade_ind) = entries.options[$mode].arg {
+				// make sure the brigade exists and is non-empty
+				if let Some(brigade) = players[cur_player].stats.brigades.get_mut(brigade_ind) {
+					self.mode = 0;
+					match self.brigade_action {
+						BrigadeAction::ViewBrigades => {
+							self.brigade_action = BrigadeAction::ViewBrigadeUnits{brigade_nm: brigade.nm.clone()};
+							UIModeControl::UnChgd
+						} BrigadeAction::Join {unit_ind} => {
+							debug_assertq!(!brigade.unit_inds.contains(&unit_ind));
+							brigade.unit_inds.push(unit_ind);
+							UIModeControl::Closed
+						} BrigadeAction::ViewBrigadeUnits {..} => {panicq!("list should supply unit inds, not brigade inds");}
+					}
+				}else{UIModeControl::Closed}
+			}else{panicq!("list not set properly");}
 		};};
 		if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {	enter_action!(ind);}
 		

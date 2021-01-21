@@ -85,5 +85,38 @@ impl XorState {
 		}
 		vals
 	}
+	
+	pub fn gen_vec_usize(&mut self, len: usize, lower: usize, upper: usize) -> Vec<usize> {
+		let mut vals = Vec::with_capacity(len);
+		for _ in 0..len {
+			vals.push(self.usize_range(lower, upper));
+		}
+		vals
+	}
+	
+	#[inline]
+	fn inds_internal(&mut self, len: usize, len_keep: usize) -> Box<[usize]> {
+		debug_assert!(len > 0);
+		debug_assert!(len_keep <= len);
+		
+		let mut seq: Box<[usize]> = (0..len).collect(); // inds not yet used
+		let mut inds = vec![0; len_keep].into_boxed_slice();
+		
+		for (i, ind) in inds.iter_mut().enumerate() {
+			let rand_sel = (self.gen() as usize) % (len-i);
+			*ind = seq[rand_sel];
+			debug_assert!(*ind < len);
+			if rand_sel < (len-i-1) {
+				seq[rand_sel] = seq[len-i-1];
+			}
+		}
+		inds
+	}
+	
+	// randomly shuffle 0..len
+	#[inline]
+	pub fn inds(&mut self, len: usize) -> Box<[usize]> {
+		self.inds_internal(len, len)
+	}
 }
 

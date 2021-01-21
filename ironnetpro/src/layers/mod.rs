@@ -43,17 +43,21 @@ macro_rules! impl_output_common{($tensor: ident, $rnn_data: ident) => {
 	}
 }}
 
-// check that the layer has the correct # of inputs
+// check that the layer has the correct # of layer inputs
 pub fn check_layer_input_dims(x_layers: &Vec<usize>, layer_type: &String) {
 	match layer_type.as_str() {
+		/////////////////// 3 inputs
+		"QKPlusQPosMaskFutureTimesSoftmaxWMulV" => {
+			assert!(x_layers.len() == 3, "{}", layer_type);
 		//////////////////// 2 inputs
-		"add" | "mul" | "MulQK" | "MulSoftmaxQKAndV" | "QKPlusQPosMaskFutureTimesSoftmaxW" => {
+		} "add" | "mul" | "MulQK" | "MulSoftmaxQKAndV" | "QKPlusQPosMaskFutureTimesSoftmaxW" => {
 			assert!(x_layers.len() == 2, "{}", layer_type);
 		
 		/////////////////// 1 input
 		} "conv" | "pooling" | "softmax" | "softmax_log" | "relu" | "Scale" | "MaskFutureTimes" |
 		  "TransposeReshape" | "softmax_across_w" | "MulQAndPos" | "BiasChannels" | "elementwise_affine" |
-		  "sum_reduce" | "pow" | "LSTM" | "FullyConnected" | "FullyConnectedWBias" | "Bias" | "QKV" => {
+		  "sum_reduce" | "pow" | "LSTM" | "FullyConnected" | "FullyConnectedWBias" | "tanh" |
+		  "FullyConnectedWBiasRelu" | "FullyConnectedWBiasReluInputSupplied" | "Bias" | "QKV" => {
 			  assert!(x_layers.len() == 1, "{}", layer_type);
 			  
 		/////////////////// no input
@@ -177,6 +181,13 @@ pub struct FullyConnectedWBiasParams {
 	pub data_type: cudnnDataType_t
 }
 
+pub struct FullyConnectedWBiasReluParams {
+	pub vec_out_sz: i32, // output dimension size
+	pub weight_initialization: WeightInitialization,
+	pub bias_initialization: WeightInitialization,
+	pub data_type: cudnnDataType_t
+}
+
 //////////// multi head layer components
 
 #[derive(Copy, Clone)]
@@ -212,6 +223,12 @@ pub struct MaskFutureTimesParams {
 }
 
 pub struct QKPlusQPosMaskFutureTimesSoftmaxWParams {
+	pub weight_initialization: WeightInitialization, // for the relative positions
+	pub scale: f32, // applied after Q*K & Q*pos are added together
+	pub data_type: cudnnDataType_t
+}
+
+pub struct QKPlusQPosMaskFutureTimesSoftmaxWMulVParams {
 	pub weight_initialization: WeightInitialization, // for the relative positions
 	pub scale: f32, // applied after Q*K & Q*pos are added together
 	pub data_type: cudnnDataType_t

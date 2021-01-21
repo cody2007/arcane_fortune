@@ -12,23 +12,21 @@ pub enum SectorAction {
 
 impl SectorsWindowState {
 	pub fn print<'bt,'ut,'rt,'dt>(&self, pstats: &Stats, map_data: &mut MapData,
-			dstate: &mut DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+			dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let mut w = 0;
 		let mut label_txt_opt = None;
 		let map_sz = *map_data.map_szs.last().unwrap();
 		let cursor_coord = dstate.iface_settings.cursor_to_map_coord_zoomed_in(map_data);
 		
-		let l = &dstate.local;
-		let sectors = sector_list(&pstats, cursor_coord, &mut w, &mut label_txt_opt, map_sz, l);
+		let sectors = sector_list(&pstats, cursor_coord, &mut w, &mut label_txt_opt, map_sz, &dstate.local);
 		
-		let list_pos = dstate.print_list_window(self.mode, l.Select_map_sector.clone(), sectors, Some(w), label_txt_opt, 0, None);
+		let list_pos = dstate.print_list_window(self.mode, dstate.local.Select_map_sector.clone(), sectors, Some(w), label_txt_opt, 0, None);
 		dstate.renderer.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
 		
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, players: &mut Vec<Player>, units: &Vec<Unit>, bldgs: &Vec<Bldg>, gstate: &GameState,
-			map_data: &mut MapData, exs: &Vec<HashedMapEx>, map_sz: MapSz, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, players: &mut Vec<Player>, map_data: &mut MapData, map_sz: MapSz, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let mut w = 0;
 		let mut label_txt_opt = None;
 		let cursor_coord = dstate.iface_settings.cursor_to_map_coord_zoomed_in(map_data);

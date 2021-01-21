@@ -1,21 +1,20 @@
 #![allow(non_snake_case)]
 use std::os::raw::{c_int, c_longlong, c_float};
 use crate::model::Model;
-use crate::data_wrappers::{MemWShape, Tensor, size_t, prod};
-use crate::cudnn::raw::{cublasSgemmStridedBatched, cublasHgemmStridedBatched, cudaDeviceSynchronize,
-			cublasOperation_t, mat_mul_contract_inner_outer, mat_mul_contract_inner_outer_f16};
+use crate::data_wrappers::{MemWShape, size_t, prod};
+use crate::cudnn::raw::*;
 use crate::cudnn_common::cudnnDataType_t;
 use super::{f32_to_f16};//, f16};
 
 impl Model {
-	pub fn einsum<Ct: MemWShape, At: MemWShape>(&self,
+	pub fn einsum<Ct: MemWShape, Bt: MemWShape, At: MemWShape>(&self,
 										C: &Ct,      C_dims: &[usize],
-										B: &Tensor,  B_dims: &[usize],
+										B: &Bt,      B_dims: &[usize],
 										A: &At,      A_dims: &[usize],
 										N: c_int, K: c_int, M: c_int,
 										batch_sz: c_int,
-										beta: c_float) { // beta = 1 => increment to C, beta = 0 => don't increment
-		
+										beta: c_float, // beta = 1 => increment to C, beta = 0 => don't increment
+										data_type: cudnnDataType_t) {
 		/*
 		   	https://devblogs.nvidia.com/cublas-strided-batched-matrix-multiply/ Accessed May 14, 2020
 			https://docs.nvidia.com/cuda/cublas/#cublas-lt-t-gt-gemmbatched Accessed May 17, 2020
@@ -121,7 +120,22 @@ impl Model {
 				assert!(prod(&A_shape) == (K*M));
 				
 				//println!("sgemm m {} n {} k {} N T", M,N,K);
+				#[cfg(feature="titan_card_bypass_sgemm")]
+				{
+					// 32-37 sec per 200 batches for a 5 layer transformer training seq lengths of 200, batch sz of 64, ff=1024, n_heads=8, vec_in=16*n_heads
+					// 25-31 sec for the cublas sgemm function w/ the same model
+					assert!(data_type == cudnnDataType_t::CUDNN_DATA_FLOAT);
+					unsafe {mat_mul_Bt_A(M, N, K, beta, C.mem(), B.mem(), A.mem())};
+				}
 				
+				
+				// for some reason crashses on the Titan card (when run with single precision):
+				//	../nptl/pthread_mutex_lock.c:81: __pthread_mutex_lock: Assertion `mutex->__data.__owner == 0' failed.
+				//	Aborted (core dumped)
+				// when the non batched gemm function is called the error is about argument 0 being invalid,
+				// presumably the trans_a argument. switching the trans_a argument to transpose A doesn't
+				// solve the issue.
+				#[cfg(not(feature="titan_card_bypass_sgemm"))]
 				unsafe {$fn(self.handle.cublas_val,
 									cublasOperation_t::CUBLAS_OP_N, // transa
 									cublasOperation_t::CUBLAS_OP_T, // transb
@@ -516,7 +530,7 @@ impl Model {
 			unsafe {cudaDeviceSynchronize()}.chk_err();
 		};};
 		
-		match B.mem.dataType {
+		match data_type {
 			cudnnDataType_t::CUDNN_DATA_FLOAT => {
 				let one = 1_f32;
 				handle_conditions!(cublasSgemmStridedBatched, mat_mul_contract_inner_outer, c_float, one, beta);}

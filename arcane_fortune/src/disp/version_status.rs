@@ -11,7 +11,7 @@ const IRONNETPRO_COMMIT_ID: &str = COMMIT_ID; //include_str!("../../../../ironne
 
 const COMMIT_LEN: usize = 9;
 
-pub const VERSION_NM: &str = "League of War";
+pub const VERSION_NM: &str = "Noble War";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 const TARGET: &str = env!("TARGET");
 const PROFILE: &str = env!("PROFILE");

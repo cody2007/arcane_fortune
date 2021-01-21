@@ -11,7 +11,17 @@ pub struct GameOptions {
 	pub ai_bonuses: Bonuses
 }
 
-impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+impl GameOptions {
+	pub fn new() -> Self {
+		Self {
+			zoom_in_depth: 2,
+			n_players: 12,
+			ai_bonuses: Default::default()
+		}
+	}
+}
+
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn new_game_options(&mut self, game_opts: &mut GameOptions, game_difficulties: &GameDifficulties) -> bool {
 		let screen_sz = getmaxyxu(&self.renderer);
 		
@@ -165,8 +175,7 @@ impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
 					
 					row += 1; print_hline!(row); row += 2;
 					
-					// print Number of players
-					{
+					{ // print Number of players
 						let col = (screen_sz.w - window_w)/2;
 						self.mv(row, col as i32);
 						self.renderer.addstr(&self.local.Number_of_players);

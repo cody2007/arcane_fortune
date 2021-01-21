@@ -48,7 +48,7 @@ impl NoblePedigreeState {
 	}
 	
 	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, gstate: &GameState, 
-			players: &Vec<Player>, dstate: &DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+			players: &Vec<Player>, dstate: &DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let list = gstate.relations.noble_houses(dstate.iface_settings.cur_player as usize);
 		
 		macro_rules! enter_action{($mode: expr) => {

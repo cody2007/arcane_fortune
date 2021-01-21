@@ -136,6 +136,8 @@ create_buttons!(
 	auto_explore = auto_explore, Auto_explore, Empty_txt
 	disband = disband, Disband, Disband_tool_tip
 	attack = attack, Attack, Empty_txt
+	scale_walls = scale_walls, Scale_walls, Scale_walls_tool_tip
+	assassinate = assassinate, Assassinate, Assassinate_tool_tip
 	soldier_automate = soldier_automate, Automate, Soldier_automate_tool_tip
 	automate_zone_creation = automate_zone_creation, Automate_worker, Automate_worker_tool_tip
 	continue_bldg_construction = continue_bldg_construction, Cont_bldg_construction, Cont_bldg_construction_tool_tip
@@ -162,6 +164,7 @@ create_buttons!(
 	hide_submap = show_expanded_submap, hide, Empty_txt
 	Press_to_add_action_to_brigade_build_list = add_action_to_brigade_build_list, Press_to_add_action_to_brigade_build_list, brigade_build_list_tool_tip
 	Esc_to_close = esc, to_close, Empty_txt
+	Esc_to_continue = esc, to_continue, Empty_txt
 	Cancel = esc, Cancel, Empty_txt
 	Save = enter, Save, Empty_txt
 	Confirm = enter, Confirm, Empty_txt
@@ -175,6 +178,23 @@ create_buttons!(
 	Suggest_a_peace_treaty = enter, Suggest_a_peace_treaty, Empty_txt
 	Declare_war = enter, Declare_war, Empty_txt
 	Propose_treaty = enter, Propose_treaty, Empty_txt
+	Suggest_a_trade = enter, Suggest_a_trade, Empty_txt
+	Send_your_troops_to_attack = enter, Send_your_troops_to_attack, Empty_txt
+	Lets_discuss_your_tax_obligations = enter, Lets_discuss_your_tax_obligations, Empty_txt
+	Offer_trade_item = offer_trade_item, Offer_trade_item, Empty_txt
+	Request_trade_item = request_trade_item, Request_trade_item, Empty_txt
+	Lets_review_our_current_trade_deals = enter, Lets_review_our_current_trade_deals, Empty_txt
+	Cancel_trade = rm_bldgs_and_zones, Cancel_trade, Empty_txt
+	Propose_trade = enter, Propose_trade, Empty_txt
+	Join_as_kingdom = enter, Join_as_kingdom, Join_as_kingdom_tool_tip
+	It_would_be_my_pleasure = enter, It_would_be_my_pleasure, Empty_txt
+	Not_a_chance = enter, Not_a_chance, Empty_txt
+	Accept_nobility = enter, Accept_nobility, Empty_txt
+	Reject_nobility = enter, Reject_nobility, Empty_txt
+	
+	Independence_do_nothing = enter, Independence_do_nothing, Independence_do_nothing_tool_tip // "Send them my good riddance!", "You will allow them to peacefully secede. Others may see this action as weak..."
+	Independence_declare_war = enter, Independence_declare_war, Independence_declare_war_tool_tip //"Send them a welcoming party to kick off the next phase of their existence! (Declare war)", "Immediately declare war!!"
+	
 	tab = tab, Empty_txt, Empty_txt
 	Exit = enter, Exit, Empty_txt
 	rm_bldgs_and_zones = rm_bldgs_and_zones, rm_bldgs_and_zones, Empty_txt
@@ -204,7 +224,7 @@ impl Button {
 		if self.hovered_over && self.tool_tip.len() != 0 {
 			const BOX_COLOR: CInd = CLOGO;
 			let lines = wrap_txt(&self.tool_tip, 50);
-			let len = lines.iter().max_by_key(|l| l.len()).unwrap().len();
+			let len = lines.iter().map(|l| l.len()).max().unwrap();
 			
 			let (mut y,x) = {
 				let pos = self.pos.as_ref().unwrap();
@@ -261,34 +281,16 @@ impl Button {
 		}else{false}
 	}
 	
+	// shows "K: button txt", where K is the key assigned to the button
 	// should match button.print_txt() ...
 	// If ui_mode is provided: key highlighting is only shown when UIMode is none
 	// If ui_mode is not provided: key highlighting is always shown (ex. if the highlighting is for entries in a window)
 	// Returns the button width
 	pub fn print(&mut self, ui_mode: Option<&UIMode>, l: &Localization, d: &mut Renderer) -> isize {
-		let w = self.print_txt(l).len() as isize;
+		let w = self.print_txt(l).len();
+		let non_key_txt_color = self.return_color_and_handle_hovering(w, d);
 		
-		let pos = {
-			let start = cursor_pos(d);
-			let end = ScreenCoord {y: start.y, x: start.x + w};
-			ButtonPosition {start, end}
-		};
-		
-		// set color and mouse cursor if mouse is over the button
-		let non_key_txt_color = (|| {
-			if let Some((y,x)) = d.mouse_pos() {
-				// hovering
-				if pos.contains(y,x) {
-					d.set_mouse_to_hand();
-					self.hovered_over = true; // used for printing tool tips
-					return CGRAY;
-				}
-			}
-			CWHITE
-		})();
-		
-		// print
-		{
+		{ // print
 			// "some text [] asdf" -> "some text k asdf" where k is the keybinding
 			if let Some(_) = self.txt.find("[]") {
 				// only show highlighting when no window is active (ex. for shortcut keys at the bottom of the screen)
@@ -317,25 +319,37 @@ impl Button {
 				
 				let add_colon = self.txt.chars().nth(0) != Some(':');
 				if add_colon {d.addstr(": ");}
-				addstr_c(&self.txt, non_key_txt_color, d);
+				addstr_c(&self.txt, non_key_txt_color, d); 
+				/*d.attron(COLOR_PAIR(non_key_txt_color));
+				d.addstr(&self.txt);
+				d.attroff(COLOR_PAIR(non_key_txt_color));*/
 			}
 		}
 		
-		self.pos = Some(pos);
-		w
+		w as isize
+	}
+	
+	// see self.print(). prints at (pos.0, pos.1 + (w-len)/2)
+	// for example to center in a window or location not at the center of the screen
+	// (if the location is directly at the center of the screen use self.print_centered())
+	pub fn print_centered_at(&mut self, pos: (i32, i32), w: i32, l: &Localization, d: &mut Renderer) {
+		let button_w = self.print_txt(l).len() as i32;
+		debug_assertq!(button_w <= w);
+		d.mv(pos.0, pos.1 + (w - button_w)/2);
+		self.print(None, l, d);
+	}
+	
+	// see self.print(). prints at the center of the screen
+	// prints at the center of the screen
+	pub fn print_centered(&mut self, row: i32, iface_settings: &IfaceSettings, l: &Localization, d: &mut Renderer) {
+		let button_w = self.print_txt(l).len() as i32;
+		debug_assertq!(button_w <= iface_settings.screen_sz.w as i32);
+		d.mv(row, (iface_settings.screen_sz.w as i32 - button_w)/2);
+		self.print(None, l, d);
 	}
 	
 	pub fn print_key_only(&mut self, ui_mode: Option<&UIMode>, l: &Localization, d: &mut Renderer) -> isize {
-		let w = key_txt(self.key, l).len() as isize;
-		
-		let pos = {
-			let start = cursor_pos(d);
-			let end = ScreenCoord {y: start.y, x: start.x + w};
-			ButtonPosition {start, end}
-		};
-		
-		// print
-		{
+		{ // print
 			// only show highlighting when no window is active (ex. for shortcut keys at the bottom of the screen)
 			if let Some(ui_mode) = ui_mode {
 				ui_mode.print_key(self.key, l, d);
@@ -345,32 +359,44 @@ impl Button {
 			}
 		}
 		
-		self.pos = Some(pos);
-		w
+		let w = key_txt(self.key, l).len();
+		self.pos = Some(ButtonPosition::from(w, d));
+		w as isize
 	}
 	
+	// shows "button txt", without showing the key
 	pub fn print_without_parsing(&mut self, d: &mut Renderer) {
-		let pos = {
-			let start = cursor_pos(d);
-			let end = ScreenCoord {y: start.y, x: start.x + self.txt.len() as isize};
-			ButtonPosition {start, end}
-		};
+		let color = self.return_color_and_handle_hovering(self.txt.len(), d);
+		//#[cfg(not(target_env="musl"))]
+		addstr_c(&self.txt, color, d);
+		
+		/*#[cfg(target_env="musl")]
+		{
+			//d.attron(COLOR_PAIR(color));
+			d.addstr(&self.txt);
+			//d.attroff(COLOR_PAIR(color));
+		}*/
+	}
+	
+	// return color to show the button, update hovering information
+	fn return_color_and_handle_hovering(&mut self, w: usize, d: &mut Renderer) -> CInd {
+		let pos = ButtonPosition::from(w, d);
 		
 		// set color and mouse cursor if mouse is over the button
-		let color = (|| {
+		let non_key_txt_color = (|| {
 			if let Some((y,x)) = d.mouse_pos() {
 				// hovering
 				if pos.contains(y,x) {
 					d.set_mouse_to_hand();
+					self.hovered_over = true; // used for printing tool tips
 					return CGRAY;
 				}
 			}
 			CWHITE
 		})();
-		
-		addstr_c(&self.txt, color, d);
-		
 		self.pos = Some(pos);
+		
+		non_key_txt_color
 	}
 	
 	// shows "* button txt *" at the center of the screen when selected
@@ -439,6 +465,12 @@ impl ButtonPosition {
 	pub fn contains(&self, y: i32, x: i32) -> bool {
 		y >= self.start.y as i32 && y <= self.end.y as i32 &&
 		x >= self.start.x as i32 && x < self.end.x as i32
+	}
+	
+	fn from(w: usize, d: &Renderer) -> Self {
+		let start = cursor_pos(d);
+		let end = ScreenCoord {y: start.y, x: start.x + w as isize};
+		ButtonPosition {start, end}
 	}
 }
 

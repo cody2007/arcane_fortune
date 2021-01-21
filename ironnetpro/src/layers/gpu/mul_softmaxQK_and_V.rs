@@ -73,7 +73,7 @@ impl Run for MulSoftmaxQKAndVInternals {
 		debug_assert!((softmaxQK.shape.n * softmaxQK.shape.c) == batch_sz);
 		debug_assert!((y.shape.n * y.shape.c) == batch_sz);
 		
-		model.einsum(y, &[0,1,3], softmaxQK, &[0,1,2], V, &[0,2,3], N, K, M, batch_sz, 0.);
+		model.einsum(y, &[0,1,3], softmaxQK, &[0,1,2], V, &[0,2,3], N, K, M, batch_sz, 0., self.params.data_type);
 	}
 	
 	fn backward(&self, layer: &Layer, model: &Model) {
@@ -103,7 +103,7 @@ impl Run for MulSoftmaxQKAndVInternals {
 			
 			debug_assert!(N == M);
 			
-			model.einsum(dsoftmaxQK, &[0,1,2], dy, &[0,1,3], V, &[0,2,3], N, K, M, batch_sz, 1.);
+			model.einsum(dsoftmaxQK, &[0,1,2], dy, &[0,1,3], V, &[0,2,3], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 		
 		///////////////////////// dV
@@ -114,7 +114,7 @@ impl Run for MulSoftmaxQKAndVInternals {
 			
 			debug_assert!(N == K);
 			
-			model.einsum(dV, &[0,2,3], softmaxQK, &[0,1,2], dy, &[0,1,3], N, K, M, batch_sz, 1.);
+			model.einsum(dV, &[0,2,3], softmaxQK, &[0,1,2], dy, &[0,1,3], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 	}
 

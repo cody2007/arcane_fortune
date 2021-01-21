@@ -1,17 +1,31 @@
 {
 	peace_treaty_min_years: 5
+	trade_reasonableness_threshold: 1.0
 	friendship_threshold: 0.1
 	enemy_threshold: -0.1
 	mood_you_declared_war_on_us: -1.0
 	mood_we_declared_war_on_you: -0.5
+	mood_failed_assassination: -1.0
+	mood_successful_assassination: -1.25
 	mood_we_are_sympathetic_to_the_unjust_war_against_you: 0.15
 	mood_you_declared_war_on_our_friend: -0.25
 	mood_you_declared_war_on_our_enemy: 0.25
+	mood_your_offer_insulted_us: -0.2
+	mood_you_are_easily_taken_advantage_of: 0.2
 	mood_you_threatened_us: -0.25
+	mood_you_helped_us: 0.4
+	mood_you_refused_to_help_us: -0.2
+	mood_your_empires_nobility_are_dignified: 0.25
+	mood_your_empires_nobility_are_brutish: -0.1
+	mood_we_fear_you: 0.15
 	mood_common_doctrine: 2
 	mood_differing_doctrine: -1
+	mood_independence_handled: 0.25
+	mood_independence_not_handled: -0.5
 	mood_fiefdom: 0.5
 	mood_fiefdom_we_do_not_support_the_war: -0.5
 	mood_fiefdom_we_demand_war: -0.3
+	mood_fiefdom_taxes_are_too_high: -0.75
+	mood_fiefdom_taxes_are_low: 0.1
 }
 

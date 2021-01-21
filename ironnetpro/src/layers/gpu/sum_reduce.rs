@@ -57,6 +57,21 @@ impl Run for SumReduceInternals {
 						dx.shape.n_elements() / (dx.shape.n * dx.shape.c) as usize, // n_vals per img
 						dx.shape.n_elements()
 				)};
+		// case of [n,1,h,w] (dy) being broadcast added to [n,c,h,w] (dx) seemingly not supported by cudnnAddTensor
+		}else if dy.shape.n != 1 && dy.shape.c == 1 &&
+			dy.shape.h != 1 && dy.shape.w != 1 {
+				
+				debug_assert!(dy.shape.n == dx.shape.n);
+				debug_assert!(dy.shape.h == dx.shape.h);
+				debug_assert!(dy.shape.w == dx.shape.w);
+				
+				unsafe {broadcast_across_channel_vals(
+						dy.mem.val, // input
+						dx.mem.val, // output
+						dy.shape.n as usize, // imgs
+						dx.shape.c as usize, // channels
+						(dy.shape.h * dy.shape.w) as usize
+				)};
 		
 		// case of [1,1,1,1] being broadcast added to [n,c,h,w], not supported by cudnnAddTensor
 		}else if dy.shape.n == 1 && dy.shape.c == 1 &&
@@ -76,6 +91,7 @@ impl Run for SumReduceInternals {
 				
 				model.one(layer.data_type),
 				dx.desc.val, dx.mem.val)}.chk_err();
+			//println!("fin");
 		}
 	}
 	

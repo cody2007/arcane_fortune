@@ -10,5 +10,7 @@ build = "build.rs"
 [features]
 profile = []
 cpu_only = []
+titan_card_bypass_sgemm = []
+# ^ certain fully connected layer sizes will cause the cublass sgemm function to crash
 
 [dependencies]

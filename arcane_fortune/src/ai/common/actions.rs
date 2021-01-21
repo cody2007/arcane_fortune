@@ -7,212 +7,237 @@ const TURNS_RECHECK_FORTIFY: usize = 15;
 // common actions among empires and nobility:
 //	attack, defense, & worker actions
 impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
-	pub fn common_actions(&mut self, ai_ind: usize, is_cur_player: bool, pstats: &mut Stats<'bt,'ut,'rt,'dt>,
-			personality: &AIPersonality, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
+	// if target_city_coord_opt is some value, then that location is targeted exclusively
+	pub fn common_actions(ai_ind: usize, is_cur_player: bool, target_city_coord_opt: Option<u64>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
+			personality: AIPersonality, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 			gstate: &mut GameState, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
 			disband_unit_inds: &mut Vec<usize>, map_sz: MapSz, temps: &Templates<'bt,'ut,'rt,'dt,'_>) {
+		#[cfg(feature="profile")]
+		let _g = Guard::new("AIState::common_actions");
+		
 		{ // city unit actions (produce new buildings and improvements)
+			#[cfg(feature="profile")]
+			let _g = Guard::new("city unit actions");
+			
 			let boot_camp_template = &BldgTemplate::frm_str(BOOT_CAMP_NM, temps.bldgs);
 			let academy_template = &BldgTemplate::frm_str(ACADEMY_NM, temps.bldgs);
-			let net_income = pstats.net_income();
+			let pstats = &players[ai_ind].stats;
+			let net_income = pstats.net_income(players, &gstate.relations);
 			
-			if self.next_bonus_bldg.is_none() {self.set_next_bonus_bldg(pstats, personality, temps.bldgs, &mut gstate.rng);}
-			
-			let mut next_bonus_bldg = self.next_bonus_bldg.as_ref().unwrap_or_else(|| panicq!("next bonus bldg unset"));
-			let is_offense_strong_enough = self.is_offense_strong_enough(pstats, personality, units, bldgs);
-			let any_academy_constructed = self.city_states.iter().any(|c| !c.academy_ind.is_none());
-			
-			for city_ind in 0..self.city_states.len() {
-				let city = &mut self.city_states[city_ind];
+			let player = &mut players[ai_ind];
+			let pstats = &mut player.stats;
+			if let Some(ai_state) = player.ptype.any_ai_state_mut() {
+				if ai_state.next_bonus_bldg.is_none() {ai_state.set_next_bonus_bldg(pstats, &personality, temps.bldgs, &mut gstate.rng);}
 				
-				city.execute_defense_actions(ai_ind, is_cur_player, units, bldgs, pstats, gstate, map_data, exs, disband_unit_inds, map_sz);
-				if gstate.rng.gen_f32b() < 0.25 {
-					city.execute_worker_actions(is_cur_player, units, pstats, bldgs, map_data, exs, gstate, map_sz);
-				}
+				let mut next_bonus_bldg = ai_state.next_bonus_bldg.as_ref().unwrap_or_else(|| panicq!("next bonus bldg unset"));
+				let is_offense_strong_enough = ai_state.is_offense_strong_enough(pstats, &personality, units, bldgs);
+				let any_academy_constructed = ai_state.city_states.iter().any(|c| !c.academy_ind.is_none());
 				
-				/////////// worker actions
-				{
-					let exf = exs.last_mut().unwrap();
+				for city_ind in 0..ai_state.city_states.len() {
+					let city = &mut ai_state.city_states[city_ind];
 					
-					macro_rules! add_bldg_action{($bldg_template: expr) => {
-						let mut already_planned = false;
+					city.execute_defense_actions(ai_ind, is_cur_player, units, bldgs, pstats, gstate, map_data, exs, disband_unit_inds, map_sz);
+					if gstate.rng.gen_f32b() < 0.25 {
+						city.execute_worker_actions(is_cur_player, units, pstats, bldgs, map_data, exs, gstate, map_sz);
+					}
+					
+					/////////// worker actions
+					{
+						let exf = exs.last_mut().unwrap();
 						
-						// check if action not already planned
-						for action in city.worker_actions.iter().rev() {
-							if let ActionType::WorkerBuildBldg {template, ..} = &action.action_type {
-								if template == $bldg_template {already_planned = true; break;}
-							}
-						}
-						
-						// check if no workers are presently working on it
-						if !already_planned {
-							for unit_ind in city.worker_inds.iter().rev() {
-								for action in units[*unit_ind].action.iter() {
-									if let ActionType::WorkerBuildBldg {template, ..} = &action.action_type {
-										if template == $bldg_template {already_planned = true; break;}
-									}
+						macro_rules! add_bldg_action{($bldg_template: expr) => {
+							let mut already_planned = false;
+							
+							// check if action not already planned
+							for action in city.worker_actions.iter().rev() {
+								if let ActionType::WorkerBuildBldg {template, ..} = &action.action_type {
+									if template == $bldg_template {already_planned = true; break;}
 								}
 							}
 							
+							// check if no workers are presently working on it
 							if !already_planned {
-								const CH_DIST: isize = 20;
-								let mut search_start = Coord::frm_ind(city.coord, map_sz);
-								search_start.y += gstate.rng.isize_range(-CH_DIST, CH_DIST);
-								search_start.x += gstate.rng.isize_range(-CH_DIST, CH_DIST);
-								
-								if let Some(boot_camp_coord) = find_square_buildable(search_start, $bldg_template, map_data, exf, map_sz) {
-									city.worker_actions.push( ActionMeta {
-										action_type: ActionType::WorkerBuildBldg{
-											valid_placement: true,
-											template: $bldg_template,
-											doctrine_dedication: self.goal_doctrine,
-											bldg_coord: None
-										},
-										actions_req: 1.,
-										path_coords: vec!{boot_camp_coord; 1},
-										action_meta_cont: None
-									});
-									//dbg_log(&format!("worker_actions len {}", city.worker_actions.len()), owner.id, logs, turn);
-								} // buildable location
-							}
-						}
-					};};
-					
-					// 1. wait for city hall to be constructed
-					// 2. repair walls
-					// 3. build boot camp
-					// 4. build academy
-					// 5. build bonus bldg
-					if city.population_center_ind != None {
-						// repair walls
-						if city.damaged_wall_coords.len() != 0 {
-							'wall_loop: for damaged_wall_coord in city.damaged_wall_coords.iter() {
-								let damaged_wall_coord = damaged_wall_coord.to_ind(map_sz) as u64;
-								
-								macro_rules! skip_if_repair{($action: expr) => {
-									if let ActionType::WorkerRepairWall {wall_coord: Some(coord), ..} = &$action.action_type {
-										if *coord == damaged_wall_coord {
-											continue 'wall_loop;
+								for unit_ind in city.worker_inds.iter().rev() {
+									for action in units[*unit_ind].action.iter() {
+										if let ActionType::WorkerBuildBldg {template, ..} = &action.action_type {
+											if template == $bldg_template {already_planned = true; break;}
 										}
 									}
-								};};
-								
-								// check that it's not being actively repaired
-								for worker_ind in city.worker_inds.iter() {
-									for action in units[*worker_ind].action.iter().rev() {skip_if_repair!(action);}
 								}
 								
-								// check that it's not already scheduled to be repaired
-								for action in city.worker_actions.iter() {skip_if_repair!(action);}
-								
-								city.worker_actions.push(ActionMeta::new(
-									ActionType::WorkerRepairWall {
-										wall_coord: Some(damaged_wall_coord),
-										turns_expended: 0
-									}));
+								if !already_planned {
+									const CH_DIST: isize = 20;
+									let mut search_start = Coord::frm_ind(city.coord, map_sz);
+									search_start.y += gstate.rng.isize_range(-CH_DIST, CH_DIST);
+									search_start.x += gstate.rng.isize_range(-CH_DIST, CH_DIST);
+									
+									if let Some(boot_camp_coord) = find_square_buildable(search_start, $bldg_template, map_data, exf, map_sz) {
+										city.worker_actions.push( ActionMeta {
+											action_type: ActionType::WorkerBuildBldg{
+												valid_placement: true,
+												template: $bldg_template,
+												doctrine_dedication: ai_state.goal_doctrine,
+												bldg_coord: None
+											},
+											actions_req: 1.,
+											path_coords: vec!{boot_camp_coord; 1},
+											action_meta_cont: None
+										});
+										//dbg_log(&format!("worker_actions len {}", city.worker_actions.len()), owner.id, logs, turn);
+									} // buildable location
+								}
 							}
-						}else if city.boot_camp_ind == None {
-							add_bldg_action!(boot_camp_template);
-						}else if !any_academy_constructed && net_income >= academy_template.upkeep {
-							add_bldg_action!(academy_template);
-						// bonus bldg
-						}else if is_offense_strong_enough && net_income >= next_bonus_bldg.upkeep {
-							add_bldg_action!(next_bonus_bldg);
-							self.set_next_bonus_bldg(pstats, personality, temps.bldgs, &mut gstate.rng);
-							next_bonus_bldg = self.next_bonus_bldg.as_ref().unwrap_or_else(|| panicq!("next bonus bldg unset"));
-							//printlnq!("next bonus bldg {}", next_bonus_bldg.nm[0]);
+						};};
+						
+						// 1. wait for city hall to be constructed
+						// 2. repair walls
+						// 3. build boot camp
+						// 4. build academy
+						// 5. build bonus bldg
+						if city.population_center_ind != None {
+							// repair walls
+							if city.damaged_wall_coords.len() != 0 {
+								'wall_loop: for damaged_wall_coord in city.damaged_wall_coords.iter() {
+									let damaged_wall_coord = damaged_wall_coord.to_ind(map_sz) as u64;
+									
+									macro_rules! skip_if_repair{($action: expr) => {
+										if let ActionType::WorkerRepairWall {wall_coord: Some(coord), ..} = &$action.action_type {
+											if *coord == damaged_wall_coord {
+												continue 'wall_loop;
+											}
+										}
+									};};
+									
+									// check that it's not being actively repaired
+									for worker_ind in city.worker_inds.iter() {
+										for action in units[*worker_ind].action.iter().rev() {skip_if_repair!(action);}
+									}
+									
+									// check that it's not already scheduled to be repaired
+									for action in city.worker_actions.iter() {skip_if_repair!(action);}
+									
+									city.worker_actions.push(ActionMeta::new(
+										ActionType::WorkerRepairWall {
+											wall_coord: Some(damaged_wall_coord),
+											turns_expended: 0
+										}));
+								}
+							}else if city.boot_camp_ind == None {
+								add_bldg_action!(boot_camp_template);
+							}else if !any_academy_constructed && net_income >= academy_template.upkeep {
+								add_bldg_action!(academy_template);
+							// bonus bldg
+							}else if is_offense_strong_enough && net_income >= next_bonus_bldg.upkeep {
+								add_bldg_action!(next_bonus_bldg);
+								ai_state.set_next_bonus_bldg(pstats, &personality, temps.bldgs, &mut gstate.rng);
+								next_bonus_bldg = ai_state.next_bonus_bldg.as_ref().unwrap_or_else(|| panicq!("next bonus bldg unset"));
+								//printlnq!("next bonus bldg {}", next_bonus_bldg.nm[0]);
+							}
 						}
 					}
-				}
-			} // city action loop
+				} // city action loop
+			}
 		}
 		
 		{ // building productions: (produce new workers, defense units, attack units)
+			#[cfg(feature="profile")]
+			let _g = Guard::new("building productions");
+			
 			const WORKERS_PER_CITY: usize = 2;
 			const MIN_DEFENDERS_BEFORE_CONSTRUCTING_ACADEMY: usize = 2;
 			
+			let pstats = &players[ai_ind].stats;
 			let max_defensive_unit = pstats.max_defensive_unit(temps.units);
-			let net_income = pstats.net_income();
+			let net_income = pstats.net_income(players, &gstate.relations);
 			
-			for city in self.city_states.iter() {
-				// city hall
-				if let Some(population_center_ind) = city.population_center_ind {
-					if let BldgArgs::PopulationCenter {ref mut production, ..} = &mut bldgs[population_center_ind].args {
-						// check if not producing anything already and we do not already have enough workers for this city
-						if production.len() == 0 && city.worker_inds.len() < WORKERS_PER_CITY {
-							// produce new worker
-							production.push(ProductionEntry {
-								production: UnitTemplate::frm_str(WORKER_NM, temps.units),
-								progress: 0
-							});
-						}
-					}else{panicq!("ai city hall has no population center arguments");}
-				}
-				
-				// boot camp
-				// if an academy is not already contructed, only produce MIN_DEFENDERS_BEFORE_CONSTRUCTING_ACADEMY
-				if city.defenders.len() < MIN_DEFENDERS_BEFORE_CONSTRUCTING_ACADEMY || city.academy_ind != None {
-					if let Some(boot_camp_ind) = city.boot_camp_ind {
-						if let BldgArgs::GenericProducable {ref mut production} = &mut bldgs[boot_camp_ind].args {
-							// check if not producing anything already and we do not already have enough defenders for this city
-							// and we can afford it
-							if production.len() == 0 {
-								// produce new defensive unit
-								if city.defenders.len() < city.max_defenders() && net_income >= max_defensive_unit.upkeep {
-									production.push(ProductionEntry {
-										production: max_defensive_unit,
-										progress: 0
-									});
-									//dbg_log("setting bootcamp", owner.id, logs, turn);
-								
-								// produce new attack unit
-								}else if let Some(next_attack_unit) = self.attack_fronts.next_req_unit(self.city_states.len(), pstats, temps.units) {
-									if net_income >= next_attack_unit.upkeep {
+			let player = &mut players[ai_ind];
+			let pstats = &player.stats;
+			if let Some(ai_state) = player.ptype.any_ai_state_mut() {
+				for city in ai_state.city_states.iter() {
+					// city hall
+					if let Some(population_center_ind) = city.population_center_ind {
+						if let BldgArgs::PopulationCenter {ref mut production, ..} = &mut bldgs[population_center_ind].args {
+							// check if not producing anything already and we do not already have enough workers for this city
+							if production.len() == 0 && city.worker_inds.len() < WORKERS_PER_CITY {
+								// produce new worker
+								production.push(ProductionEntry {
+									production: UnitTemplate::frm_str(WORKER_NM, temps.units),
+									progress: 0
+								});
+							}
+						}else{panicq!("ai city hall has no population center arguments");}
+					}
+					
+					// boot camp
+					// if an academy is not already contructed, only produce MIN_DEFENDERS_BEFORE_CONSTRUCTING_ACADEMY
+					if city.defenders.len() < MIN_DEFENDERS_BEFORE_CONSTRUCTING_ACADEMY || city.academy_ind != None {
+						if let Some(boot_camp_ind) = city.boot_camp_ind {
+							if let BldgArgs::GenericProducable {ref mut production} = &mut bldgs[boot_camp_ind].args {
+								// check if not producing anything already and we do not already have enough defenders for this city
+								// and we can afford it
+								if production.len() == 0 {
+									// produce new defensive unit
+									if city.defenders.len() < city.max_defenders() && net_income >= max_defensive_unit.upkeep {
 										production.push(ProductionEntry {
-											production: next_attack_unit,
+											production: max_defensive_unit,
 											progress: 0
 										});
+										//dbg_log("setting bootcamp", owner.id, logs, turn);
+									
+									// produce new attack unit
+									}else if let Some(next_attack_unit) = ai_state.attack_fronts.next_req_unit(ai_state.city_states.len(), pstats, temps.units) {
+										if net_income >= next_attack_unit.upkeep {
+											production.push(ProductionEntry {
+												production: next_attack_unit,
+												progress: 0
+											});
+										}
 									}
 								}
-							}
-						}else{panicq!("boot camp has no arguments");}
-					}
-				}
-			} // building productions
-		}
-		
-		self.attack_fronts.execute_actions(ai_ind, units, bldgs, map_data, exs, gstate, map_sz);//, iface_settings);
-		
-		//////////////////////////////
-		// icbm actions
-		if self.icbm_inds.len() > 0 && gstate.rng.gen_f32b() < (1./10.){
-			let war_enemies = gstate.relations.at_war_with(ai_ind);
-			
-			if war_enemies.len() != 0 {
-				'icbm_loop: for icbm_ind in self.icbm_inds.iter() {
-					let u = &units[*icbm_ind];
-					if u.action.len() != 0 {continue;} // unit pressumably already moving to a target
-					
-					// find target
-					for b in bldgs.iter() {
-						if !war_enemies.contains(&(b.owner_id as usize)) {continue;}
-						
-						// attack
-						if let BldgArgs::PopulationCenter {..} = &b.args {
-							let action_type = ActionType::Attack {
-								attack_coord: Some(b.coord),
-								attackee:  Some(b.owner_id),
-								ignore_own_walls: false
-							};
-							
-							if set_target_attackable(&action_type, *icbm_ind, true, AI_MAX_SEARCH_DEPTH, units, bldgs, exs, map_data, map_sz) {
-								break 'icbm_loop; // success
-							}
+							}else{panicq!("boot camp has no arguments");}
 						}
 					}
-					
-					// no targets found
-					break 'icbm_loop;
+				} // building productions
+			}
+		}
+		
+		if let Some(ai_state) = players[ai_ind].ptype.any_ai_state_mut() {
+			ai_state.attack_fronts.execute_actions(ai_ind, target_city_coord_opt, units, bldgs, map_data, exs, gstate, map_sz);//, iface_settings);
+			
+			//////////////////////////////
+			// icbm actions
+			if ai_state.icbm_inds.len() > 0 && gstate.rng.gen_f32b() < (1./10.){
+				#[cfg(feature="profile")]
+				let _g = Guard::new("icbm actions");
+				
+				let war_enemies = gstate.relations.at_war_with(ai_ind);
+				
+				if war_enemies.len() != 0 {
+					'icbm_loop: for icbm_ind in ai_state.icbm_inds.iter() {
+						let u = &units[*icbm_ind];
+						if u.action.len() != 0 {continue;} // unit pressumably already moving to a target
+						
+						// find target
+						for b in bldgs.iter() {
+							if !war_enemies.contains(&(b.owner_id as usize)) {continue;}
+							
+							// attack
+							if let BldgArgs::PopulationCenter {..} = &b.args {
+								let action_type = ActionType::Attack {
+									attack_coord: Some(b.coord),
+									attackee:  Some(b.owner_id),
+									ignore_own_walls: false
+								};
+								
+								if set_target_attackable(&action_type, *icbm_ind, true, AI_MAX_SEARCH_DEPTH, units, bldgs, exs, map_data, map_sz) {
+									break 'icbm_loop; // success
+								}
+							}
+						}
+						
+						// no targets found
+						break 'icbm_loop;
+					}
 				}
 			}
 		}

@@ -32,12 +32,12 @@ pub struct Templates<'bt,'ut,'rt,'dt,'tt> {
 	//pub l: Localization
 }
 
-pub struct Disp<'f,'bt,'ut,'rt,'dt> {
+pub struct Disp<'f,'r,'bt,'ut,'rt,'dt> {
 	pub ui_mode: UIMode<'bt,'ut,'rt,'dt>, // active windows, menus, etc
-	pub state: DispState<'f,'bt,'ut,'rt,'dt>,
+	pub state: DispState<'f,'r,'bt,'ut,'rt,'dt>,
 }
 
-pub struct DispState<'f,'bt,'ut,'rt,'dt> {
+pub struct DispState<'f,'r,'bt,'ut,'rt,'dt> {
 	pub iface_settings: IfaceSettings<'f,'bt,'ut,'rt,'dt>,
 	pub terminal: TerminalSettings, // limit characters or colors
 	pub chars: DispChars,
@@ -51,7 +51,7 @@ pub struct DispState<'f,'bt,'ut,'rt,'dt> {
 	pub key_pressed: i32,
 	pub mouse_event: Option<MEVENT>,
 	
-	pub renderer: Renderer // sdl state variables
+	pub renderer: &'r mut Renderer // sdl state variables
 }
 
 /*pub struct Map<'bt,'ut,'rt,'dt> {
@@ -60,7 +60,7 @@ pub struct DispState<'f,'bt,'ut,'rt,'dt> {
 	sz: MapSz
 }*/
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct GameState {
 	pub relations: Relations,
 	pub logs: Vec<Log>,
@@ -90,21 +90,21 @@ pub struct Game {
 // pass-through functions
 //	if a function already has Disp -- these can be used to shorten (code) line lengths
 use std::convert::TryInto;
-impl Disp<'_,'_,'_,'_,'_> {
+impl Disp<'_,'_,'_,'_,'_,'_> {
 	pub fn addch<T: TryInto<chtype>>(&mut self, a: T) {self.state.renderer.addch(a);}
 	pub fn attron<T: TryInto<chtype>>(&mut self, a: T) {self.state.renderer.attron(a);}
 	pub fn attroff<T: TryInto<chtype>>(&mut self, a: T) {self.state.renderer.attroff(a);}
-	pub fn mv(&mut self, y: CInt, x: CInt) {self.state.renderer.mv(y,x);}
+	pub fn mv<Y: TryInto<CInt>, X: TryInto<CInt>>(&mut self, y: Y, x: X) {self.state.renderer.mv(y,x);}
 	pub fn addstr(&mut self, txt: &str) {self.state.renderer.addstr(txt);}
 	pub fn inch(&self) -> chtype {self.state.renderer.inch()}
-	pub fn clear(&mut self) {self.state.renderer.clear()}
+	//pub fn clear(&mut self) {self.state.renderer.clear()}
 }
 
-impl DispState<'_,'_,'_,'_,'_> {
+impl DispState<'_,'_,'_,'_,'_,'_> {
 	pub fn addch<T: TryInto<chtype>>(&mut self, a: T) {self.renderer.addch(a);}
 	pub fn attron<T: TryInto<chtype>>(&mut self, a: T) {self.renderer.attron(a);}
 	pub fn attroff<T: TryInto<chtype>>(&mut self, a: T) {self.renderer.attroff(a);}
-	pub fn mv(&mut self, y: CInt, x: CInt) {self.renderer.mv(y,x);}
+	pub fn mv<Y: TryInto<CInt>, X: TryInto<CInt>>(&mut self, y: Y, x: X) {self.renderer.mv(y,x);}
 	pub fn addstr(&mut self, txt: &str) {self.renderer.addstr(txt);}
 	pub fn inch(&self) -> chtype {self.renderer.inch()}
 	pub fn clear(&mut self) {self.renderer.clear()}

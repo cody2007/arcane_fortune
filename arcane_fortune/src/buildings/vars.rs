@@ -8,8 +8,8 @@ use crate::zones::return_zone_coord;
 use crate::renderer::endwin;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
-use crate::player::*;
 use crate::containers::*;
+use super::*;
 
 pub const CITY_HALL_NM: &str = "City Hall";
 pub const BOOT_CAMP_NM: &str = "Boot Camp";
@@ -17,19 +17,30 @@ pub const DOCK_NM: &str = "Dock";
 pub const ACADEMY_NM: &str = "Academy";
 pub const BARBARIAN_CAMP_NM: &str = "Camp";
 pub const MANOR_NM: &str = "Manor";
+pub const PUBLIC_EVENT_NM: &str = "Public event";
 
 // global parameters
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Default)]
 pub struct BldgConfig {
+	// fire
 	pub fire_damage_rate: u32,
-	pub fire_repair_rate: u32,
+	pub fire_repair_rate: u32,	
 	pub max_bldg_damage: u32,
+	
 	pub job_search_bonus_dist: u32,
 	// ^ the distance a bldg gives a bonus, if it
 	//   has a job_search_bonus
 	//   the bonus falls off linearly as a fn of the manhattan dist
+	
+	
+	// events
+	pub birth_celebration_bonus: f32,
+	pub marriage_celebration_bonus: f32,
+	pub funeral_bonus: f32
 }
-impl_saving!{BldgConfig {fire_damage_rate, fire_repair_rate, max_bldg_damage, job_search_bonus_dist}}
+impl_saving!{BldgConfig {fire_damage_rate, fire_repair_rate, max_bldg_damage, job_search_bonus_dist,
+	birth_celebration_bonus, marriage_celebration_bonus, funeral_bonus
+}}
 
 #[derive(PartialEq, Clone)]
 pub enum BldgType {
@@ -70,7 +81,8 @@ pub struct BldgTemplate <'ut,'rt,'dt> {
 	pub health_bonus: f32,
 	pub job_search_bonus: f32,
 	
-	pub barbarian_only: bool // only barbarians can have this bldg
+	pub barbarian_only: bool, // only barbarians can have this bldg
+	pub not_human_buildable: bool // ex for manors or public events
 }
 
 impl_saving_template!{BldgTemplate <'ut,'rt,'dt>{id, nm, menu_txt, tech_req,
@@ -82,7 +94,7 @@ impl_saving_template!{BldgTemplate <'ut,'rt,'dt>{id, nm, menu_txt, tech_req,
 			crime_bonus, happiness_bonus,
 			doctrinality_bonus, pacifism_bonus,
 			health_bonus, job_search_bonus,
-			barbarian_only}}
+			barbarian_only, not_human_buildable}}
 
 #[derive(Clone, PartialEq)]
 struct Commute {
@@ -379,7 +391,7 @@ pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, uni
 			};
 		// not producing anything
 		}else{return;}
-	 } BldgArgs::None => {return;}}
+	 } BldgArgs::None | BldgArgs::PublicEvent {..} => {return;}}
 	
 	/////////////////////
 	// perform production action
@@ -651,6 +663,13 @@ pub enum BldgArgs<'ut,'rt> {
 	GenericProducable {
 		production: Vec<ProductionEntry<'ut,'rt>> // unit production
 	},
+	
+	PublicEvent {
+		public_event_type: PublicEventType,
+		nm: String,
+		turn_created: usize
+	},
+	
 	None
 }
 

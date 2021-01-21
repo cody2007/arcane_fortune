@@ -1,6 +1,6 @@
 use super::*;
 
-impl DispState<'_,'_,'_,'_,'_> {
+impl DispState<'_,'_,'_,'_,'_,'_> {
 	pub fn print_owned_unit_list(&mut self, mode: usize, player_ind: SmSvType, players: &Vec<Player>,
 			units: &Vec<Unit>, map_data: &mut MapData, temps: &Templates) {
 		let mut w = 0;

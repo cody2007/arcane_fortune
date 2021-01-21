@@ -36,7 +36,9 @@ pub enum UIMode<'bt,'ut,'rt,'dt> {
 	BldgsWindow(BldgsWindowState), // selection of either military or improvement buildings
 	ContactEmbassyWindow(ContactEmbassyWindowState),
 	ContactNobilityWindow(ContactNobilityState),
-	Trade(TradeState),
+	NobilityRequestWindow(NobilityRequestWindowState<'bt,'ut,'rt,'dt>), // nobility requests money, resources, etc from parent empire
+	Trade(TradeState<'bt,'ut,'rt,'dt>), // propose new trade
+	ViewTrade(ViewTradeState), // view current trades
 	CivilizationIntelWindow(CivilizationIntelWindowState), // selection of civilization
 	SwitchToPlayerWindow(SwitchToPlayerWindowState),
 	SetDifficultyWindow(SetDifficultyWindowState),
@@ -48,6 +50,7 @@ pub enum UIMode<'bt,'ut,'rt,'dt> {
 	ResourcesDiscoveredWindow(ResourcesDiscoveredWindowState), // every resource the player has ever come across
 	HistoryWindow(HistoryWindowState),
 	WarStatusWindow(WarStatusWindowState), // heatmap of who is at war with who
+	FriendsAndFoesWindow(FriendsAndFoesWindowState), // heatmap of moods
 	EncyclopediaWindow(EncyclopediaWindowState),
 	GoToCoordinateWindow(GoToCoordinateWindowState),
 	MvWithCursorNoActionsRemainAlert(MvWithCursorNoActionsRemainAlertState),
@@ -58,7 +61,12 @@ pub enum UIMode<'bt,'ut,'rt,'dt> {
 	CreateSectorAutomation(CreateSectorAutomationState),
 	CivicAdvisorsWindow(CivicAdvisorsWindowState),
 	PublicPollingWindow(PublicPollingWindowState),
+	
 	InitialGameWindow(InitialGameWindowState),
+	IntroNobilityJoinOptions(IntroNobilityJoinOptionsState<'bt,'ut,'rt,'dt>), // nobility selection when the player starts a new game
+	NobilityDeclaresIndependenceWindow(NobilityDeclaresIndependenceWindowState),
+	SetNobleTax(SetNobleTaxState), // set the noble's tax dues to the parent empire
+	
 	EndGameWindow(EndGameWindowState),
 	AboutWindow(AboutWindowState),
 	UnmovedUnitsNotification(UnmovedUnitsNotificationState),

@@ -26,6 +26,7 @@ Valid probability keys are:
 	business_bonus: 200
 	tropical_broadleaf_prob: .00005
 	plot_zoomed: C
+	ai_valuation: 4
 	print_str: (
   ~~~
 C│ │ 
@@ -41,6 +42,7 @@ C│ │
 	broadleaf_forest_prob: .00005
 	mixed_forest_prob: .00005
 	plot_zoomed: O
+	ai_valuation: 4
 	print_str: (
 ~~~
  | 
@@ -57,6 +59,7 @@ C│ │
 	broadleaf_forest_prob: .001
 	mixed_forest_prob: .001
 	plot_zoomed: T
+	ai_valuation: 1
 	print_str: (
   /\  
  /~~\ 
@@ -72,6 +75,7 @@ C│ │
 	tropical_broadleaf_prob: .000125
 	wetland_prob: .0015
 	plot_zoomed: ~
+	ai_valuation: 0
 	print_str: (
 /~~~~~~\
 }{ || }{
@@ -92,6 +96,7 @@ Food
 	meadow_prob: .00002
 	wetland_prob: .00002
 	prarie_prob: .00002
+	ai_valuation: 2
 	print_str: (
 :::
 :::
@@ -109,6 +114,7 @@ Food
 	wetland_prob: .00002
 	prarie_prob: .00002
 	steppe_prob: .00001
+	ai_valuation: 2
 	print_str: (
 ooo
 	)
@@ -120,6 +126,7 @@ ooo
 	agricultural_bonus: 400
 	plot_zoomed: r
 	wetland_prob: .00002
+	ai_valuation: 2
 	print_str: (
 :::
 	)
@@ -142,6 +149,7 @@ Metals / Materials
 	heath_prob: .0000075
 	tundra_prob: .0000075
 	plot_zoomed: S
+	ai_valuation: 3
 	print_str: (
 _____
 || ||
@@ -159,6 +167,7 @@ _____
 	steppe_prob: .0000015
 	tropical_broadleaf_prob: .0000075
 	plot_zoomed: $
+	ai_valuation: 5
 	print_str: (
 $$$
 	)
@@ -175,6 +184,7 @@ $$$
 	steppe_prob: .0000015
 	pine_forest_prob: .0000015
 	plot_zoomed: /
+	ai_valuation: 5
 	print_str: (
 \\\
 	)
@@ -191,6 +201,7 @@ $$$
 	steppe_prob: .0000035
 	pine_forest_prob: .0000035
 	plot_zoomed: /
+	ai_valuation: 10
 	print_str: [
 \\\
 	]
@@ -207,6 +218,7 @@ $$$
 	steppe_prob: .0000035
 	pine_forest_prob: .0000035
 	plot_zoomed: /
+	ai_valuation: 10
 	print_str: [
 \\\
 	]
@@ -227,6 +239,7 @@ $$$
 	broadleaf_forest_prob: .0000035
 	tropical_broadleaf_prob: .0000035
 	plot_zoomed: /
+	ai_valuation: 10
 	print_str: [
 \\\
 	]
@@ -247,6 +260,7 @@ Military
 	meadow_prob: .000025
 	heaht_prob:  .000025
 	plot_zoomed: h
+	ai_valuation: 10
 	print_str: (
       ._
  ────/  
@@ -262,6 +276,7 @@ Military
 	tropical_broadleaf_prob: .000075
 	savana_prob: .000025
 	plot_zoomed: e
+	ai_valuation: 10
 	print_str: (
       ._ 
  ────/  \
@@ -277,6 +292,7 @@ Military
 	savanna_prob: .000035
 	desert_prob: .000075
 	plot_zoomed: c
+	ai_valuation: 10	
 	print_str: (
       ._
  _n__/  
@@ -296,6 +312,7 @@ Military
 	prarie_prob: .0000025
 	steppe_prob: .0000035
 	plot_zoomed: |
+	ai_valuation: 10	
 	print_str: (
  ___  
 ||  | 
@@ -315,6 +332,7 @@ Military
 	prarie_prob: .0000035
 	steppe_prob: .0000085
 	plot_zoomed: |
+	ai_valuation: 100
 	print_str: (
 URANIUM
 	)

@@ -175,6 +175,12 @@ Culture
 }
 
 {
+	nm: Art of Deception
+	tech_req: Theater
+	research_req: 3000
+}
+
+{
 	nm: Philosophy
 	tech_req: Theater
 	research_req: 2000

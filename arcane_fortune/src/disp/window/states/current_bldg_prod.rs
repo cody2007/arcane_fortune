@@ -6,15 +6,14 @@ pub struct CurrentBldgProdState {pub mode: usize}
 impl CurrentBldgProdState {
 	pub fn print<'bt,'ut,'rt,'dt>(&self, bldgs: &Vec<Bldg>, players: &Vec<Player>, map_data: &mut MapData, exf: &HashedMapEx,
 			temps: &Templates, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
-		let l = &dstate.local;
 		debug_assertq!(dstate.iface_settings.zoom_ind == map_data.max_zoom_ind());
 		
 		let w = 29;
 		let pstats = &players[dstate.iface_settings.cur_player as usize].stats;
 		
 		if let Some(bldg_ind) = dstate.iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exf) {
-			let options = bldg_prod_list(&bldgs[bldg_ind], l); 
-			let list_pos = dstate.print_list_window(self.mode, l.Select_an_item_to_remove.clone(), options.clone(), None, None, 0, None);
+			let options = bldg_prod_list(&bldgs[bldg_ind], &dstate.local); 
+			let list_pos = dstate.print_list_window(self.mode, dstate.local.Select_an_item_to_remove.clone(), options.clone(), None, None, 0, None);
 			
 			// print details for selected bldg
 			if let Some(option) = options.options.get(self.mode) {

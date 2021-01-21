@@ -8,14 +8,11 @@ impl ProdListWindowState {
 			exf: &HashedMapEx, pstats: &Stats, temps: &Templates,
 			map_data: &mut MapData, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		debug_assertq!(dstate.iface_settings.zoom_ind == map_data.max_zoom_ind());
-		let l = &dstate.local;
-		let d = &mut dstate.renderer;
-		
 		let w = 29;
 		
 		////////////////////// worker producing bldg
 		if dstate.iface_settings.unit_inds_frm_sel(pstats, units, map_data, exf) != None {
-			let list_pos = dstate.print_list_window(self.mode, l.Select_production.clone(), dstate.production_options.worker.clone(), Some(w), None, 0, None);
+			let list_pos = dstate.print_list_window(self.mode, dstate.local.Select_production.clone(), dstate.production_options.worker.clone(), Some(w), None, 0, None);
 			
 			// print details for selected bldg
 			if let ArgOptionUI::BldgTemplate(Some(bt)) = dstate.production_options.worker.options[self.mode].arg {
@@ -33,8 +30,8 @@ impl ProdListWindowState {
 			
 			// look-up menu listings for the selected bldg:
 			if let Some(options) = &dstate.production_options.bldgs[b.template.id as usize] {
-				
-				let list_pos = dstate.print_list_window(self.mode, l.Select_production.clone(), options.clone(), None, None, 0, None);
+				let options = options.clone();
+				let list_pos = dstate.print_list_window(self.mode, dstate.local.Select_production.clone(), options, None, None, 0, None);
 				
 				// print details for selected bldg
 				if let ArgOptionUI::UnitTemplate(Some(ut)) = dstate.production_options.bldgs[b.template.id as usize].as_ref().unwrap().options[self.mode].arg {
@@ -56,7 +53,7 @@ impl ProdListWindowState {
 	
 	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, units: &Vec<Unit>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 			pstats: &Stats, map_data: &mut MapData, exf: &HashedMapEx, 
-			temps: &Templates<'bt,'ut,'rt,'dt,'_>, dstate: &mut DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+			temps: &Templates<'bt,'ut,'rt,'dt,'_>, dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		
 		// set bldg worker produces
 		if let Some(unit_inds) = dstate.iface_settings.unit_inds_frm_sel(pstats, units, map_data, exf) {
@@ -149,10 +146,9 @@ impl ProdListWindowState {
 								*production_progress = None;
 								*production = None;
 							}*/
-							return UIModeControl::Closed;
-						} BldgArgs::None => {panicq!("bldg arguments do not store production");}	
+						} BldgArgs::None | BldgArgs::PublicEvent {..} => {panicq!("bldg arguments do not store production");}	
 					}
-					return UIModeControl::UnChgd;
+					return UIModeControl::Closed;
 				);};
 				if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {	set_production!(ind);}
 				

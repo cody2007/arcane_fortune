@@ -385,26 +385,22 @@ pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, is_cur_pl
 		// ellipse: y = (h/w)*sqrt(w*w - x*x)
 		let i_bound = (0.5*(4.*((FOG_UNIT_DIST*FOG_UNIT_DIST) as f32) - (j*j) as f32).sqrt()).round() as isize;
 		for i in -i_bound..=i_bound {
-			let coord_discover = Coord {y: (i_pos + i) as isize, x: (j + j_pos) as isize};
-			
-			if let Some(coord) = map_sz.coord_wrap(coord_discover.y, coord_discover.x) {
+			if let Some(coord) = map_sz.coord_wrap((i_pos + i) as isize, (j + j_pos) as isize) {
 				// discover land, resources, and civs
 				if let PresenceAction::SetPresentAndDiscover | PresenceAction::DiscoverOnly = action {
 					let land_discov_coord = pstats.land_discov.last().unwrap().map_to_discov_coord(Coord::frm_ind(coord, map_sz));
 					if prev_land_discov_coord != land_discov_coord {
-						compute_zooms_discover(coord, is_cur_player, pstats, map_data);
+						compute_zooms_discover(coord, pstats, map_data);
 						prev_land_discov_coord = land_discov_coord;
 					}
 					
 					// log resource discovery
 					if let Some((resource, coord)) = map_data.get(ZoomInd::Full, coord)
-													.get_resource_and_coord(coord, map_data, map_sz) {
+							.get_resource_and_coord(coord, map_data, map_sz) {
 						let res_dis_coords = &mut pstats.resources_discov_coords[resource.id as usize];
 						
-						if res_dis_coords.len() < N_RESOURCES_DISCOV_LOG {
-							if !res_dis_coords.contains(&coord) {
-								res_dis_coords.push(coord);
-							}
+						if res_dis_coords.len() < N_RESOURCES_DISCOV_LOG && !res_dis_coords.contains(&coord) {
+							res_dis_coords.push(coord);
 						}
 					}
 					
@@ -427,9 +423,9 @@ pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, is_cur_pl
 				// update fog of war
 				if is_cur_player {
 					if action == PresenceAction::SetPresentAndDiscover {
-						compute_zooms_fog(coord, true, pstats, map_data, exs);
+						compute_zooms_fog(coord, true, pstats, map_data, exs, gstate.turn);
 					}else if action == PresenceAction::SetAbsent {
-						compute_zooms_fog(coord, false, pstats, map_data, exs);
+						compute_zooms_fog(coord, false, pstats, map_data, exs, gstate.turn);
 					}
 				}
 			} // valid coord
@@ -441,7 +437,7 @@ pub fn compute_active_window<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, is_cur_pl
 pub fn compute_zoomed_out_discoveries<'r,'bt,'ut,'rt,'dt>(map_data: &mut MapData, pstats: &mut Stats<'bt,'ut,'rt,'dt>){
 	let land_discov_full = pstats.land_discov.last().unwrap().clone();
 	for coord in LandDiscovIter::from(&land_discov_full) {
-		compute_zooms_discover(coord, true, pstats, map_data);
+		compute_zooms_discover(coord, pstats, map_data);
 	}
 }
 
@@ -453,6 +449,9 @@ pub enum RecompType {AddUnit, RmUnit}
 
 pub fn compute_zooms_coord_unit<'bt,'ut,'rt,'dt>(coord_recompute: u64, unit_ind: usize, recomp_type: RecompType,
 		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>) {
+	#[cfg(feature="profile")]
+	let _g = Guard::new("compute_zooms_coord_unit");
+	
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
 	// most zoomed in coordinates
@@ -547,6 +546,9 @@ pub fn compute_zooms_coord_unit<'bt,'ut,'rt,'dt>(coord_recompute: u64, unit_ind:
 // for bldgs/structures/zones only
 pub fn compute_zooms_coord<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>,
 		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &Vec<Player<'bt,'ut,'rt,'dt>>) {
+	#[cfg(feature="profile")]
+	let _g = Guard::new("compute_zooms_fog");
+	
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
 	// most zoomed in coordinates
@@ -568,8 +570,11 @@ pub fn compute_zooms_coord<'r,'bt,'ut,'rt,'dt>(coord_recompute: u64, bldgs: &Vec
 	} // zoom loop
 }
 
-pub fn compute_zooms_discover<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, is_cur_player: bool,
+pub fn compute_zooms_discover<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, //is_cur_player: bool,
 		pstats: &mut Stats<'bt,'ut,'rt,'dt>, map_data: &mut MapData) {
+	#[cfg(feature="profile")]
+	let _g = Guard::new("compute_zooms_discover");
+	
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
 	// most zoomed in coordinates
@@ -591,14 +596,17 @@ pub fn compute_zooms_discover<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, is_cu
 		let coord_ind = coord.to_ind(map_sz) as u64;
 		
 		pstats.land_discov[zoom_ind].map_coord_discover(Coord::frm_ind(coord_ind, map_sz));
-		if !is_cur_player {return;} // only full map is computed
+		//if !is_cur_player {return;} // only full map is computed
 		coord_prev = coord;
 	} // zoom loop
 }
 
 pub fn compute_zooms_fog<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, present: bool,
-		pstats: &mut Stats<'bt,'ut,'rt,'dt>,
-		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>) {
+		pstats: &mut Stats<'bt,'ut,'rt,'dt>, map_data: &mut MapData,
+		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, turn: usize) {
+	#[cfg(feature="profile")]
+	let _g = Guard::new("compute_zooms_fog");
+	
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
 	// most zoomed in coordinates
@@ -627,7 +635,9 @@ pub fn compute_zooms_fog<'r,'bt,'ut,'rt,'z,'dt>(coord_recompute: u64, present: b
 		// unit or bldg not present, we copy the current ex value
 		}else{
 			if let Some(ex) = exs[zoom_ind].get(&coord_ind) {
-				fog.insert(coord_ind, ex.actual.clone());
+				let mut fog_vars = ex.actual.clone();
+				fog_vars.turn_represented = turn;
+				fog.insert(coord_ind, fog_vars); 
 			}else{
 				fog.remove(&coord_ind);
 			}

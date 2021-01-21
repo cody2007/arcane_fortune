@@ -122,11 +122,14 @@ pub fn map_type_consistent_w_mvment(coord: u64, mfc: &Map, exf: &HashedMapEx, mo
 #[derive(PartialEq, Clone)]
 pub enum Dest {
 	NoAttack,
-	Attack {start_owner: SmSvType, dest_coord: u64, ignore_own_walls: bool}, // ex. city defenders needing to exit city (ai/ai_actions.rs)
+	Attack {start_owner: SmSvType, dest_coord: u64, ignore_own_walls: bool}, // ex. `ignore_own_walls` AI city defenders needing to exit city (ai/ai_actions.rs)
+	Assassinate {start_owner: SmSvType, dest_coord: u64}, // allows moving onto population centers
 	RepairWall {dest_coord: u64}, // destination can be a wall
-	IgnoreWalls {dest_coord: u64}, // allow movement through walls, and onto city hall (as terminal location)
-	// ^ IgnoreWalls allows for computation of direct paths to city hall -- any walls in the way are cleared (in ai/attack_fronts.rs)
+	IgnoreWallsAndOntoPopulationCenters {dest_coord: u64}, // allow movement through walls, and onto city hall (as terminal location)
+	// ^ IgnoreWallsAndOntoPopulationCenters allows for computation of direct paths to city hall -- any walls in the way are cleared (in ai/attack_fronts.rs)
 	// 	(not used to actually move units, but only get the direct path to a city hall)
+	
+	IgnoreWalls, // used for scaling walls (assassains)
 	
 	IgnoreOwnWalls {start_owner: SmSvType, dest_coord: u64}, // used for AI movements--navigation out of city walls
 	//	ex. assembly of attack fronts in ai/attack_fronts.rs
@@ -137,7 +140,12 @@ pub enum Dest {
 impl Dest {
 	pub fn from(action_type: &ActionType, end_coord_ind: u64, start_owner: Option<SmSvType>) -> Self {
 		match action_type {
-			ActionType::MvIgnoreWalls => Dest::IgnoreWalls {dest_coord: end_coord_ind},
+			ActionType::MvIgnoreWallsAndOntoPopulationCenters => Dest::IgnoreWallsAndOntoPopulationCenters {dest_coord: end_coord_ind},
+			ActionType::ScaleWalls => Dest::IgnoreWalls,
+			ActionType::Assassinate {..} => Dest::Assassinate {
+				start_owner: start_owner.unwrap(),
+				dest_coord: end_coord_ind
+			},
 			ActionType::Attack {ignore_own_walls, ..} => Dest::Attack {
 				start_owner: start_owner.unwrap(),
 				dest_coord: end_coord_ind,
@@ -215,14 +223,16 @@ pub fn movable_to(src_coord: u64, dest_coord_chk: u64, mfc: &Map, exf: &HashedMa
 		
 		// at attack destination
 		match dest {
+			// allow moving onto building if it's the destination & a population center
 			Dest::Attack {dest_coord, ..} |
-			Dest::IgnoreWalls {dest_coord} => {
+			Dest::Assassinate {dest_coord, ..} |
+			Dest::IgnoreWallsAndOntoPopulationCenters {dest_coord} => {
 				if *dest_coord == dest_coord_chk {
 					if let Some(bldg_ind) = ex.bldg_ind {
-						let bt = &bldgs[bldg_ind].template;
+						let b = &bldgs[bldg_ind];
 						
-						// if not at city hall
-						if bt.nm[0] != CITY_HALL_NM && bt.nm[0] != BARBARIAN_CAMP_NM {
+						// if not at city hall / barbarian camp / population center
+						if let BldgArgs::PopulationCenter {..} = &b.args {} else if b.template.nm[0] != BARBARIAN_CAMP_NM {
 							return false;
 						}
 						
@@ -243,7 +253,7 @@ pub fn movable_to(src_coord: u64, dest_coord_chk: u64, mfc: &Map, exf: &HashedMa
 				if *dest_coord != dest_coord_chk {
 					non_attack_chk!();
 				}
-			} Dest::NoAttack | Dest::RepairWall {..} | Dest::IgnoreOwnWalls {..} => {
+			} Dest::NoAttack | Dest::RepairWall {..} | Dest::IgnoreOwnWalls {..} | Dest::IgnoreWalls => {
 				non_attack_chk!();
 			}
 		}
@@ -252,8 +262,8 @@ pub fn movable_to(src_coord: u64, dest_coord_chk: u64, mfc: &Map, exf: &HashedMa
 			match structure.structure_type {
 				// conditions we allow moving on or through a wall
 				StructureType::Wall => {
-					return match &dest {
-						Dest::NoAttack | Dest::RepairBldg {..} => {false}
+					return match dest {
+						Dest::NoAttack | Dest::RepairBldg {..} | Dest::Assassinate {..} => {false}
 						Dest::Attack {start_owner, dest_coord, ignore_own_walls} => {
 							(*dest_coord == dest_coord_chk) || // <-- attacking wall
 								(movement_type == MovementType::LandAndOwnedWalls || // <-- ex. archers
@@ -263,7 +273,10 @@ pub fn movable_to(src_coord: u64, dest_coord_chk: u64, mfc: &Map, exf: &HashedMa
 						
 						// only allow if final destination is a wall
 						Dest::RepairWall {dest_coord} => {*dest_coord == dest_coord_chk}
-						Dest::IgnoreWalls {..} => {true}
+						
+						// allow movement onto wall
+						Dest::IgnoreWallsAndOntoPopulationCenters {..} |
+						Dest::IgnoreWalls => {true}
 						
 						// as long as we are not ending on a wall, moving through our own is ok
 						// (if movement type is LandAndOwnedWalls we DO allow ending on a wall)

@@ -12,7 +12,7 @@ pub struct OpenWindowState {
 impl OpenWindowState {
 	pub fn print<'bt,'ut,'rt,'dt>(&self, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		// max file name length
-		let mut max_txt_len = if let Some(max_f) = self.save_files.iter().max_by_key(|f| f.nm.len()) {max_f.nm.len()} else {0};
+		let mut max_txt_len = self.save_files.iter().map(|f| f.nm.len()).max().unwrap_or(0);
 		max_txt_len += "     XXX XX-XX-XXXX  XX:XX XX (GMT)".len() + 2;
 		
 		let mut w = min(max_txt_len+1, dstate.iface_settings.screen_sz.w);
@@ -140,7 +140,7 @@ impl OpenWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, game_control: &mut GameControl, dstate: &DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, game_control: &mut GameControl, dstate: &DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		macro_rules! enter_action {($mode: expr) => {
 			*game_control = GameControl::Load(format!("{}/{}", SAVE_DIR, self.save_files[$mode].nm));
 			return UIModeControl::ChgGameControl;

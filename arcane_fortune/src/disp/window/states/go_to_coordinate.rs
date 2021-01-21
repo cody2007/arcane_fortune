@@ -7,6 +7,16 @@ pub struct GoToCoordinateWindowState {
 }
 
 impl GoToCoordinateWindowState {
+	pub fn new(map_data: &MapData, dstate: &mut DispState) -> Self {
+		dstate.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		
+		let coordinate = dstate.iface_settings.cursor_to_map_string(map_data);
+		Self {
+			curs_col: coordinate.len() as isize,
+			coordinate
+		}
+	}
+	
 	pub fn print<'bt,'ut,'rt,'dt>(&self, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let w = min(30, dstate.iface_settings.screen_sz.w);
 		let h = 7;
@@ -27,8 +37,7 @@ impl GoToCoordinateWindowState {
 		d.mv(y+2,x+1);
 		d.addstr(&self.coordinate);
 					
-		// instructions
-		{
+		{ // instructions
 			let instructions_w = "<Esc>: Cancel  <Enter>: Go".len() as i32;
 			let gap = ((w - instructions_w)/2) as i32;
 			d.mv(y + 4, x - 1 + gap);
@@ -45,9 +54,7 @@ impl GoToCoordinateWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, gstate: &GameState, map_data: &mut MapData, players: &Vec<Player>,
-			units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, 
-			dstate: &DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, map_data: &mut MapData, dstate: &DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		// enter pressed
 		if dstate.key_pressed == dstate.kbd.enter && self.coordinate.len() > 0 {
 			let coordinates: Vec<&str> = self.coordinate.split(",").collect();

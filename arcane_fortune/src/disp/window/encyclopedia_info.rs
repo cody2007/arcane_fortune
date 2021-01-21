@@ -31,9 +31,9 @@ impl InfoLevel {
 // `mode` is the index into the template vector
 // `w_offset` = Offset(_) is the column offset to start the window at (relative to the center of the screen)
 // `info_level` when Abbrev or AbbrevNo..., used as infobox (for showing unit & bldg production options), else as main, full encyclopedia view
-impl DispState<'_,'_,'_,'_,'_> {
+impl DispState<'_,'_,'_,'_,'_,'_> {
 	pub fn show_exemplar_info(&mut self, mode: usize, category: EncyclopediaCategory, w_offset_or_pos: OffsetOrPos, window_w: Option<i32>,
-			h_offset_or_pos: OffsetOrPos, mut info_level: InfoLevel, temps: &Templates, pstats: &Stats) {
+			h_offset_or_pos: OffsetOrPos, info_level: InfoLevel, temps: &Templates, pstats: &Stats) {
 		let d = &mut self.renderer;
 		let w = self.iface_settings.screen_sz.w as i32;
 		let l = &self.local;
@@ -572,7 +572,7 @@ impl DispState<'_,'_,'_,'_,'_> {
 			}else{panicq!("could not get unit ind {} units len {}", unit_ind, units.len());}
 		}
 		
-		let window_w = if let Some(txt) = disp_txt.iter().max_by_key(|txt| txt.len()) {txt.len() as i32} else {return;} + 2;
+		let window_w = if let Some(txt_len) = disp_txt.iter().map(|txt| txt.len()).max() {txt_len as i32} else {return;} + 2;
 		let w = self.iface_settings.screen_sz.w as i32;
 		if w < window_w {return;} // screen not wide enough
 		

@@ -10,8 +10,8 @@ impl ObtainResourceWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, pstats: &mut Stats, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
-			dstate: &mut DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, pstats: &mut Stats<'bt,'ut,'rt,'dt>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+			dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let list = all_resources_list(temps.resources, &dstate.local);
 		macro_rules! enter_action{($mode:expr) => {
 			if let ArgOptionUI::ResourceInd(resource_ind) = list.options[$mode].arg {

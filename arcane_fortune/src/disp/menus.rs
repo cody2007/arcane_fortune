@@ -55,7 +55,7 @@ const SUB_MENU_NMS_INIT: &[&[&str]] = &[&[
 	inact!("Domestic intelligence"),
 			"  Civic advisors (|3|)", "  Public polling (|4|)", "  Contact noble house (|5|)",
 	inact!("International affairs"),
-			"  |C|ontact embassy", "  Civilization |i|ntel", "  Active |w|ars"],
+			"  |C|ontact embassy", "  Civilization |i|ntel", "  Active |w|ars & treaties", "  Friends & foes (|6|)"],
 	
 	// view
 	&[inact!("Underlays (select one)"), "   |A|rability", "   |E|levation", "   Water & mountains |o|nly",
@@ -68,7 +68,7 @@ const SUB_MENU_NMS_INIT: &[&[&str]] = &[&[
 		inact!("History"), "  |W|orld", "  Battle (|h|)", "  Econo|m|ic"],
 	
 	// go	
-	&["Ctr |o|n cursor (Space)", "N|ext unmoved unit", "Next |C|ity Hall", "T|o coordinate",
+	&["Ctr |o|n cursor (Space)", "N|ext unmoved unit (or press ';' when not in the menu)", "Next |C|ity Hall", "T|o coordinate",
 	  "To map |s|ector",
 		inact!("Sectors"),
 		"    C|r|eate sector", "    |A|dd to sector", "    |D|elete sector"],
@@ -203,7 +203,7 @@ pub fn start_menu_sep(ui_mode: &mut UIMode, iface_settings: &mut IfaceSettings, 
 	renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 }
 
-impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 	// reset auto turn to setting before the window was launched (stored in `prev_auto_turn`)
 	pub fn reset_auto_turn(&mut self) {
 		// set prior value of auto turn increment
@@ -221,11 +221,14 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 			UIMode::TextTab {..} |
 			UIMode::SetTaxes(_) |
 			UIMode::Trade(_) |
+			UIMode::ViewTrade(_) |
+			UIMode::SetNobleTax(_) |
 			UIMode::ProdListWindow(_) |
 			UIMode::GenericAlert(_) |
 			UIMode::PublicPollingWindow(_) |
 			UIMode::CurrentBldgProd(_) |
 			UIMode::ContactNobilityWindow(_) |
+			UIMode::NobilityRequestWindow(_) |
 			UIMode::SelectBldgDoctrine(_) |
 			UIMode::SelectExploreType(_) |
 			UIMode::SaveAutoFreqWindow(_) |
@@ -252,17 +255,17 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 			UIMode::ResourcesAvailableWindow(_) |
 			UIMode::ResourcesDiscoveredWindow(_) |
 			UIMode::HistoryWindow(_) |
-			UIMode::WarStatusWindow(_) |
+			UIMode::WarStatusWindow(_) | UIMode::FriendsAndFoesWindow(_) |
 			UIMode::EncyclopediaWindow(_) |
 			UIMode::GoToCoordinateWindow(_) |
-			UIMode::InitialGameWindow(_) |
+			UIMode::InitialGameWindow(_) | UIMode::IntroNobilityJoinOptions(_) |
 			UIMode::EndGameWindow(_) |
 			UIMode::NoblePedigree(_) |
 			UIMode::UnmovedUnitsNotification(_) |
 			UIMode::PrevailingDoctrineChangedWindow(_) |
 			UIMode::CivicAdvisorsWindow(_) |
 			UIMode::ForeignUnitInSectorAlert(_) |
-			UIMode::AcceptNobilityIntoEmpire(_) |
+			UIMode::AcceptNobilityIntoEmpire(_) | UIMode::NobilityDeclaresIndependenceWindow(_) |
 			UIMode::RiotingAlert(_) |
 			UIMode::AboutWindow(_) => {}
 		}
@@ -314,7 +317,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 	}
 }
 
-fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, disp: &mut Disp<'f,'bt,'ut,'rt,'dt>, map_data: &mut MapData<'rt>,
+fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, disp: &mut Disp<'f,'_,'bt,'ut,'rt,'dt>, map_data: &mut MapData<'rt>,
 		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		gstate: &mut GameState,	frame_stats: &FrameStats, game_opts: &mut GameOptions, game_difficulties: &GameDifficulties) -> Option<GameControl> {
@@ -427,11 +430,16 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, d
 		disp.ui_mode = UIMode::CivilizationIntelWindow(CivilizationIntelWindowState {mode: 0, selection_phase: true});
 		return None; // return because end_menu() will overwrite disp.ui_mode
 	
-	}else if m("Inte|l|", "Active |w|ars") {
+	}else if m("Inte|l|", "Active |w|ars & treaties") {
 		disp.reset_auto_turn();
 		disp.ui_mode = UIMode::WarStatusWindow(WarStatusWindowState {});
 		return None; // return because end_menu() will overwrite disp.ui_mode
-		
+	
+	}else if m("Inte|l|", "Friends & foes") {
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::FriendsAndFoesWindow(FriendsAndFoesWindowState {});
+		return None; // return because end_menu() will overwrite disp.ui_mode
+	
 	}else if m("A|c|counting", "|A|vailable") {
 		disp.reset_auto_turn();
 		disp.ui_mode = UIMode::ResourcesAvailableWindow(ResourcesAvailableWindowState {});
@@ -531,7 +539,12 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, d
 		disp.reset_auto_turn();
 		disp.ui_mode = UIMode::PublicPollingWindow(PublicPollingWindowState {});
 		return None; // return because end_menu() will overwrite disp.ui_mode
-
+	
+	}else if m("Inte|l", "Contact noble house") {
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::ContactNobilityWindow(ContactNobilityState::new());
+		return None; // return because end_menu() will overwrite disp.ui_mode
+	
 	}else if m("V|iew", "|A|rability"){	
 		disp.state.iface_settings.underlay = Underlay::Arability;  update_indicators!();
 		
@@ -625,14 +638,7 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, d
 	}else if m("G|o", "Next |C|ity Hall"){
 		disp.center_on_next_unmoved_menu_item(true, FindType::CityHall, map_data, exs, units, bldgs, gstate, players);
 	}else if m("G|o", "T|o coordinate"){
-		disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
-	
-		let c = disp.state.iface_settings.cursor_to_map_coord(map_data);
-		let coordinate = format!("{}, {}", c.y, c.x);
-		disp.ui_mode = UIMode::GoToCoordinateWindow(GoToCoordinateWindowState {
-			curs_col: coordinate.len() as isize,
-			coordinate
-		});
+		disp.ui_mode = UIMode::GoToCoordinateWindow(GoToCoordinateWindowState::new(map_data, &mut disp.state));
 		
 		return None;
 	}else if m("G|o", "To map |s|ector"){
@@ -816,7 +822,7 @@ fn sel_next_submenu_entry(direction: SubDirection, sub_options: &OptionsUI, ui_m
 pub enum UIRet {Active, Inactive, ChgGameControl}
 
 // return true if menu remains active, false if not active any more or was not initially
-pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(disp: &mut Disp<'f,'bt,'ut,'rt,'dt>, map_data: &mut MapData<'rt>, 
+pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(disp: &mut Disp<'f,'_,'bt,'ut,'rt,'dt>, map_data: &mut MapData<'rt>, 
 		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 		temps: &Templates<'bt,'ut,'rt,'dt,'_>, gstate: &mut GameState, frame_stats: &FrameStats,
@@ -1029,43 +1035,50 @@ pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(disp: &mut Disp<'f,'bt,'ut,'rt,'dt>,
 //////////////////////////////////////////////////////////////
 
 // for each str in nms, append `options`, recording the shortcut key, indicated by delimitators in it
-pub fn register_shortcuts(nms: &[&str], mut options: &mut OptionsUI){
-	for nm in nms.iter() {
-		// count tokens
-		let mut n_tokens = 1;
-		for i in 0..nm.chars().count() {
-			if nm.chars().nth(i).unwrap() == MENU_DELIMC {n_tokens += 1};	
-		}
+impl OptionsUI<'_,'_,'_,'_> {
+	pub fn new(nms: &[&str]) -> Self {
+		let mut opts = OptionsUI {
+			options: Vec::with_capacity(nms.len()),
+		   	max_strlen: 0
+		};
 		
-		if nm.chars().nth(0).unwrap() == MENU_INACTIVEC {n_tokens += 1}
-		let nm_strlen = nm.chars().count();
-		
-		if nm_strlen > options.max_strlen { options.max_strlen = nm_strlen; }
-		
-		// print w/ key underlined
-		let pats: Vec<&str> = nm.split(MENU_DELIMC).collect();
-		let mut key = None;
-		for (token_ind, pat) in pats.iter().enumerate() {
-			if pat.chars().count() == 1 && (token_ind != 0 || n_tokens == 2) {
-				key = Some(pat.chars().nth(0).unwrap().to_ascii_lowercase());
-				break;
+		opts.register_shortcuts(nms);
+		opts
+	}
+	
+	fn register_shortcuts(&mut self, nms: &[&str]){
+		for nm in nms.iter() {
+			// count tokens
+			let mut n_tokens = 1;
+			for i in 0..nm.chars().count() {
+				if nm.chars().nth(i).unwrap() == MENU_DELIMC {n_tokens += 1};	
 			}
+			
+			if nm.chars().nth(0).unwrap() == MENU_INACTIVEC {n_tokens += 1}
+			let nm_strlen = nm.chars().count();
+			
+			if nm_strlen > self.max_strlen { self.max_strlen = nm_strlen; }
+			
+			// print w/ key underlined
+			let pats: Vec<&str> = nm.split(MENU_DELIMC).collect();
+			let mut key = None;
+			for (token_ind, pat) in pats.iter().enumerate() {
+				if pat.chars().count() == 1 && (token_ind != 0 || n_tokens == 2) {
+					key = Some(pat.chars().nth(0).unwrap().to_ascii_lowercase());
+					break;
+				}
+			}
+			
+			self.options.push(OptionUI { key, 
+						dyn_str: nm.to_string(),
+						strlen: nm_strlen - n_tokens + 1,
+						arg: ArgOptionUI::Blank });
 		}
-		
-		options.options.push(OptionUI { key, 
-					dyn_str: nm.to_string(),
-					strlen: nm_strlen - n_tokens + 1,
-					arg: ArgOptionUI::Blank });
 	}
 }
 
-pub fn init_menus<'f,'bt,'ut,'rt,'dt>(dstate: &mut DispState<'f,'bt,'ut,'rt,'dt>, players: &Vec<Player<'bt,'ut,'rt,'dt>>) {
-	let mut main_options = OptionsUI {
-		options: Vec::with_capacity(MENU_NMS.len()),
-		max_strlen: 0
-	};
-	
-	register_shortcuts(MENU_NMS, &mut main_options);
+pub fn init_menus<'f,'bt,'ut,'rt,'dt>(dstate: &mut DispState<'f,'_,'bt,'ut,'rt,'dt>, players: &Vec<Player<'bt,'ut,'rt,'dt>>) {
+	let mut main_options = OptionsUI::new(MENU_NMS);
 	
 	// for each main menu (ex. "File", insert sub-menus ex. "Open", "Load")
 	for i in 0..(MENU_NMS.len()) {
@@ -1078,12 +1091,7 @@ pub fn init_menus<'f,'bt,'ut,'rt,'dt>(dstate: &mut DispState<'f,'bt,'ut,'rt,'dt>
 					}else {panicq!("menu arguments not set");}
 				}else{  MENU_STR.chars().count() - 1 };
 		
-		let mut sub_options = OptionsUI {
-			options: Vec::with_capacity(SUB_MENU_NMS_INIT[i].len()),
-			max_strlen: 0
-		};
-		
-		register_shortcuts(SUB_MENU_NMS_INIT[i], &mut sub_options); 
+		let sub_options = OptionsUI::new(SUB_MENU_NMS_INIT[i]);
 		
 		// set arguments of main menu
 		main_options.options[i].arg = ArgOptionUI::MainMenu {col_start, sub_options};
@@ -1094,7 +1102,7 @@ pub fn init_menus<'f,'bt,'ut,'rt,'dt>(dstate: &mut DispState<'f,'bt,'ut,'rt,'dt>
 
 ///////// update indicators, ex. overlays, "* Arability"
 // if current player is not an AI, `cur_ai_player_is_paused` should be none
-impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn update_menu_indicators(&mut self, cur_ui_ai_player_is_paused: Option<bool>){
 		let get_menu_ind = |nm, main_options: &OptionsUI| {
 			for (i, option) in main_options.options.iter().enumerate() {
@@ -1299,7 +1307,7 @@ pub fn print_menu_vstack(sub_options: &OptionsUI, row: i32, col: i32, w: usize,
 
 // prints top menu and expanded submenus
 // inputs: iface_settings: menu_active, menu_mode, sub_menu_mode
-impl Disp<'_,'_,'_,'_,'_> {
+impl Disp<'_,'_,'_,'_,'_,'_> {
 	pub fn print_menus(&mut self, show_ai_pause: bool){
 		let menu_active = match self.ui_mode {
 			UIMode::Menu {ref mut sel_loc, ..} => {

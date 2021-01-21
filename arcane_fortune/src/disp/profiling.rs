@@ -7,7 +7,7 @@ use crate::units::UnitTemplate;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 
-const FRAME_DUR_SZ: usize = 1000;
+const FRAME_DUR_SZ: usize = 50;
 
 #[derive(PartialEq, Clone)]
 pub struct FrameStats {

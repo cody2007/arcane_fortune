@@ -170,6 +170,7 @@ pub enum cudnnNanPropagation_t {
 	CUDNN_PROPAGATE_NAN = 1
 }
 
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub enum cudnnActivationMode_t {
 	CUDNN_ACTIVATION_SIGMOID = 0,
@@ -955,6 +956,7 @@ extern "C" {
 // custom kernels
 #[link(name = "kernels")]
 extern "C" {
+	pub fn broadcast_across_channel_vals(dy: gpuMem_t, dx: gpuMem_t, n_imgs: size_t, n_channels: size_t, hw: size_t);
 	pub fn broadcast_across_img_vals(dy: gpuMem_t, dx: gpuMem_t, vals_per_img: size_t, total_len: size_t);
 	pub fn broadcast_across_all_vals(dy: gpuMem_t, dx: gpuMem_t, total_len: size_t);
 	
@@ -967,8 +969,9 @@ extern "C" {
 	pub fn shift_QR_pos_lleft_triangle(y: gpuMem_t, n_heads_imgs: size_t, n_time: size_t);
 	pub fn shift_QR_pos_uright_triangle(dy: gpuMem_t, n_heads_imgs: size_t, n_time: size_t);
 	
-	pub fn mask_future_times(y: gpuMem_t, x: gpuMem_t, scale: f32,
-			n_exemplars: size_t, n_time: size_t);
+	pub fn mask_future_times_in_place(y: gpuMem_t, scale: f32, n_exemplars: size_t, n_time: size_t);
+	pub fn mask_future_times(y: gpuMem_t, x: gpuMem_t, scale: f32, n_exemplars: size_t, n_time: size_t);
+	
 	
 	pub fn mask_future_times_add(y: gpuMem_t, x1: gpuMem_t,
 			x2: gpuMem_t, scale: f32,
@@ -991,6 +994,9 @@ extern "C" {
 	
 	pub fn adam_update_f16(a_t: c_float, beta1: c_float, beta2: c_float, denom_eps: c_float,
 			dw: gpuMem_t, m: gpuMem_t, v: gpuMem_t, w: gpuMem_t, len: size_t);
+	
+	#[cfg(feature="titan_card_bypass_sgemm")]
+	pub fn mat_mul_Bt_A(M: c_int, N: c_int, K: c_int, beta: c_float, C: gpuMem_t, B: gpuMem_t, A: gpuMem_t);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

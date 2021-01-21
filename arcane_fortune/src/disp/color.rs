@@ -78,7 +78,8 @@ const FG_BLACK_OFFSET: i16 = 55; // note: see disp_lib/mod.rs (CWHITE; it should
 
 pub const ESC_COLOR: CInd = CSAND4;
 
-pub const PLAYER_COLORS: &[i32] = &[1, 2, 3, CREDGREEN4, CREDGRAY, 6, CBLUERED3, CREDSAND1, CGREEN4, 38];
+pub const PLAYER_COLORS: &[i32] = &[1, 2, 3, CREDGREEN4, CREDGRAY, 6, CBLUERED3, CREDSAND1, CGREEN4, CLOGO, CSNOW2, CSNOW3, CSNOW4, CBLUERED1, 
+    CBLUERED2, CBLUERED4, CBLUERED5, CGREENWHITE, CDARKRED, CDARKGRAY, CREDSAND2, CREDSAND3];
 // ^ zeroth entry is the human player
 
 pub const NOBILITY_COLOR: CInd = CREDBLUE;
@@ -326,7 +327,16 @@ pub fn init_color_pairs(terminal_settings: &TerminalSettings, renderer: &mut Ren
 }
 
 pub fn set_player_color(player: &Player, on: bool, d: &mut Renderer){
+	//printlnq!("set player color {}", player.personalization.color);
 	if on { d.attron(COLOR_PAIR(player.personalization.color)); }else{
 		d.attroff(COLOR_PAIR(player.personalization.color)); }
 }
+
+/*pub fn set_color(color: i32, d: &mut Renderer){
+	d.attron(COLOR_PAIR(color));
+}
+
+pub fn set_attr(attr: chtype, d: &mut Renderer){
+	d.attron(attr);
+}*/
 

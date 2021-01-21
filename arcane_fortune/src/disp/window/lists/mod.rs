@@ -11,9 +11,11 @@ pub mod manors; pub use manors::*;
 pub fn noble_houses_list<'bt,'ut,'rt,'dt>(cur_player: usize, relations: &Relations,
 		players: &Vec<Player>, l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
 	let mut nms_string = Vec::with_capacity(players.len());
+	let mut house_inds = Vec::with_capacity(players.len());
 	
 	for house_ind in relations.noble_houses(cur_player) {
 		nms_string.push(l.house_nm.replace("[]", &players[house_ind].personalization.nm));
+		house_inds.push(house_ind);
 	}
 	
 	// register_shortcuts takes [&str]s, so take references of all the strings
@@ -23,10 +25,13 @@ pub fn noble_houses_list<'bt,'ut,'rt,'dt>(cur_player: usize, relations: &Relatio
 		nms.push(nm_string.as_str());
 	}
 	
-	let mut opts = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	register_shortcuts(&nms, &mut opts);
+	let mut options = OptionsUI::new(&nms);
 	
-	opts
+	// associate house_ind w/ each menu entry
+	for (opt, house_ind) in options.options.iter_mut().zip(house_inds.iter()) {
+		opt.arg = ArgOptionUI::OwnerInd(*house_ind);
+	}
+	options
 }
 
 pub fn encyclopedia_bldg_list<'bt,'ut,'rt,'dt>(bldg_templates: &'bt Vec<BldgTemplate>,
@@ -66,9 +71,7 @@ pub fn encyclopedia_bldg_list<'bt,'ut,'rt,'dt>(bldg_templates: &'bt Vec<BldgTemp
 		exemplar_nms_ref.push(exemplar_nm.as_str());
 	}
 	
-	let mut exemplar_options = OptionsUI {options: Vec::with_capacity(gov_nms.len()), max_strlen: 0};
-	
-	register_shortcuts(&exemplar_nms_ref, &mut exemplar_options);
+	let mut exemplar_options = OptionsUI::new(&exemplar_nms_ref);
 	
 	// associate owner_id w/ each menu entry
 	for (i, opt) in exemplar_options.options.iter_mut().enumerate() {
@@ -181,7 +184,7 @@ pub fn unit_list_frm_vec<'bt,'ut,'rt,'dt>(unit_inds_use: &Vec<usize>,
 		
 		for _ in 0..(max_action_len - 2) { label_txt.push(' ');}
 		label_txt.push_str(&l.Action);
-
+		
 		*label_txt_opt = Some(label_txt);
 	}else{
 		*w = 29;
@@ -195,9 +198,7 @@ pub fn unit_list_frm_vec<'bt,'ut,'rt,'dt>(unit_inds_use: &Vec<usize>,
 		unit_nms.push(unit_entry.nm.as_str());
 	}
 	
-	// call register_shortcuts
-	let mut owned_units = OptionsUI {options: Vec::with_capacity(unit_nms.len()), max_strlen: 0};
-	register_shortcuts(&unit_nms, &mut owned_units);
+	let mut owned_units = OptionsUI::new(&unit_nms);
 	
 	// associate unit_ind w/ each menu entry
 	for (opt, entry) in owned_units.options.iter_mut().zip(unit_entries.iter()) {
@@ -285,9 +286,7 @@ pub fn sector_list<'bt,'ut,'rt,'dt>(pstats: &Stats, cur_coord: Coord,
 		entries.push(sector.nm.as_str());
 	}
 	
-	// call register_shortcuts
-	let mut owned_sectors = OptionsUI {options: Vec::with_capacity(entries.len()), max_strlen: 0};
-	register_shortcuts(&entries, &mut owned_sectors);
+	let mut owned_sectors = OptionsUI::new(&entries);
 	
 	// associate unit_ind w/ each menu entry
 	for (entry_ind, opt) in owned_sectors.options.iter_mut().enumerate() {
@@ -359,8 +358,7 @@ pub fn brigades_list<'bt,'ut,'rt,'dt>(pstats: &Stats, w: &mut usize, label_txt_o
 	}
 	
 	// call register_shortcuts
-	let mut owned_brigades = OptionsUI {options: Vec::with_capacity(brigade_nms.len()), max_strlen: 0};
-	register_shortcuts(&brigade_nms, &mut owned_brigades);
+	let mut owned_brigades = OptionsUI::new(&brigade_nms);
 	
 	// associate brigade_ind w/ each menu entry
 	for (opt, entry) in owned_brigades.options.iter_mut().zip(brigade_entries.iter()) {
@@ -394,10 +392,7 @@ pub fn brigade_build_list<'bt,'ut,'rt,'dt>(brigade_nm: &String, pstats: &Stats, 
 		nms.push(nm_string.as_str());
 	}
 	
-	let mut opts_ui = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	
-	register_shortcuts(&nms, &mut opts_ui);
-	opts_ui
+	OptionsUI::new(&nms)
 }
 
 // for creating list to display of player's owned improvement buildings. w is set to be the width of the window to be created
@@ -534,8 +529,7 @@ pub fn owned_improvement_bldgs_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'r
 	}
 	
 	// call register_shortcuts
-	let mut owned_bldgs = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	register_shortcuts(&nms, &mut owned_bldgs);
+	let mut owned_bldgs = OptionsUI::new(&nms);
 	
 	// associate unit_ind w/ each menu entry
 	for (opt, entry) in owned_bldgs.options.iter_mut().zip(bldg_entries.iter()) {
@@ -672,9 +666,7 @@ pub fn owned_military_bldgs_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'
 		nms.push(entry.nm.as_str());
 	}
 	
-	// call register_shortcuts
-	let mut owned_bldgs = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	register_shortcuts(&nms, &mut owned_bldgs);
+	let mut owned_bldgs = OptionsUI::new(&nms);
 	
 	// associate unit_ind w/ each menu entry
 	for (opt, entry) in owned_bldgs.options.iter_mut().zip(bldg_entries.iter()) {
@@ -809,16 +801,14 @@ pub fn owned_city_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, cur_
 		city_nms.push(entry.nm.as_str());
 	}
 	
-	let mut owned_cities = OptionsUI {options: Vec::with_capacity(city_nms.len()), max_strlen: 0};
-	
-	register_shortcuts(&city_nms, &mut owned_cities);
+	let mut owned_cities = OptionsUI::new(&city_nms);
 	
 	// associate unit_ind w/ each menu entry
 	for (opt, entry) in owned_cities.options.iter_mut().zip(city_entries.iter()) {
 		opt.arg = ArgOptionUI::CityInd(entry.city_ind);
 	}
 	
-	return owned_cities;
+	owned_cities
 }
 
 // for creating list to display of player's cities
@@ -853,50 +843,14 @@ pub fn contacted_civilizations_list<'bt,'ut,'rt,'dt>(gstate: &GameState, players
 		nms.push(nm_string.as_str());
 	}
 	
-	let mut contacted_civs = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	
-	register_shortcuts(&nms, &mut contacted_civs);
+	let mut contacted_civs = OptionsUI::new(&nms);
 	
 	// associate owner_id w/ each menu entry
-	for (i, opt) in contacted_civs.options.iter_mut().enumerate() {
-		opt.arg = ArgOptionUI::OwnerInd(owner_ids[i]);
+	for (opt, owner_id) in contacted_civs.options.iter_mut().zip(owner_ids.iter()) {
+		opt.arg = ArgOptionUI::OwnerInd(*owner_id);
 	}
 
 	contacted_civs
-}
-
-// for creating list of all players
-pub fn all_civilizations_list<'bt,'ut,'rt,'dt>(players: &Vec<Player>) -> OptionsUI<'bt,'ut,'rt,'dt> {
-	let mut nms_string = Vec::with_capacity(players.len());
-	let mut owner_ids = Vec::with_capacity(players.len());
-	
-	for (owner_id, player) in players.iter().enumerate() {
-		match player.ptype {
-			PlayerType::Barbarian(_) | PlayerType::Nobility(_) => {}
-			PlayerType::Empire(_)| PlayerType::Human(_) => {
-				nms_string.push(player.personalization.nm.clone());
-				owner_ids.push(owner_id);
-			}
-		}
-	}
-	
-	// register_shortcuts takes [&str]s, so take references of all the strings
-	let mut nms = Vec::with_capacity(nms_string.len());
-	
-	for nm_string in nms_string.iter() {
-		nms.push(nm_string.as_str());
-	}
-	
-	let mut civs = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	
-	register_shortcuts(&nms, &mut civs);
-	
-	// associate owner_id w/ each menu entry
-	for (i, opt) in civs.options.iter_mut().enumerate() {
-		opt.arg = ArgOptionUI::OwnerInd(owner_ids[i]);
-	}
-
-	civs
 }
 
 pub fn undiscovered_tech_list<'bt,'ut,'rt,'dt>(pstats: &Stats, tech_templates: &Vec<TechTemplate>,
@@ -918,9 +872,7 @@ pub fn undiscovered_tech_list<'bt,'ut,'rt,'dt>(pstats: &Stats, tech_templates: &
 		nms.push(nm_string.as_str());
 	}
 	
-	let mut tech_opts = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	
-	register_shortcuts(&nms, &mut tech_opts);
+	let mut tech_opts = OptionsUI::new(&nms);
 	
 	// associate owner_id w/ each menu entry
 	for (i, opt) in tech_opts.options.iter_mut().enumerate() {
@@ -945,9 +897,7 @@ pub fn all_resources_list<'bt,'ut,'rt,'dt>(resource_templates: &Vec<ResourceTemp
 		nms.push(nm_string.as_str());
 	}
 	
-	let mut resource_opts = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	
-	register_shortcuts(&nms, &mut resource_opts);
+	let mut resource_opts = OptionsUI::new(&nms);
 	
 	// associate owner_id w/ each menu entry
 	for (i, opt) in resource_opts.options.iter_mut().enumerate() {
@@ -971,11 +921,7 @@ pub fn game_difficulty_list<'bt,'ut,'rt,'dt>(game_difficulties: &GameDifficultie
 		nms.push(nm_string.as_str());
 	}
 	
-	let mut opts = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	
-	register_shortcuts(&nms, &mut opts);
-	
-	opts
+	OptionsUI::new(&nms)
 }
 
 pub fn discovered_units_list<'bt,'ut,'rt,'dt>(pstats: &Stats, unit_templates: &'ut Vec<UnitTemplate<'rt>>,
@@ -997,9 +943,7 @@ pub fn discovered_units_list<'bt,'ut,'rt,'dt>(pstats: &Stats, unit_templates: &'
 		nms.push(nm_string.as_str());
 	}
 	
-	let mut discov_opts = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	
-	register_shortcuts(&nms, &mut discov_opts);
+	let mut discov_opts = OptionsUI::new(&nms);
 	
 	// associate owner_id w/ each menu entry
 	for (i, opt) in discov_opts.options.iter_mut().enumerate() {
@@ -1028,9 +972,7 @@ pub fn bldg_prod_list<'bt,'ut,'rt,'dt>(b: &Bldg<'bt,'ut,'rt,'dt>, l: &Localizati
 		nms.push(nm_string.as_str());
 	}
 	
-	let mut opts = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	
-	register_shortcuts(&nms, &mut opts);
+	let mut opts = OptionsUI::new(&nms);
 	
 	// associate owner_id w/ each menu entry
 	for (opt, ut) in opts.options.iter_mut().zip(unit_templates.iter()) {
@@ -1070,8 +1012,7 @@ pub fn discovered_resources_list<'bt,'ut,'rt,'dt>(pstats: &Stats, cur_coord: Coo
 		nms.push(nm_string.as_str());
 	}
 	
-	let mut discov_opts = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	register_shortcuts(&nms, &mut discov_opts);
+	let mut discov_opts = OptionsUI::new(&nms);
 	
 	// associate owner_id w/ each menu entry
 	for (resource_w_coord, opt) in resource_w_coords.into_iter().zip(discov_opts.options.iter_mut()) {
@@ -1097,8 +1038,7 @@ pub fn doctrines_available_list<'bt,'ut,'rt,'dt>(pstats: &Stats, doctrine_templa
 		nms.push(nm_string.as_str());
 	}
 	
-	let mut opts = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	register_shortcuts(&nms, &mut opts);
+	let mut opts = OptionsUI::new(&nms);
 	
 	// associate owner_id w/ each menu entry
 	for (doc, opt) in avail_doc.iter().zip(opts.options.iter_mut()) {
@@ -1119,10 +1059,7 @@ pub fn explore_types_list<'bt,'ut,'rt,'dt>(l: &Localization) -> OptionsUI<'bt,'u
 		nms.push(nm_string.as_str());
 	}
 	
-	let mut opts = OptionsUI {options: Vec::with_capacity(nms.len()), max_strlen: 0};
-	register_shortcuts(&nms, &mut opts);
-	
-	opts
+	OptionsUI::new(&nms)
 }
 
 pub struct ListPositions {
@@ -1133,7 +1070,7 @@ pub struct ListPositions {
 
 // if owners supplied, print player colors
 // returns (top-left, top-right, cursor) most point the window is printed at
-impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn print_list_window(&mut self, mut mode: usize, top_txt: String, mut options: OptionsUI,
 			w_opt: Option<usize>, label_txt: Option<String>, n_gap_lines: usize,
 			owners_opt: Option<&Vec<Player>>) -> ListPositions {

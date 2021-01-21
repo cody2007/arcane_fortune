@@ -22,7 +22,7 @@ pub enum SaveType {Auto, Manual} // if set to manual, name is pulled from iface_
 pub fn save_game<'f,'bt,'ut,'rt,'dt>(save_type: SaveType, gstate: &GameState, map_data: &MapData<'rt>,
 		exs: &Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, units: &Vec<Unit<'bt,'ut,'rt,'dt>>,
-		players: &Vec<Player>, dstate: &mut DispState<'f,'bt,'ut,'rt,'dt>, frame_stats: &FrameStats){
+		players: &Vec<Player>, dstate: &mut DispState<'f,'_,'bt,'ut,'rt,'dt>, frame_stats: &FrameStats){
 	let mut buf = Vec::new();
 	
 	// close any current windows or menus if user manually saved
@@ -89,7 +89,7 @@ pub fn save_game<'f,'bt,'ut,'rt,'dt>(save_type: SaveType, gstate: &GameState, ma
 	}
 }
 
-pub fn load_game<'f,'bt,'ut,'rt,'dt>(buf: Vec<u8>, mut offset: usize, disp: &mut Disp<'f,'bt,'ut,'rt,'dt>, gstate: &mut GameState, map_data: &mut MapData<'rt>,
+pub fn load_game<'f,'bt,'ut,'rt,'dt>(buf: Vec<u8>, mut offset: usize, disp: &mut Disp<'f,'_,'bt,'ut,'rt,'dt>, gstate: &mut GameState, map_data: &mut MapData<'rt>,
 		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
 		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, frame_stats: &mut FrameStats){
@@ -301,15 +301,13 @@ pub fn save_nm_date(personalization: &Personalization, turn: usize, checkpoint: 
 	nm
 }
 
-pub const GAME_START_TURN: usize = 100*12*30;
-
 pub const N_UNIT_PLACEMENT_ATTEMPTS: usize = 2000;
 use crate::nn;
 
 pub fn new_game<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, map_data: &mut MapData<'rt>,
 		exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
 		temps: &Templates<'bt,'ut,'rt,'dt,'_>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, 
-		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, game_opts: &GameOptions, disp: &mut Disp<'f,'bt,'ut,'rt,'dt>) {
+		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, game_opts: &GameOptions, disp: &mut Disp<'f,'_,'bt,'ut,'rt,'dt>) {
 	
 	let mut txt_gen = nn::TxtGenerator::new(gstate.rng.gen());
 	
@@ -338,8 +336,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, map_data: &mut MapDa
 		units.clear();
 		gstate.logs.clear();
 		
-		/////////////////// put units on map
-		{
+		{ /////////////////// put units on map
 			let sz_prog = MapSz {h: 0, w: 0, sz: game_opts.n_players};
 			let mut screen_sz = getmaxyxu(&disp.state.renderer);
 			
@@ -350,7 +347,6 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, map_data: &mut MapDa
 				
 			macro_rules! add_u{($coord:expr, $player:expr, $type:expr) => (
 				add_unit($coord, $player.id == HUMAN_PLAYER_IND as SmSvType, $type, units, map_data, exs, bldgs, $player, gstate, temps););};
-			
 			
 			//////////// ai, human, and nobility players
 			for player_ind in 0..game_opts.n_players {
@@ -391,7 +387,8 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, map_data: &mut MapDa
 							// human player
 							}else{
 								let city_hall = BldgTemplate::frm_str(CITY_HALL_NM, temps.bldgs);
-								if let Some(ai_state) = AIState::new(coord, CITY_GRID_HEIGHT, MIN_DIST_FRM_CITY_CENTER, city_hall, temps, map_data, exf, map_sz, &mut gstate.rng) {
+								if let Some(mut ai_state) = AIState::new(coord, CITY_GRID_HEIGHT, MIN_DIST_FRM_CITY_CENTER, city_hall, temps, map_data, exf, map_sz, &mut gstate.rng) {
+									ai_state.city_states.clear(); // 
 									(PlayerType::Human(ai_state), Default::default(), Default::default())
 								}else{continue 'player_attempt;}
 							};
@@ -432,8 +429,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, map_data: &mut MapDa
 						players.push(player);
 					}
 					
-					// place initial units
-					{
+					{ // place initial units
 						let player = &mut players.last_mut().unwrap();
 						let u_coord = map_sz.coord_wrap(map_coord_y as isize + (CITY_HEIGHT/2) as isize,
 											  map_coord_x as isize + (CITY_WIDTH/2) as isize).unwrap();

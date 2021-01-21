@@ -15,7 +15,7 @@ pub struct House {
 	
 	pub has_req_to_join: bool, // requested to join nearby empire
 	
-	pub target_city_coord: Option<u64> // target city, if requested by parent empire
+	pub target_city_coord: Option<u64> // target city to attack, if requested by parent empire
 }
 
 impl_saving!{House {head_noble_pair_ind, noble_pairs, has_req_to_join, target_city_coord}}
@@ -36,28 +36,35 @@ pub struct Marriage {
 
 impl_saving!{Marriage {partner, children}}
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Default)]
 pub struct Noble {
 	pub name: PersonName,
 	pub personality: AIPersonality,
 	pub born_turn: usize,
 	pub gender_female: bool,
+	pub alive: bool
 }
 
-impl_saving!{Noble {name, personality, born_turn, gender_female}}
+impl_saving!{Noble {name, personality, born_turn, gender_female, alive}}
 
 impl Noble {
 	// `age` is in turns
-	pub fn new(nms: &Nms, age: usize, gender_female_opt: Option<bool>, gstate: &mut GameState) -> Self {
-		let (gender_female, name) = if let Some(gender_female) = gender_female_opt {
+	pub fn new(nms: &Nms, age: usize, last_name_opt: Option<&str>,
+			gender_female_opt: Option<bool>, gstate: &mut GameState) -> Self {
+		let (gender_female, mut name) = if let Some(gender_female) = gender_female_opt {
 			(gender_female, PersonName::new_w_gender(gender_female, nms, &mut gstate.rng))
 		}else{PersonName::new(nms, &mut gstate.rng)};
+		
+		if let Some(last_name) = last_name_opt {
+			name.last = last_name.to_string();
+		}
 		
 		Noble {
 			name,
 			personality: AIPersonality::new(&mut gstate.rng),
 			born_turn: if gstate.turn >= age {gstate.turn - age} else {GAME_START_TURN},
-			gender_female
+			gender_female,
+			alive: true
 		}
 	}
 }
@@ -73,11 +80,10 @@ impl Marriage {
 			let new_age = gstate.rng.usize_range(ADULTHOOD_AGE, partner_age + MAX_PARTNER_AGE_DIFF);
 			
 			Some(Self {
-				partner: Noble::new(nms, new_age, Some(new_gender_female), gstate),
+				partner: Noble::new(nms, new_age, None, Some(new_gender_female), gstate),
 				children: Vec::new()
 			})
 		}else{None}
 	}
 }
-
 

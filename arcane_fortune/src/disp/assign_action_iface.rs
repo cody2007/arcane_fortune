@@ -5,7 +5,23 @@ use crate::containers::Templates;
 use crate::player::Player;
 use super::*;
 
-impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
+impl <'bt,'ut,'rt,'dt> ActionMeta<'bt,'ut,'rt,'dt> {
+	fn rm_destination_coord(self, u: &mut Unit<'bt,'ut,'rt,'dt>,
+			exf: &HashedMapEx, map_data: &mut MapData, map_sz: MapSz) -> u64 {
+		// path_coords does not contain destination (it is checkpointed)
+		if let Some(action_meta_cont) = &self.action_meta_cont {
+			action_meta_cont.final_end_coord.to_ind(map_sz) as u64
+		// traversing entire path with checkpoints (path_coords re-computed when the checkpoint is reached)
+		}else{
+			let dest_coord = self.path_coords[0];
+			// ^ note: zeroth entry of path_coords is the destination coord
+			u.set_attack_range(map_data, exf, map_sz); // shorten path_coords (therefore, dest_coord should be saved before doing this step)
+			dest_coord
+		}
+	}
+}
+
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 	// Step 2:
 	// called when adding action to: `individual unit` or `all in brigade`.
 	// *not called when adding an action to the brigade list* because no unit (and thus action_iface)
@@ -21,7 +37,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 		let u_coord = u.return_coord();
 		
 		// if moving, or attacking, req there be a path
-		if let ActionType::Attack {..} | ActionType::Mv {..} = action_iface.action.action_type {
+		if let ActionType::Attack {..} | ActionType::Assassinate {..} | ActionType::Mv {..} = action_iface.action.action_type {
 			if action_iface.action.path_coords.len() == 0 {return false;}
 		}
 		
@@ -60,18 +76,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 			let exf = exs.last().unwrap();
 			
 			//////////////////// 1) remove last steps from path (based on attack range)
-			let dest_coord = {
-				// path_coords does not contain destination (it is checkpointed)
-				if let Some(action_meta_cont) = &action.action_meta_cont {
-					action_meta_cont.final_end_coord.to_ind(map_sz) as u64
-				// traversing entire path with checkpoints (path_coords re-computed when the checkpoint is reached)
-				}else{
-					let dest_coord = action.path_coords[0];
-					// ^ note: zeroth entry of path_coords is the destination coord
-					u.set_attack_range(map_data, exf, map_sz); // shorten path_coords (therefore, dest_coord should be saved before doing this step)
-					dest_coord
-				}
-			};
+			let dest_coord = action.clone().rm_destination_coord(u, exf, map_data, map_sz);
 			
 			//////////////////// 2) save owner to be attacked in u
 			if let Some(ex) = exf.get(&dest_coord) {
@@ -110,6 +115,24 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 					set_action!(units[dest_unit_inds[0]].owner_id);
 				}
 			}
+			
+		///////////////////
+		// assassinate aditional steps: customized version of the attack steps
+		}else if let ActionType::Assassinate {..} = action.action_type {
+			debug_assertq!(!u.template.attack_range.is_none());
+			let exf = exs.last().unwrap();
+			
+			//////////////////// 1) remove last steps from path (based on attack range)
+			let dest_coord = action.clone().rm_destination_coord(u, exf, map_data, map_sz);
+			
+			//////////// 2) save attack destination in u
+			if let Some(MapEx {bldg_ind: Some(bldg_ind), ..}) = exf.get(&dest_coord) {
+				if bldgs[*bldg_ind].owner_id != self.state.iface_settings.cur_player {
+					units[unit_ind].action.last_mut().unwrap().action_type = 
+						ActionType::Assassinate {attack_coord: Some(dest_coord)
+					};
+				}
+			}
 		
 		//////////////////////////////
 		// group move specific: select all units in rectangle and move them
@@ -124,10 +147,9 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 				// convert original unit's action to a standard Mv
 				// 	(GroupMv should not be used aside from UI selection of units)
 				action.action_type = ActionType::Mv;
-				mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Delete);
+				mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Delete, &mut None);
 				
-				// mv group
-				{
+				{ // mv group
 					// rectangle selecting group
 					let (rect_start_c, rect_sz) = {
 						let rect_start_c = Coord::frm_ind(rect_start_c, map_sz);
@@ -173,7 +195,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 									u.action.pop();
 									u.action.push(action_iface.action);
 									
-									mv_unit(*group_unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Delete);
+									mv_unit(*group_unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Delete, &mut None);
 								}
 							}
 						}}
@@ -215,7 +237,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 		if action.path_coords.len() > 0 {
 			match action.action_type {
 				ActionType::WorkerBuildStructure {..} => {},
-				_ => {mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds));}
+				_ => {mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds), &mut Some(self));}
 			}
 		}
 		
@@ -351,10 +373,10 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 					}else{true}
 					
 				// actions w/o rectangle drawing
-				} ActionType::Mv | ActionType::MvWithCursor | ActionType::MvIgnoreWalls |
+				} ActionType::Mv | ActionType::MvWithCursor | ActionType::MvIgnoreWallsAndOntoPopulationCenters |
 				  ActionType::MvIgnoreOwnWalls | ActionType::CivilianMv | ActionType::AutoExplore {..} |
 				  ActionType::WorkerBuildStructure {..} | ActionType::WorkerRepairWall {..} |
-				  ActionType::SectorAutomation {..} |
+				  ActionType::SectorAutomation {..} | ActionType::ScaleWalls | ActionType::Assassinate {..} |
 				  ActionType::WorkerBuildBldg {..} | ActionType::Attack {..} | ActionType::Fortify {..} |
 				  ActionType::WorkerZoneCoords {..} | ActionType::UIWorkerAutomateCity | ActionType::BurnBuilding {..} |
 				  ActionType::WorkerContinueBuildBldg {..} => {true} 

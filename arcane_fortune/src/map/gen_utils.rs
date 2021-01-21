@@ -36,14 +36,13 @@ pub fn print_map_status(elevation_prog: Option<usize>, elevation_smooth_prog: Op
 			}else{
 				addstr_c(&dstate.local.Done, CGREEN, &mut dstate.renderer);
 			}
-			txt_under_logo_row_off += 1;
 		}
 	};};
 	
-	print_progress!(&dstate.local.Generating_elevation_map, elevation_prog);
-	print_progress!(&dstate.local.Smoothing_elevation_map, elevation_smooth_prog);
-	print_progress!(&dstate.local.Generating_arability_map, arability_prog);
-	print_progress!(&dstate.local.Smoothing_arability_map, arability_smooth_prog);
+	print_progress!(&dstate.local.Generating_elevation_map, elevation_prog); txt_under_logo_row_off += 1;
+	print_progress!(&dstate.local.Smoothing_elevation_map, elevation_smooth_prog); txt_under_logo_row_off += 1;
+	print_progress!(&dstate.local.Generating_arability_map, arability_prog); txt_under_logo_row_off += 1;
+	print_progress!(&dstate.local.Smoothing_arability_map, arability_smooth_prog); txt_under_logo_row_off += 1;
 	print_progress!(&dstate.local.Placing_humankind, unit_placement_prog);
 
 	dstate.renderer.refresh();

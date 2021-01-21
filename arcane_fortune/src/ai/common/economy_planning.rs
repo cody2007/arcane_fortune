@@ -2,22 +2,22 @@ use crate::buildings::BldgTemplate;
 use crate::player::*;
 use super::*;
 
-struct BonusBldg<'bt,'ut,'rt,'dt> {
-	scientific_bldgs: Vec<&'bt BldgTemplate<'ut,'rt,'dt>>,
-	doctrine_bldgs: Vec<&'bt BldgTemplate<'ut,'rt,'dt>>,
+pub struct BonusBldg<'bt,'ut,'rt,'dt> {
+	pub scientific_bldgs: Vec<&'bt BldgTemplate<'ut,'rt,'dt>>,
+	pub doctrine_bldgs: Vec<&'bt BldgTemplate<'ut,'rt,'dt>>,
 	other_bldgs: Vec<&'bt BldgTemplate<'ut,'rt,'dt>>
 }
 
 impl <'bt,'ut,'rt,'dt>BonusBldg<'bt,'ut,'rt,'dt> {
-	fn new(bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, pstats: &Stats) -> Self {
+	pub fn new(bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, pstats: &Stats) -> Self {
 		let mut bonus_bldgs = BonusBldg {
 			scientific_bldgs: Vec::with_capacity(bldg_templates.len()),
 			doctrine_bldgs: Vec::with_capacity(bldg_templates.len()),
 			other_bldgs: Vec::with_capacity(bldg_templates.len())
 		};
 		
-		for bt in bldg_templates.iter() {
-			if bt.nm[0] == CITY_HALL_NM || !bt.available(pstats) {continue;}
+		for bt in bldg_templates.iter().filter(|bt| 
+				bt.nm[0] == CITY_HALL_NM || bt.nm[0] == MANOR_NM || !bt.available(pstats)) {
 			
 			if let BldgType::Gov(_) = &bt.bldg_type {
 				let mut added = false;

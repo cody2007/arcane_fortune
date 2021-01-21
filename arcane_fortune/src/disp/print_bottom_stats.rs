@@ -2,7 +2,7 @@ use crate::renderer::*;
 use crate::map::*;
 use crate::units::{ActionType, ActionMetaCont, WORKER_NM, worker_can_continue_bldg};//MAX_UNITS_PER_PLOT, WORKER_NM};
 use crate::gcore::hashing::*;
-use crate::gcore::{Relations, Log, LogType};
+use crate::gcore::*;
 use crate::player::{Player, PlayerType, Stats};
 use crate::movement::{manhattan_dist_components, manhattan_dist};
 use crate::zones::return_zone_coord;
@@ -189,8 +189,18 @@ impl ActionType<'_,'_,'_,'_> {
 						(disp.state.local.Change_dest.clone(), disp.state.local.drag_the_X.clone()),
 						(format!("{}:", disp.state.local.Attack.clone()), disp.state.local.stop_dragging.clone()), disp);
 			
-			} ActionType::Mv | ActionType::MvIgnoreWalls | ActionType::MvIgnoreOwnWalls |
-			ActionType::GroupMv {start_coord: Some(_), end_coord: Some(_)} => {
+			} ActionType::Assassinate {..} => {
+				let actions_req = if let Some(ut) = ut_opt {
+					(actions_req / ut.actions_per_turn).ceil()
+				}else{0.};
+				print_mv_to_sel2(full_zoom, PathValid::from(path_valid),
+						Some((actions_req, turns_est)), roff,
+						disp.state.local.Assassination_instructions.clone(),
+						(disp.state.local.Change_dest.clone(), disp.state.local.drag_the_X.clone()),
+						(format!("{}:", disp.state.local.Assassinate.clone()), disp.state.local.stop_dragging.clone()), disp);
+	
+			} ActionType::Mv | ActionType::MvIgnoreWallsAndOntoPopulationCenters | ActionType::MvIgnoreOwnWalls |
+			ActionType::ScaleWalls | ActionType::GroupMv {start_coord: Some(_), end_coord: Some(_)} => {
 				let actions_req = if let Some(ut) = ut_opt {
 					(actions_req / ut.actions_per_turn).ceil()
 				}else{0.};
@@ -215,9 +225,9 @@ impl ActionType<'_,'_,'_,'_> {
 	}
 }
 
-impl DispState<'_,'_,'_,'_,'_> {
+impl DispState<'_,'_,'_,'_,'_,'_> {
 	fn print_city_hist(&mut self, city_nm_show: &str, owner_id: usize,
-			stats_row: i32, players: &Vec<Player>, logs: &Vec<Log>) {
+			stats_row: i32, players: &Vec<Player>, logs: &Vec<Log>, temps: &Templates) {
 		let mut roff = stats_row; // row offset for printing
 		
 		macro_rules! mvl {() => (self.renderer.mv(roff, UNIT_STATS_COL); roff += 1;);}
@@ -233,12 +243,22 @@ impl DispState<'_,'_,'_,'_,'_> {
 		let mut max_width = 0;
 		
 		for log in logs.iter() {
+			macro_rules! start_log {() => {
+				mvl!();
+				self.txt_list.add_b(&mut self.renderer);
+				self.local.print_date_log(log.turn, &mut self.renderer);
+			};};
+	
 			match &log.val {
+				LogType::LeaderAssassinated {city_nm, ..} => {
+					if city_nm == city_nm_show {
+						start_log!();
+						log.val.print(true, players, &temps.doctrines, self);
+					}
+				}
 				LogType::CityFounded {owner_id, city_nm} => {
 					if city_nm == city_nm_show {
-						mvl!();
-						self.txt_list.add_b(&mut self.renderer);
-						self.local.print_date_log(log.turn, &mut self.renderer);
+						start_log!();
 						
 						let player = &players[*owner_id];
 						let personalization = &player.personalization;
@@ -273,9 +293,7 @@ impl DispState<'_,'_,'_,'_,'_> {
 				}
 				LogType::CityCaptured {city_attackee_nm, owner_attacker_id, ..} => {
 					if city_attackee_nm == city_nm_show {
-						mvl!();
-						self.txt_list.add_b(&mut self.renderer);
-						self.local.print_date_log(log.turn, &mut self.renderer);
+						start_log!();
 						self.addstr("Captured by the ");
 						print_owner!(*owner_attacker_id);
 						self.addstr(" civilization.");
@@ -289,9 +307,7 @@ impl DispState<'_,'_,'_,'_,'_> {
 				}
 				LogType::CityDestroyed {city_attackee_nm, owner_attacker_id, ..} => {
 					if city_attackee_nm == city_nm_show {
-						mvl!();
-						self.txt_list.add_b(&mut self.renderer);
-						self.local.print_date_log(log.turn, &mut self.renderer);
+						start_log!();
 						self.addstr("Destroyed by the ");
 						print_owner!(*owner_attacker_id);
 						self.addstr(" civilization.");
@@ -303,13 +319,23 @@ impl DispState<'_,'_,'_,'_,'_> {
 						if width > max_width {max_width = width;}
 					}
 				}
+				LogType::HouseDeclaresIndependence {house_id, ..} => {
+					if owner_id == *house_id {
+						start_log!();
+						log.val.print(true, players, &temps.doctrines, self);
+					}
+				}
+				LogType::KingdomJoinedEmpire {kingdom_id, ..} => {
+					if owner_id == *kingdom_id {
+						start_log!();
+						log.val.print(true, players, &temps.doctrines, self);
+					}
+				}
+	
 				LogType::NobleHouseJoinedEmpire {house_id, empire_id} => {
 					// house_joined_empire_abbrev: "Joined the [empire_nm] empire."
 					if owner_id == *house_id {
-						mvl!();
-						self.txt_list.add_b(&mut self.renderer);
-						self.local.print_date_log(log.turn, &mut self.renderer);
-						
+						start_log!();
 						let empire = &players[*empire_id].personalization;
 						
 						let tags = vec![KeyValColor {
@@ -325,14 +351,14 @@ impl DispState<'_,'_,'_,'_,'_> {
 					}
 				}
 				
-				LogType::CivCollapsed {..} | LogType::CivDestroyed {..} |
+				LogType::CivCollapsed {..} | LogType::CivDestroyed {..} | LogType::NoNobleSuccessor {..} |
 				LogType::UnitDestroyed {..} | LogType::UnitDisbanded {..} |
 				LogType::BldgDisbanded {..} | LogType::CityDisbanded {..} |
 				LogType::ICBMDetonation {..} | LogType::PrevailingDoctrineChanged {..} |
 				LogType::CivDiscov {..} | LogType::UnitAttacked {..} | 
 				LogType::StructureAttacked {..} | LogType::WarDeclaration {..} |
 				LogType::Rioting {..} | LogType::RiotersAttacked {..} |
-				LogType::CitizenDemand {..} |
+				LogType::CitizenDemand {..} | LogType::GenericEvent {..} |
 				LogType::PeaceDeclaration {..} | LogType::Debug {..} => {}
 			}
 		}
@@ -395,11 +421,11 @@ fn print_mv_to_sel2(full_zoom: bool, path_valid: PathValid, turns_req: Option<(f
 	// now we define the columns (to take the max down the rows to get the needed printing width)
 	//              (titles)            (change)   (confirm)          (cancel)
 	let lbls =      [String::new(),                change.0.clone(),  confirm.0.clone(),         disp.state.local.Cancel_colon.clone()];
-	let mouse_txt = [disp.state.local.mouse.clone(),          change.1.clone(), confirm.1.clone(),         disp.state.local.right_click.clone()];
+	let mouse_txt = [disp.state.local.mouse.clone(),          change.1.clone(), confirm.1.clone(),         disp.state.local.cancel_click.clone()];
 	let kbd_lens =  [disp.state.local.keyboard.len(),  3*3+3,     confirm_kbd_len,   esc_txt.len()];
 	
-	let lbl_w = lbls.iter().max_by_key(|l| l.len()).unwrap().len() as i32 + 2;
-	let mouse_w = mouse_txt.iter().max_by_key(|m| m.len()).unwrap().len() as i32 + 3;
+	let lbl_w = lbls.iter().map(|l| l.len()).max().unwrap() as i32 + 2;
+	let mouse_w = mouse_txt.iter().map(|m| m.len()).max().unwrap() as i32 + 3;
 	let kbd_w = *kbd_lens.iter().max().unwrap() as i32 + 2;
 	
 	// title
@@ -584,7 +610,7 @@ fn print_mv_to_sel2(full_zoom: bool, path_valid: PathValid, turns_req: Option<(f
 	}
 }*/
 
-// cmds: Vec<(key, txt)>
+// print the buttons in `cmds`
 fn print_cmds(mut cmds: Vec<&mut Button>, roff: i32, l: &Localization, txt_list: &mut TxtList, d: &mut Renderer, ui_mode: &UIMode) {
 	const ROWS_PER_COL: usize = 5;
 	let mut col_offset = UNIT_STATS_COL;
@@ -603,7 +629,7 @@ fn print_cmds(mut cmds: Vec<&mut Button>, roff: i32, l: &Localization, txt_list:
 }
 
 
-impl Disp<'_,'_,'_,'_,'_> {
+impl Disp<'_,'_,'_,'_,'_,'_> {
 	fn print_owner(&mut self, mut roff: i32, player: &Player, relations: &Relations) {
 		let cur_player = self.state.iface_settings.cur_player;
 		match player.ptype {
@@ -846,7 +872,7 @@ impl Disp<'_,'_,'_,'_,'_> {
 		}
 	}
 	
-	// health, nm, possible actions
+	// prints health, nm, possible actions for single unit
 	fn print_unit_stats(&mut self, unit_inds: &Vec<usize>, stats_row: i32, lside_row: i32,
 			show_land: bool, player: &Player, players: &Vec<Player>, units: &Vec<Unit>, 
 			bldgs: &Vec<Bldg>, map_data: &mut MapData, exf: &HashedMapEx, relations: &Relations) {
@@ -882,7 +908,8 @@ impl Disp<'_,'_,'_,'_,'_> {
 			
 		// in action mode
 		if let AddActionTo::IndividualUnit {action_iface} = &self.state.iface_settings.add_action_to {
-			self.print_unit_action(roff, &action_iface.clone(), units, bldgs, exf, map_data, &player.stats, players);
+			let action_iface = action_iface.clone();
+			self.print_unit_action(roff, &action_iface, units, bldgs, exf, map_data, &player.stats, players);
 		
 		// not interactively moving or building anything -- show actions unit could perform
 		}else if show_land {
@@ -890,25 +917,27 @@ impl Disp<'_,'_,'_,'_,'_> {
 			
 			// player's unit
 			if u.owner_id == self.state.iface_settings.cur_player || self.state.iface_settings.show_actions {
-				self.state.txt_list.add_b(&mut self.state.renderer);
-				self.addstr(&format!("{}: ", self.state.local.Action));
-				if let Some(action) = u.action.last() {
-					self.addstr(&action.action_type.nm(&self.state.local));
-					/*self.addstr(&format!("{}", action.path_coords.len()));
-					if let Some(action_meta_cont) = &action.action_meta_cont {
-						self.addstr(&format!(" checkpoint {}", action_meta_cont.checkpoint_path_coords.len()));
-					}*/
-				}else{
-					self.state.renderer.addstr(&self.state.local.Idle);
-				}
-				
-				if let Some(actions_used) = u.actions_used {
-					if actions_used != 0. {
-						self.addstr(&format!(" ({}/{})", actions_used, u.template.actions_per_turn));
+				{ // print Action: [] (actions used/actions per turn)
+					self.state.txt_list.add_b(&mut self.state.renderer);
+					self.addstr(&format!("{}: ", self.state.local.Action));
+					if let Some(action) = u.action.last() {
+						self.addstr(&action.action_type.nm(&self.state.local));
+						/*self.addstr(&format!("{}", action.path_coords.len()));
+						if let Some(action_meta_cont) = &action.action_meta_cont {
+							self.addstr(&format!(" checkpoint {}", action_meta_cont.checkpoint_path_coords.len()));
+						}*/
+					}else{
+						self.state.renderer.addstr(&self.state.local.Idle);
 					}
-				}else{
-					self.addch(' ');
-					self.state.renderer.addstr(&self.state.local.no_actions_remain);
+					
+					if let Some(actions_used) = u.actions_used {
+						if actions_used != 0. {
+							self.addstr(&format!(" ({}/{})", actions_used, u.template.actions_per_turn));
+						}
+					}else{
+						self.addch(' ');
+						self.state.renderer.addstr(&self.state.local.no_actions_remain);
+					}
 				}
 				
 				// show possible actions or instructions to zoom in
@@ -937,22 +966,31 @@ impl Disp<'_,'_,'_,'_,'_> {
 						
 						add!(group_move);
 						
-						// worker
-						if u.template.nm[0] == WORKER_NM {
-							add!(zone_agricultural, zone_residential, zone_business, zone_industrial, 
-								automate_zone_creation, rm_bldgs_and_zones, continue_bldg_construction, build_bldg, build_road);
+						{ // unit-specific actions
+							let ut = &u.template;
 							
-							// can only build wall if this worker is the only
-							// one on the tile
-							if unit_inds.len() == 1 {add!(build_wall);}
-							add!(build_gate);
+							// assassin
+							if !ut.assassin_per_turn.is_none() {
+								add!(scale_walls, assassinate);
+							}
 							
-							// repair wall
-							if u.template.repair_wall_per_turn != None {add!(repair_wall);}
-						
-						// soldier actions
-						}else if let Some(_) = u.template.attack_per_turn {
-							add!(attack, soldier_automate);
+							// worker
+							if ut.nm[0] == WORKER_NM {
+								add!(zone_agricultural, zone_residential, zone_business, zone_industrial, 
+									automate_zone_creation, rm_bldgs_and_zones, continue_bldg_construction, build_bldg, build_road);
+								
+								// can only build wall if this worker is the only
+								// one on the tile
+								if unit_inds.len() == 1 {add!(build_wall);}
+								add!(build_gate);
+								
+								// repair wall
+								if u.template.repair_wall_per_turn != None {add!(repair_wall);}
+							
+							// soldier actions
+							}else if !ut.attack_per_turn.is_none() {
+								add!(attack, soldier_automate);
+							}
 						}
 						
 						// show option to unboard
@@ -988,10 +1026,11 @@ impl Disp<'_,'_,'_,'_,'_> {
 	}
 }
 
-impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 	fn print_unit_bldg_stats(&mut self, map_cur_coord: u64, stats_row: i32, lside_row: i32, show_land: bool,
 			map_data: &mut MapData, exs: &Vec<HashedMapEx>, player: &Player, players: &Vec<Player>,
-			units: &Vec<Unit>, bldg_config: &BldgConfig, bldgs: &Vec<Bldg>, gstate: &GameState) {
+			units: &Vec<Unit>, bldg_config: &BldgConfig, bldgs: &Vec<Bldg>, gstate: &GameState,
+			temps: &Templates) {
 		let pstats = &player.stats;
 		//if self.zoom_ind != map_data.max_zoom_ind() {return;} // only show at full zoom
 		
@@ -1011,18 +1050,20 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 		
 		// show brigade
 		if let AddActionTo::AllInBrigade {brigade_nm, ..} = &self.state.iface_settings.add_action_to {
-			self.print_broadcastable_actions(&brigade_nm.clone(), pstats, units, bldgs, exf, stats_row, map_data);
+			let brigade_nm = brigade_nm.clone();
+			self.print_broadcastable_actions(&brigade_nm, pstats, units, bldgs, exf, stats_row, map_data);
 		}else if let AddActionTo::BrigadeBuildList {brigade_nm, ..} = &self.state.iface_settings.add_action_to {
-			self.print_build_list_actions(&brigade_nm.clone(), pstats, units, bldgs, exf, stats_row, map_data);
+			let brigade_nm = brigade_nm.clone();
+			self.print_build_list_actions(&brigade_nm, pstats, units, bldgs, exf, stats_row, map_data);
 
 		// ex data
 		}else if let Some(ex) = exz.get(&get_cursor_or_sel_coord()) {
 			// show zoomed out city history
 			if show_land {
-				if let Some(fog) = self.state.iface_settings.get_fog_or_actual(get_cursor_or_sel_coord(), ex, pstats) {
+				if let Some(fog) = self.state.iface_settings.get_fog_or_actual(get_cursor_or_sel_coord(), self.state.iface_settings.zoom_ind, ex, players, &gstate.relations) {
 					if let Some(max_city_nm) = &fog.max_city_nm {
 						if let Some(owner_id) = fog.owner_id {
-							self.state.print_city_hist(max_city_nm, owner_id as usize, stats_row, players, &gstate.logs);
+							self.state.print_city_hist(max_city_nm, owner_id as usize, stats_row, players, &gstate.logs, temps);
 						}
 						return;
 					}
@@ -1053,9 +1094,26 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 							self.state.txt_list.add_b(&mut self.state.renderer);
 							self.addstr(&format!("{} ({})", nm, bt.nm[self.state.local.lang_ind]));
 						}else{
-							self.state.print_city_hist(nm, b.owner_id as usize, stats_row, players, &gstate.logs);
+							self.state.print_city_hist(nm, b.owner_id as usize, stats_row, players, &gstate.logs, temps);
 							return;
 						}
+					// public event
+					}else if let BldgArgs::PublicEvent {nm, public_event_type, ..} = &b.args {
+						self.state.txt_list.add_b(&mut self.state.renderer);
+						
+						// capitialize first letter
+						let mut nm_upper: Vec<char> = nm.chars().collect();
+						nm_upper[0] = nm_upper[0].to_uppercase().nth(0).unwrap();
+						let nm_upper: String = nm_upper.into_iter().collect();
+						
+						self.addstr(&nm_upper);
+						
+						// happiness bonus
+						mvl!(); mvl!();
+						self.state.txt_list.add_b(&mut self.state.renderer);
+						self.state.renderer.addstr(&self.state.local.Happiness_bonus);
+						self.addstr(&format!(" {}", public_event_type.happiness_bonus(bldg_config)));
+						
 					}else{
 						self.state.txt_list.add_b(&mut self.state.renderer);
 						self.addstr(&bt.nm[self.state.local.lang_ind]);
@@ -1238,7 +1296,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 										}else if val < (-RANGE/2. + 4.*STEP) {&self.state.local.Adherant
 										}else if val < (-RANGE/2. + 5.*STEP) {&self.state.local.Reverant
 										}else{&self.state.local.Devout};
-										self.addstr(&format!(" {}", desc));
+										self.state.renderer.addstr(&format!(" {}", desc));
 									}
 									
 									{ // Politics: pacifism
@@ -1255,7 +1313,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 										}else if val < (-POL_RANGE/2. + 2.*STEP) {&self.state.local.Pragmatist
 										}else if val < (-POL_RANGE/2. + 3.*STEP) {&self.state.local.Peace_minded
 										}else{&self.state.local.Pacifist};
-										self.addstr(&format!(" {}", desc));// {} {} {}", desc, val, POL_RANGE, STEP));
+										self.state.renderer.addstr(&format!(" {}", desc));// {} {} {}", desc, val, POL_RANGE, STEP));
 									}
 									
 									{ // Moods: happiness
@@ -1274,7 +1332,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 										}else if val < (-RANGE/2. + 4.*STEP) {&self.state.local.Content
 										}else if val < (-RANGE/2. + 5.*STEP) {&self.state.local.Joyful
 										}else{&self.state.local.Euphoric};
-										self.addstr(&format!(" {}", desc));
+										self.state.renderer.addstr(&format!(" {}", desc));
 									}
 								}
 							}
@@ -1285,12 +1343,13 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 		
 		// show action (can occur if we are zoomed out and `ex` is empty)
 		}else if let AddActionTo::IndividualUnit {action_iface} = &self.state.iface_settings.add_action_to {
-			self.print_unit_action(stats_row as i32, &action_iface.clone(), units, bldgs, exs.last().unwrap(), map_data, pstats, players);
+			let action_iface = action_iface.clone();
+			self.print_unit_action(stats_row as i32, &action_iface, units, bldgs, exs.last().unwrap(), map_data, pstats, players);
 		}
 	}
 
 	pub fn print_bottom_stats(&mut self, map_data: &mut MapData, exs: &Vec<HashedMapEx>, player: &Player, players: &Vec<Player>, units: &Vec<Unit>,
-			bldg_config: &BldgConfig, bldgs: &Vec<Bldg>, gstate: &GameState){
+			bldg_config: &BldgConfig, bldgs: &Vec<Bldg>, gstate: &GameState, temps: &Templates){
 		////////////////////////////////////////////////
 		// land stats
 		let stats_row = (self.state.iface_settings.screen_sz.h - MAP_ROW_STOP_SZ + 2) as i32;
@@ -1304,7 +1363,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 		let mut r_off = stats_row + 4;
 
 		// land is undiscovered
-		let show_land = !self.state.iface_settings.show_fog || player.stats.land_discov[self.state.iface_settings.zoom_ind].map_coord_ind_discovered(map_cur_coord);
+		let show_land = !self.state.iface_settings.show_fog || land_discovered(map_cur_coord, self.state.iface_settings.cur_player as usize, self.state.iface_settings.zoom_ind, players, &gstate.relations);
 		if !show_land {
 			self.state.txt_list.add_b(&mut self.state.renderer);
 			self.state.renderer.addstr(&self.state.local.Undiscovered);
@@ -1551,7 +1610,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 			}
 		}
 		
-		self.print_unit_bldg_stats(map_cur_coord, stats_row, r_off+1, show_land, map_data, exs, player, players, units, bldg_config, bldgs, gstate);
+		self.print_unit_bldg_stats(map_cur_coord, stats_row, r_off+1, show_land, map_data, exs, player, players, units, bldg_config, bldgs, gstate, temps);
 	}
 }
 

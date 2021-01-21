@@ -11,13 +11,13 @@ use super::logo_vars::*;
 use super::color::*;
 use super::version_status::{VERSION};
 use crate::containers::*;
-use super::{addstr_attr, Button, cursor_pos, screen_reader_mode};
+use super::*;
 
 const IGN_KEY_TIME: u64 = 50;
 
 enum TitleOptionSel { LoadGm=0, NewGm=1, Exit=2, N=3 }
 
-impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 	fn print_raster(&mut self, raster: &[u8], row_start: i32, col_start: i32, n_cols: i32,
 			n_rows: i32, col_skip_b: i32, col_skip_e: i32){
 		
@@ -86,7 +86,7 @@ impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
 const VISIT: &str = "";//Visit ";
 pub const URL: &str = "https://arcanefortune.com";
 
-impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn show_title_screen(&mut self) -> GameControl {
 		self.renderer.curs_set(if screen_reader_mode() {CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE
 		}else{CURSOR_VISIBILITY::CURSOR_INVISIBLE});
@@ -180,8 +180,7 @@ impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
 			center_txt!(&format!("{} -- v{}", self.local.Edition, VERSION)); roff += 2;
 			center_txt!(&visit_url); roff += 2;
 			
-			// colorize url
-			{
+			{ // colorize url
 				let mut y = 0;
 				let mut x = 0;
 				self.renderer.getyx(stdscr(), &mut y, &mut x);

@@ -10,6 +10,8 @@ use std::path::Path;
 use super::*;
 pub mod constants; pub use constants::*;
 
+const PAD_DISPLAY_PX: i32 = 3;
+
 const FONT_FILE: &str = "fonts/OxygenMono-Regular.ttf";
 const ICON_FILE: &str = "icon.ico";
 
@@ -157,8 +159,8 @@ impl TxtState {
 		
 		let rect = SDL_Rect {
 			w, h,
-			x: self.x*w,
-			y: self.y*h
+			x: self.x*w + PAD_DISPLAY_PX,
+			y: self.y*h + PAD_DISPLAY_PX
 		};
 		
 		{ // background
@@ -192,8 +194,8 @@ impl TxtState {
 						self.sdl_renderer.fill_rect(SDL_Rect {
 							w,
 							h: 1,
-							x: self.x*w,
-							y: self.y*h + h-3
+							x: self.x*w + PAD_DISPLAY_PX,
+							y: self.y*h + PAD_DISPLAY_PX + h-3
 						});
 					}
 				}
@@ -201,79 +203,79 @@ impl TxtState {
 				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: 1,
 					h,
-					x: self.x*w + half(w),
-					y: self.y*h
+					x: self.x*w + PAD_DISPLAY_PX + half(w),
+					y: self.y*h + PAD_DISPLAY_PX
 				});
 			} SpecialChar::HLine => {set_fg!();
 				self.sdl_renderer.fill_rect(SDL_Rect {
 					w,
 					h: 1,
-					x: self.x*w,
-					y: self.y*h + half(h)
+					x: self.x*w + PAD_DISPLAY_PX,
+					y: self.y*h + PAD_DISPLAY_PX + half(h)
 				});
 			} SpecialChar::LLCorner => {set_fg!();
 				// h -
 				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: half(w),
 					h: 1,
-					x: self.x*w + half(w),
-					y: self.y*h + half(h)
+					x: self.x*w + PAD_DISPLAY_PX + half(w),
+					y: self.y*h + PAD_DISPLAY_PX + half(h)
 				});
 				
 				// v |
 				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: 1,
 					h: half(h),
-					x: self.x*w + half(w),
-					y: self.y*h
+					x: self.x*w + PAD_DISPLAY_PX + half(w),
+					y: self.y*h + PAD_DISPLAY_PX
 				});
 			} SpecialChar::LRCorner => {set_fg!();
 				// h -
 				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: half(w),
 					h: 1,
-					x: self.x*w,
-					y: self.y*h + half(h)
+					x: self.x*w + PAD_DISPLAY_PX,
+					y: self.y*h + PAD_DISPLAY_PX + half(h)
 				});
 				
 				// v |
 				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: 1,
 					h: half(h),
-					x: self.x*w + half(w),
-					y: self.y*h
+					x: self.x*w + PAD_DISPLAY_PX + half(w),
+					y: self.y*h + PAD_DISPLAY_PX
 				});
 			} SpecialChar::URCorner => {set_fg!();
 				// h -
 				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: half(w),
 					h: 1,
-					x: self.x*w,
-					y: self.y*h + half(h)
+					x: self.x*w + PAD_DISPLAY_PX,
+					y: self.y*h + PAD_DISPLAY_PX + half(h)
 				});
 				
 				// v |
 				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: 1,
 					h: half(h),
-					x: self.x*w + half(w),
-					y: self.y*h + half(h)
+					x: self.x*w + PAD_DISPLAY_PX + half(w),
+					y: self.y*h + PAD_DISPLAY_PX + half(h)
 				});
 			} SpecialChar::ULCorner => {set_fg!();
 				// h -
 				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: half(w),
 					h: 1,
-					x: self.x*w + half(w),
-					y: self.y*h + half(h)
+					x: self.x*w + PAD_DISPLAY_PX + half(w),
+					y: self.y*h + PAD_DISPLAY_PX + half(h)
 				});
 				
 				// v |
 				self.sdl_renderer.fill_rect(SDL_Rect {
 					w: 1,
 					h: half(h),
-					x: self.x*w + half(w),
-					y: self.y*h + half(h)
+					x: self.x*w + PAD_DISPLAY_PX + half(w),
+					y: self.y*h + PAD_DISPLAY_PX + half(h)
 				});
 			}
 		}
@@ -378,10 +380,15 @@ impl Renderer {
 		}
 	}
 	
-	pub fn mv(&mut self, y: c_int, x: c_int) {
-		if y < 0 || x < 0 {return;}
-		self.txt_state.y = y;
-		self.txt_state.x = x;
+	pub fn mv<Y: TryInto<c_int>, X: TryInto<c_int>>(&mut self, y: Y, x: X) {
+		if let Ok(y) = y.try_into() {
+		if let Ok(x) = x.try_into() {
+			if y < 0 || x < 0 {return;}
+			self.txt_state.y = y;
+			self.txt_state.x = x;
+			return;
+		}}
+		panic!("could not convert arguments into integers");
 	}
 	
 	pub fn addch<T: TryInto<chtype>>(&mut self, ch: T) {
@@ -499,8 +506,8 @@ impl Renderer {
 		let _g = Guard::new("getmaxyx");
 		
 		let screen_sz = self.txt_state.sdl_renderer.get_viewport();
-		*y = screen_sz.h / self.txt_state.font_ch_sz.h;
-		*x = screen_sz.w / self.txt_state.font_ch_sz.w;
+		*y = (screen_sz.h - PAD_DISPLAY_PX*2) / self.txt_state.font_ch_sz.h;
+		*x = (screen_sz.w - PAD_DISPLAY_PX*2) / self.txt_state.font_ch_sz.w;
 	}
 	
 	pub fn getyx(&self, _: WINDOW, y: &mut i32, x: &mut i32) {
@@ -1078,6 +1085,16 @@ pub fn setup_disp_lib() -> Renderer {
 	unsafe {SDL_StartTextInput();}
 	Renderer::new(window, 14)
 }
+
+pub fn setup_disp_lib_custom_font_sz(font_sz: c_int) -> Renderer {
+	sdl_init();
+	ttf_init();
+	
+	let window = Window::new("Arcane Fortune", Some(ICON_FILE));
+	unsafe {SDL_StartTextInput();}
+	Renderer::new(window, font_sz)
+}
+
 
 #[derive(Clone, PartialEq)]
 pub enum MouseState {

@@ -141,7 +141,7 @@ impl Run for QKPlusQPosMaskFutureTimesSoftmaxWInternals {
 			let K = vec_out;
 			let M = n_time; // time2
 			
-			model.einsum(y, &[0,1,3], Q, &[0,1,2], &self.R, &[0,2,3], N, K, M, batch_sz, 0.);	
+			model.einsum(y, &[0,1,3], Q, &[0,1,2], &self.R, &[0,2,3], N, K, M, batch_sz, 0., self.params.data_type);
 			unsafe {shift_QR_pos_lleft_triangle(y.mem.val, (n_heads*n_imgs) as usize, n_time as usize)};
 		}
 		
@@ -157,7 +157,7 @@ impl Run for QKPlusQPosMaskFutureTimesSoftmaxWInternals {
 			debug_assert!(Q.shape == key.shape);
 			debug_assert!(key.mem.dataType == key.mem.dataType);
 			
-			model.einsum(y, &[0,1,3], Q, &[0,1,2], key, &[0,3,2], N, K, M, batch_sz, 1.);
+			model.einsum(y, &[0,1,3], Q, &[0,1,2], key, &[0,3,2], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 		
 		// mask future times & scale by params.scale
@@ -234,7 +234,7 @@ impl Run for QKPlusQPosMaskFutureTimesSoftmaxWInternals {
 				let K = query.shape.h; // time2
 				let M = query.shape.w; // vec_out
 				
-				model.einsum(dquery, &[0,1,2], dy, &[0,1,3], key, &[0,3,2], N, K, M, batch_sz, 1.);
+				model.einsum(dquery, &[0,1,2], dy, &[0,1,3], key, &[0,3,2], N, K, M, batch_sz, 1., self.params.data_type);
 			}
 			
 			///////////////////////// dK
@@ -243,7 +243,7 @@ impl Run for QKPlusQPosMaskFutureTimesSoftmaxWInternals {
 				let K = key.shape.h; // time1
 				let M = key.shape.w; // vec_out
 				
-				model.einsum(dkey, &[0,3,2], dy, &[0,1,3], query, &[0,1,2], N, K, M, batch_sz, 1.);
+				model.einsum(dkey, &[0,3,2], dy, &[0,1,3], query, &[0,1,2], N, K, M, batch_sz, 1., self.params.data_type);
 			}
 		}
 		
@@ -276,7 +276,7 @@ impl Run for QKPlusQPosMaskFutureTimesSoftmaxWInternals {
 				let K = n_time; // time2
 				let M = vec_out;
 				
-				model.einsum(dQ, &[0,1,2], dy, &[0,1,3], &self.R, &[0,2,3], N, K, M, batch_sz, 1.);
+				model.einsum(dQ, &[0,1,2], dy, &[0,1,3], &self.R, &[0,2,3], N, K, M, batch_sz, 1., self.params.data_type);
 			}
 			
 			// sv dQ
@@ -289,7 +289,7 @@ impl Run for QKPlusQPosMaskFutureTimesSoftmaxWInternals {
 				let K = n_imgs * n_time; // time1
 				let M = n_time; // time2
 				
-				model.einsum(&self.dR, &[0,2,3], Q,  &[0,1,2], dy, &[0,1,3], N, K, M, batch_sz, 1.);
+				model.einsum(&self.dR, &[0,2,3], Q,  &[0,1,2], dy, &[0,1,3], N, K, M, batch_sz, 1., self.params.data_type);
 			}
 		}
 	}

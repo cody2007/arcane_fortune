@@ -193,23 +193,20 @@ pub fn set_city_hall_dist(start_coord: u64, map_data: &mut MapData, exs: &mut Ve
 		let mut closest_dist: Option<usize> = None;
 		let mut closest_city_hall_ind: Option<usize> = None;
 		
-		for (bldg_ind, b) in bldgs.iter().enumerate() {
-			// skip if it's not the current player's city hall
-			if b.owner_id != owner_id || b.template.nm[0] != CITY_HALL_NM || !b.construction_done.is_none() {
-				continue;
-			}
-			
-			if let Some(start_coord) = find_closest_road(b.coord, map_data, exs.last().unwrap(), map_sz) {
-				let c = Coord::frm_ind(start_coord, map_sz);
-				action_iface.update_move_search(c, map_data, exs, MvVars::None, bldgs);
-				
-				let path_len = action_iface.action.path_coords.len(); // ??
-				if path_len == 0 {continue;} // no path found
-				
-				// update
-				if closest_dist.is_none() || path_len < closest_dist.unwrap() {
-					closest_dist = Some(path_len);
-					closest_city_hall_ind = Some(bldg_ind);
+		for (bldg_ind, b) in bldgs.iter().enumerate().filter(|(_, b)| b.owner_id == owner_id && b.construction_done == None) {
+			if let BldgArgs::PopulationCenter {..} = &b.args {
+				if let Some(start_coord) = find_closest_road(b.coord, map_data, exs.last().unwrap(), map_sz) {
+					let c = Coord::frm_ind(start_coord, map_sz);
+					action_iface.update_move_search(c, map_data, exs, MvVars::None, bldgs);
+					
+					let path_len = action_iface.action.path_coords.len(); // ??
+					if path_len == 0 {continue;} // no path found
+					
+					// update
+					if closest_dist.is_none() || path_len < closest_dist.unwrap() {
+						closest_dist = Some(path_len);
+						closest_city_hall_ind = Some(bldg_ind);
+					}
 				}
 			}
 		} // find closest

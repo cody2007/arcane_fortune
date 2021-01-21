@@ -3,17 +3,17 @@ use crate::disp::menus::*;
 use crate::keyboard::KeyboardMap;
 use crate::localization::Localization;
 
-impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
-	pub fn new() -> Self {
+impl <'f,'r,'bt,'ut,'rt,'dt>Disp<'f,'r,'bt,'ut,'rt,'dt> {
+	pub fn new(mut renderer: &'r mut Renderer) -> Self {
 		// should support 256 colors, the code below doesn't seem to detect correctly that it does
 		#[cfg(target_os = "windows")]
 		let terminal = TerminalSettings {limit_colors: false, limit_schars: false };
 		
 		#[cfg(target_os = "linux")]
 		let terminal = if !has_colors()|| !can_change_color() || COLOR_PAIRS() < 256 {
-			TerminalSettings { limit_colors: true, limit_schars: false }
+			TerminalSettings { limit_colors: true, limit_schars: screen_reader_mode() }
 		}else{
-			TerminalSettings { limit_colors: false, limit_schars: false }
+			TerminalSettings { limit_colors: false, limit_schars: screen_reader_mode() }
 		};
 		
 		#[cfg(target_os = "macos")]
@@ -23,9 +23,8 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 			TerminalSettings { limit_colors: false, limit_schars: true }
 		};
 		
-		let mut renderer = setup_disp_lib();
 		let chars = init_color_pairs(&terminal, &mut renderer);
-		let mut iface_settings = IfaceSettings::default("".to_string(), 0);
+		let iface_settings = IfaceSettings::default("".to_string(), 0);
 		let kbd = KeyboardMap::new();
 		let local = Localization::new();
 		let buttons = Buttons::new(&kbd, &local);

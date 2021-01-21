@@ -81,7 +81,7 @@ impl Run for MulQAndPosInternals {
 		debug_assert!(n_time == self.R.shape.h); // time1 == time2
 		debug_assert!(vec_out == self.R.shape.c); // vec_out == vec_out
 		
-		model.einsum(y, &[0,1,3], Q, &[0,1,2], &self.R, &[0,2,3], N, K, M, batch_sz, 0.);
+		model.einsum(y, &[0,1,3], Q, &[0,1,2], &self.R, &[0,2,3], N, K, M, batch_sz, 0., self.params.data_type);
 		
 		unsafe {shift_QR_pos_lleft_triangle(y.mem.val, (n_heads*n_imgs) as usize, n_time as usize)};
 	}
@@ -121,7 +121,7 @@ impl Run for MulQAndPosInternals {
 			let K = n_time; // time2
 			let M = vec_out;
 			
-			model.einsum(dQ, &[0,1,2], dy, &[0,1,3], &self.R, &[0,2,3], N, K, M, batch_sz, 1.);
+			model.einsum(dQ, &[0,1,2], dy, &[0,1,3], &self.R, &[0,2,3], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 		
 		/////////////////////////////////// dR
@@ -130,7 +130,7 @@ impl Run for MulQAndPosInternals {
 			let K = n_imgs * n_time; // time1
 			let M = n_time; // time2
 			
-			model.einsum(&self.dR, &[0,2,3], Q,  &[0,1,2], dy, &[0,1,3], N, K, M, batch_sz, 1.);
+			model.einsum(&self.dR, &[0,2,3], Q,  &[0,1,2], dy, &[0,1,3], N, K, M, batch_sz, 1., self.params.data_type);
 		}
 	}
 	

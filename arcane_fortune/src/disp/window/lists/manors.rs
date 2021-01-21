@@ -139,9 +139,7 @@ pub fn manors_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, cur_play
 		city_nms.push(entry.nm.as_str());
 	}
 	
-	let mut owned_cities = OptionsUI {options: Vec::with_capacity(city_nms.len()), max_strlen: 0};
-	
-	register_shortcuts(&city_nms, &mut owned_cities);
+	let mut owned_cities = OptionsUI::new(&city_nms);
 	
 	// associate unit_ind w/ each menu entry
 	for (opt, entry) in owned_cities.options.iter_mut().zip(city_entries.iter()) {
@@ -151,7 +149,7 @@ pub fn manors_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, cur_play
 	return owned_cities;
 }
 
-pub fn noble_brigades_list<'bt,'ut,'rt,'dt>(units: &Vec<Unit<'bt,'ut,'rt,'dt>>, cur_player: SmSvType, cur_coord: Coord,
+/*pub fn noble_brigades_list<'bt,'ut,'rt,'dt>(units: &Vec<Unit<'bt,'ut,'rt,'dt>>, cur_player: SmSvType, cur_coord: Coord,
 		players: &Vec<Player>, relations: &Relations,
 		w: &mut usize, label_txt_opt: &mut Option<String>,
 		map_sz: MapSz, l: &Localization) -> OptionsUI<'bt,'ut,'rt,'dt> {
@@ -166,5 +164,5 @@ pub fn noble_brigades_list<'bt,'ut,'rt,'dt>(units: &Vec<Unit<'bt,'ut,'rt,'dt>>, 
 	}
 	
 	unit_list_frm_vec(&unit_inds_use, units, cur_coord, players, w, label_txt_opt, map_sz, l)
-}
+}*/
 

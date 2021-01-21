@@ -7,7 +7,7 @@ use crate::units::UnitTemplate;
 // formerly `Owner`
 #[derive(Clone, PartialEq)]
 pub struct Personalization {
-	pub color: i32,
+	pub color: i32, // color index (ncurses)
 	pub nm: String, // of country
 	
 	pub gender_female: bool,
@@ -33,6 +33,12 @@ impl_saving!{Personalization {color, nm, gender_female,
 pub struct PersonName {
 	pub first: String,
 	pub last: String
+}
+
+impl PersonName {
+	pub fn txt(&self) -> String {
+		format!("{} {}", self.first, self.last)
+	}
 }
 
 impl_saving!{PersonName {first, last}}

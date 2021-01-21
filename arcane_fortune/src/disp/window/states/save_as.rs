@@ -45,7 +45,7 @@ impl SaveAsWindowState {
 	
 	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, gstate: &GameState, map_data: &MapData<'rt>, exs: &Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, 
 			temps: &Templates<'bt,'ut,'rt,'dt,'_>, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, units: &Vec<Unit<'bt,'ut,'rt,'dt>>, players: &Vec<Player>, 
-			frame_stats: &FrameStats, dstate: &mut DispState<'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
+			frame_stats: &FrameStats, dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		if dstate.buttons.Save.activated(dstate.key_pressed, &dstate.mouse_event) && self.save_nm.len() > 0 {
 			dstate.iface_settings.save_nm = self.save_nm.clone();
 			//dstate.reset_auto_turn(); // save_game will clear disp.ui_mode which contains the prior value of the auto turn setting

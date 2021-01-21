@@ -18,7 +18,6 @@ impl BldgsWindowState {
 		let owned_bldgs = match self.bldgs_show {
 			BldgsShow::Improvements {..} => {owned_improvement_bldgs_list(bldgs, temps.doctrines, cur_player, cursor_coord, &mut w, &mut label_txt_opt, map_sz, &dstate.local)}
 			BldgsShow::Military {..} => {owned_military_bldgs_list(bldgs, cur_player, cursor_coord, &mut w, &mut label_txt_opt, map_sz, &dstate.local)}
-			_ => {panicq!("ui mode match condition not met");}
 		};
 		
 		let list_pos = dstate.print_list_window(self.mode, dstate.local.Select_a_building.clone(), owned_bldgs.clone(), Some(w), label_txt_opt, 0, None);
@@ -34,9 +33,7 @@ impl BldgsWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, players: &Vec<Player>, temps: &Templates, units: &Vec<Unit>, 
-			bldgs: &Vec<Bldg>, map_data: &mut MapData, exs: &Vec<HashedMapEx>, 
-			gstate: &GameState, dstate: &DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, temps: &Templates, bldgs: &Vec<Bldg>, map_data: &mut MapData, dstate: &DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let mut w = 0;
 		let mut label_txt_opt = None;
 		let map_sz = *map_data.map_szs.last().unwrap();

@@ -67,7 +67,7 @@ pub struct Stats<'bt,'ut,'rt,'dt> {
 	pub zone_demand_sum_map: Box<[ZoneDemandSumMap]>,
 	// ^ indexed by zone_type, summed across land
 	
-	pub tax_income: f32,
+	pub tax_income: f32, // use pstats.tax_income() if the value after fiefdom taxes is desired
 	pub unit_expenses: f32,
 	pub bldg_expenses: f32,
 	
@@ -151,7 +151,8 @@ impl <'bt,'ut,'rt,'dt>Stats<'bt,'ut,'rt,'dt> {
 						frac_i: (map_sz_discov.h as f32 -1.) / map_sz.h as f32,
 						frac_j: (map_sz_discov.w as f32 -1.) / map_sz.w as f32,
 						discovered: vec![0; 
-							(((map_sz_discov.h*map_sz_discov.w) as f32) / 8.).ceil() as usize]
+							(((map_sz_discov.h*map_sz_discov.w) as f32) / 8.).ceil() as usize],
+						n_discovered: 0
 				});
 			}
 			(fog, land_discov)
@@ -205,6 +206,14 @@ impl <'bt,'ut,'rt,'dt>Stats<'bt,'ut,'rt,'dt> {
 			
 			land_discov, fog
 		}
+	}
+	
+	pub fn military_power(&self) -> Option<usize> {
+		if let Some(&offense_power) = self.offense_power_log.last() {
+		if let Some(&defense_power) = self.defense_power_log.last() {
+			return Some(offense_power + defense_power);
+		}}
+		None
 	}
 }
 

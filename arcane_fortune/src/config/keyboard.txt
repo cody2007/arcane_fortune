@@ -48,6 +48,8 @@ Misc (Note: setting `enter` to a different value is not fully supported yet
 	change_brigade_repair: c
 	clear_brigade_repair: c
 	center_on_next_unmoved_unit: ;
+	offer_trade_item: o
+	request_trade_item: r
 }
 
 ---------------
@@ -78,6 +80,8 @@ Unit actions
 	add_action_to_brigade_build_list: 2
 	build_gate: =
 	rm_bldgs_and_zones: 0
+	scale_walls: ^
+	assassinate: t
 }
 
 -------------------

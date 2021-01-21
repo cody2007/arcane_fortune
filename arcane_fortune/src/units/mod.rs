@@ -1,12 +1,11 @@
 #[macro_use]
-pub mod vars;
-pub mod attack;
-pub use vars::*;
-pub use attack::*;
-use crate::map::{MapType, MapData, MapSz, ZoomInd, compute_active_window, PresenceAction};
+pub mod vars; pub use vars::*;
+pub mod attack; pub use attack::*;
+pub mod assassinate; pub use assassinate::*;
+use crate::map::*;
 use crate::player::{Stats, Player};
 use crate::movement::*;
-use crate::disp::{Coord, ScreenSz, IfaceSettings};
+use crate::disp::*;
 use crate::gcore::hashing::*;
 use crate::buildings::*;
 use crate::config_load::*;
@@ -15,7 +14,10 @@ use crate::tech::TechTemplate;
 use crate::resources::ResourceTemplate;
 use crate::localization::Localization;
 use crate::containers::*;
+use crate::zones::StructureData;
 use crate::renderer::endwin;
+#[cfg(feature="profile")]
+use crate::gcore::profiling::*;
 
 impl IfaceSettings<'_,'_,'_,'_,'_> {
 	// check to see if player is clear to end the turn
@@ -71,6 +73,7 @@ pub fn init_unit_templates<'rt>(tech_templates: &Vec<TechTemplate>,
 			attack_per_turn,
 			siege_bonus_per_turn,
 			repair_wall_per_turn: find_opt_key_parse("repair_wall_per_turn", &keys),
+			assassin_per_turn: find_opt_key_parse("assassin_per_turn", &keys),
 			attack_range: find_opt_key_parse("attack_range", &keys),
 			max_health: find_req_key_parse("max_health", &keys),
 			
@@ -217,11 +220,27 @@ pub enum DelAction<'d> {
 // (because they boarded a boat, and mv_unit() can be called over loops of all units)
 // Delete: delete the unit that boarded the boat (becomes stored in the boats Unit structure)
 
+impl <'d>DelAction<'d> {
+	fn execute<'bt,'ut,'rt,'dt>(&mut self, unit_ind: usize, is_cur_player: bool, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
+			map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
+			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, map_sz: MapSz) {
+		match self {
+			Self::Delete => {
+				disband_unit(unit_ind, is_cur_player, units, map_data, exs, players, gstate, map_sz);
+			} Self::Record(disband_unit_inds) => {
+				disband_unit_inds.push(unit_ind);
+			}
+		}
+	}
+}
+
 // move unit based on the next steps along its path_coords
 pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool, 
 		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
 		bldgs: &Vec<Bldg>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
-		gstate: &mut GameState, map_sz: MapSz, del_action: DelAction) {
+		gstate: &mut GameState, map_sz: MapSz, mut del_action: DelAction, disp_opt: &mut Option<&mut Disp>) {
+	#[cfg(feature="profile")]
+	let _g = Guard::new("mv_unit");
 	
 	//printlnq!("mv_unit");
 	
@@ -239,8 +258,9 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 	debug_assertq!(u.action.len() != 0);
 	
 	let u_owner = u.owner_id as usize;
+	let u_movement_type = u.template.movement_type;
 	
-	let action = u.action.last().unwrap();
+	let action = u.action.last().unwrap().clone();
 	debug_assertq!(action.path_coords.len() > 0);
 	debug_assertq!(action.actions_req > 0.);
 	
@@ -251,7 +271,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 	// used to check if path is still movable
 	let dest = {
 		let end_coord_ind = match &action.action_type {
-			ActionType::Attack {attack_coord, ..} => {
+			ActionType::Attack {attack_coord, ..} | ActionType::Assassinate {attack_coord, ..} => {
 				if let Some(coord) = attack_coord {
 					*coord
 				}else{
@@ -259,11 +279,11 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 				}
 			}
 			ActionType::Mv | ActionType::MvWithCursor |
-			ActionType::MvIgnoreWalls | ActionType::MvIgnoreOwnWalls |
+			ActionType::MvIgnoreWallsAndOntoPopulationCenters | ActionType::MvIgnoreOwnWalls |
 			ActionType::CivilianMv | ActionType::AutoExplore {..} | ActionType::WorkerBuildStructure {..} |
 			ActionType::WorkerRepairWall {..} | ActionType::WorkerBuildBldg {..} | ActionType::Fortify {..} |
 			ActionType::WorkerZone {..} | ActionType::WorkerZoneCoords {..} | ActionType::GroupMv {..} |
-			ActionType::WorkerRmZonesAndBldgs {..} |
+			ActionType::WorkerRmZonesAndBldgs {..} | ActionType::ScaleWalls |
 			ActionType::BrigadeCreation {..} | ActionType::SectorCreation {..} | ActionType::SectorAutomation {..} |
 			ActionType::UIWorkerAutomateCity | ActionType::WorkerContinueBuildBldg {..} |
 			ActionType::BurnBuilding {..} => {
@@ -291,8 +311,8 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 			
 			for (step_i, step) in action.path_coords.iter().enumerate().rev() {
 				// cannot move here
-				if !ignore_movable_to && !movable_to(u_coord, *step, &map_data.get(ZoomInd::Full, *step), exs.last().unwrap(), MvVarsAtZoom::NonCivil{units, start_owner: u.owner_id, blind_undiscov: None}, 
-						bldgs, &dest, u.template.movement_type) {
+				if !ignore_movable_to && !movable_to(u_coord, *step, &map_data.get(ZoomInd::Full, *step), exs.last().unwrap(), MvVarsAtZoom::NonCivil{units, start_owner: u_owner as SmSvType, blind_undiscov: None}, 
+						bldgs, &dest, u_movement_type) {
 					
 					// no moves possible
 					if (step_i+1) >= action.path_coords.len() {
@@ -313,10 +333,8 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 					abort_mv = true;
 					break;
 				
-				// discover land
-				}else{
-					compute_active_window(*step, is_cur_player, PresenceAction::DiscoverOnly, map_data, exs, &mut players[u_owner].stats, map_sz, gstate, units);
-				}
+				// detect wall scaling or discover land
+				}else if is_wall_scale_detected_else_discover_land(*step, unit_ind, &action.action_type, &mut del_action, is_cur_player, u_owner, map_data, exs, players, gstate, units, disp_opt) {return;}
 			}
 		}
 		
@@ -330,7 +348,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 				dest_coord == action.action_meta_cont.as_ref().unwrap().final_end_coord.to_ind(map_sz) as u64 {
 			// set unit action / clear path
 			match action.action_type {
-				ActionType::Mv | ActionType::MvIgnoreWalls | ActionType::MvIgnoreOwnWalls => {
+				ActionType::Mv | ActionType::ScaleWalls | ActionType::MvIgnoreWallsAndOntoPopulationCenters | ActionType::MvIgnoreOwnWalls => {
 					u.action.pop();
 					//println!("unit_ind {} finished move", unit_ind);
 				}_ => {
@@ -378,13 +396,14 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 			}*/
 		}
 		
-		// update actions_used
-		let u = &mut units[unit_ind];
-		if (u.actions_used.unwrap() + actions_req) == actions_per_turn_use {
-			u.actions_used = None;
-		}else{
-			u.actions_used = Some(u.actions_used.unwrap() + actions_req);
-			debug_assertq!(u.actions_used.unwrap() < actions_per_turn_use);
+		{ // update actions_used
+			let u = &mut units[unit_ind];
+			if (u.actions_used.unwrap() + actions_req) == actions_per_turn_use {
+				u.actions_used = None;
+			}else{
+				u.actions_used = Some(u.actions_used.unwrap() + actions_req);
+				debug_assertq!(u.actions_used.unwrap() < actions_per_turn_use);
+			}
 		}
 	
 	//////////////////////////////////////
@@ -426,7 +445,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 				let next_c = Coord::frm_ind(*next_coord, map_sz);
 				let prev_c = Coord::frm_ind(prev_coord, map_sz);
 				debug_assertq!((next_c.y - prev_c.y).abs() <= 1, "unit_ind {} {} owner {} next: {} {}  prev: {} {}", unit_ind, 
-						units[unit_ind].nm, players[units[unit_ind].owner_id as usize].personalization.nm,
+						units[unit_ind].nm, players[u_owner].personalization.nm,
 						next_c.y, next_c.x, prev_c.y, prev_c.x);
 				
 				//debug_assertq!(((next_coord % map_sz.w) as isize - (prev_coord % map_sz.w) as isize).abs() <= 1); // doesn't need to be true (wrap)
@@ -434,8 +453,8 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 			
 			let next_cost = mv_action_cost(prev_coord, *next_coord, use_roads, map_data, exs.last().unwrap(), map_sz);
 			let next_step_traversable = ignore_movable_to || movable_to(u_coord, *next_coord, &map_data.get(ZoomInd::Full, *next_coord), exs.last().unwrap(), 
-													MvVarsAtZoom::NonCivil{units, start_owner: units[unit_ind].owner_id, blind_undiscov: None}, 
-													bldgs, &dest, u.template.movement_type);
+													MvVarsAtZoom::NonCivil{units, start_owner: u_owner as SmSvType, blind_undiscov: None}, 
+													bldgs, &dest, u_movement_type);
 			let cost_sum = next_cost + prev_cost;
 			
 			// possible (or we must because path becomes not traversible) move now...
@@ -469,9 +488,9 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 				moved = true;
 				break;
 			
-			// movable, discover land
-			}else if next_step_traversable {
-				compute_active_window(*next_coord, is_cur_player, PresenceAction::DiscoverOnly, map_data, exs, &mut players[u_owner].stats, map_sz, gstate, units);
+			// movable, detect wall climbing or discover land
+			}else if next_step_traversable && is_wall_scale_detected_else_discover_land(*next_coord, unit_ind, &action.action_type, &mut del_action, is_cur_player, u_owner, map_data, exs, players, gstate, units, disp_opt) {
+				return;
 			}
 			
 			prev_coord = *next_coord;
@@ -484,9 +503,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 	// boarding boat
 	let u = &units[unit_ind];
 	let mfc = map_data.get(ZoomInd::Full, u.return_coord());
-	if mfc.map_type == MapType::ShallowWater && 
-			u.template.movement_type == MovementType::Land {
-		
+	if mfc.map_type == MapType::ShallowWater && u.template.movement_type == MovementType::Land {
 		let unit_inds = exs.last().unwrap().get(&u.return_coord()).unwrap().unit_inds.as_ref().unwrap();
 		
 		// boat is owned by current owner and it has room?
@@ -502,7 +519,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 			// board boat
 			debug_assertq!(u.units_carried == None);
 			let u = u.clone();
-			players[u.owner_id as usize].stats.unit_expenses += u.template.upkeep;
+			players[u_owner].stats.unit_expenses += u.template.upkeep;
 			let bu = &mut units[*boat_unit_ind];
 			if bu.units_carried == None {
 				bu.units_carried = Some(Vec::with_capacity(bu.template.carry_capac));
@@ -511,13 +528,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 				units_carried.push(u);
 			}
 			
-			match del_action {
-				DelAction::Delete => {
-					disband_unit(unit_ind, is_cur_player, units, map_data, exs, players, gstate, map_sz);
-				} DelAction::Record(disband_unit_inds) => {
-					disband_unit_inds.push(unit_ind);
-				}
-			}
+			del_action.execute(unit_ind, is_cur_player, units, map_data, exs, players, gstate, map_sz);
 			return;
 		}
 	}

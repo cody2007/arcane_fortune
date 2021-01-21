@@ -378,7 +378,7 @@ pub struct TreeDisplayProperties {
 	pub sel_loc: Option<(i32, i32, SmSvType)> // (row, col, template_ind)
 }
 
-impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn print_tree<T: TreeTemplate>(&mut self, templates: &Vec<T>, pstats: &Stats, 
 			tech_sel: &mut Option<SmSvType>, tech_sel_mv: &mut TreeSelMv,
 			tree_offsets: &mut Option<TreeOffsets>, entry_sz_print: ScreenSz) -> TreeDisplayProperties {

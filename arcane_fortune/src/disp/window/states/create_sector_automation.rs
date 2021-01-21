@@ -43,33 +43,31 @@ impl CreateSectorAutomationState {
 				
 				let sectors = sector_list(pstats, cursor_coord, &mut w, &mut label_txt_opt, map_sz, &dstate.local);
 				
-				let txt = &dstate.local.In_which_sector_do_you_want_to_automate;
+				let txt = dstate.local.In_which_sector_do_you_want_to_automate.clone();
 				w = txt.len() + 4;
-				let list_pos = dstate.print_list_window(self.mode, txt.clone(), sectors, Some(w), label_txt_opt, 0, None);
-				dstate.renderer.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
+				let list_pos = dstate.print_list_window(self.mode, txt, sectors, Some(w), label_txt_opt, 0, None);
+				dstate.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
 			}
 		
 		//////////// sector automation: get action to perform when unit enters sector (step 2)
 		}else if self.unit_enter_action.is_none() {
 			let l = &dstate.local;
 			let unit_enter_actions = [l.Assault_desc.as_str(), l.Defense_desc.as_str(), l.Report_desc.as_str()];
-			let mut category_options = OptionsUI {options: Vec::with_capacity(unit_enter_actions.len()), max_strlen: 0};
-			
-			register_shortcuts(&unit_enter_actions, &mut category_options);
-			let txt = &l.Select_unit_enter_action;
-			let list_pos = dstate.print_list_window(self.mode, txt.clone(), category_options, Some(txt.len()+4), None, 0, None);
-			dstate.renderer.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
+			let category_options = OptionsUI::new(&unit_enter_actions);
+			let txt = l.Select_unit_enter_action.clone();
+			let len = Some(txt.len()+4);
+			let list_pos = dstate.print_list_window(self.mode, txt, category_options, len, None, 0, None);
+			dstate.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
 			
 		//////////// sector automation: what to do when the unit is idle (step 3)
 		}else if self.idle_action.is_none() {
 			let l = &dstate.local;
 			let idle_actions = [l.Sentry_desc.as_str(), l.Patrol_desc.as_str()];
-			let mut idle_options = OptionsUI {options: Vec::with_capacity(idle_actions.len()), max_strlen: 0};
-			
-			register_shortcuts(&idle_actions, &mut idle_options);
-			let txt = &l.When_not_engaged_what_action;
-			let list_pos = dstate.print_list_window(self.mode, txt.clone(), idle_options, Some(txt.len()+4), None, 0, None);
-			dstate.renderer.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
+			let idle_options = OptionsUI::new(&idle_actions);
+			let txt = l.When_not_engaged_what_action.clone();
+			let len = Some(txt.len()+4);
+			let list_pos = dstate.print_list_window(self.mode, txt, idle_options, len, None, 0, None);
+			dstate.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
 			
 		//////////////////// sector automation: get distance to respond to threats (step 4)
 		}else{
@@ -150,9 +148,7 @@ impl CreateSectorAutomationState {
 			}else if !self.sector_nm.is_none() && self.unit_enter_action.is_none() {
 				let l = &dstate.local;
 				let unit_enter_actions = [l.Assault_desc.as_str(), l.Defense_desc.as_str(), l.Report_desc.as_str()];
-				let mut options = OptionsUI {options: Vec::with_capacity(unit_enter_actions.len()), max_strlen: 0};
-				
-				register_shortcuts(&unit_enter_actions, &mut options);
+				let options = OptionsUI::new(&unit_enter_actions);
 				
 				let n_options = SectorUnitEnterAction::N as usize;
 				
@@ -202,9 +198,7 @@ impl CreateSectorAutomationState {
 			}else if !self.sector_nm.is_none() && !self.unit_enter_action.is_none() && self.idle_action.is_none() {
 				let l = &dstate.local;
 				let idle_actions = [l.Sentry_desc.as_str(), l.Patrol_desc.as_str()];
-				let mut idle_options = OptionsUI {options: Vec::with_capacity(idle_actions.len()), max_strlen: 0};
-				
-				register_shortcuts(&idle_actions, &mut idle_options);
+				let idle_options = OptionsUI::new(&idle_actions);
 				let n_options = idle_actions.len();
 				
 				macro_rules! progress_ui_state {($mode:expr) => {

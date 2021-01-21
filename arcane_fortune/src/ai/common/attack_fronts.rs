@@ -84,25 +84,26 @@ impl AttackFront {
 		debug_assertq!(civs_at_war_with.len() != 0);
 		let mut min_dist = None;
 		let mut min_city_coord = None;
-		for b in bldgs.iter() {
-			if b.template.nm[0] == CITY_HALL_NM || b.template.nm[0] == BARBARIAN_CAMP_NM {
-				// if we've already failed to find a route, or are not at war with this civ, then skip
-				if unreachable_city_coords.contains(&b.coord) || !civs_at_war_with.contains(&(b.owner_id as usize)) {continue;}
-				
-				let mut dist = 0;
-				for sieger in self.siegers.iter() {
-					dist += manhattan_dist_inds(units[*sieger].return_coord(), b.coord, map_sz);
-				}
-				
-				if let Some(ref mut min_dist) = &mut min_dist {
-					if *min_dist > dist {
-						*min_dist = dist;
-						min_city_coord = Some(b.coord);
-					}
-				}else{
-					min_dist = Some(dist);
+		for b in bldgs.iter().filter(|b| {
+			if b.template.nm[0] == BARBARIAN_CAMP_NM {true} else
+			if let BldgArgs::PopulationCenter {..} = &b.args {true} else {false}
+		}) {
+			// if we've already failed to find a route, or are not at war with this civ, then skip
+			if unreachable_city_coords.contains(&b.coord) || !civs_at_war_with.contains(&(b.owner_id as usize)) {continue;}
+			
+			let mut dist = 0;
+			for sieger in self.siegers.iter() {
+				dist += manhattan_dist_inds(units[*sieger].return_coord(), b.coord, map_sz);
+			}
+			
+			if let Some(ref mut min_dist) = &mut min_dist {
+				if *min_dist > dist {
+					*min_dist = dist;
 					min_city_coord = Some(b.coord);
 				}
+			}else{
+				min_dist = Some(dist);
+				min_city_coord = Some(b.coord);
 			}
 		}
 		
@@ -110,7 +111,8 @@ impl AttackFront {
 	}
 	
 	// checks if recruitment is done, then progresses to assembly mode where units gather near the city to be attacked
-	fn progress_state_to_assembly(&mut self, ai_ind: usize, units: &Vec<Unit>, bldgs: &Vec<Bldg>, 
+	fn progress_state_to_assembly(&mut self, ai_ind: usize, units: &Vec<Unit>,
+			target_city_coord_opt: Option<u64>, bldgs: &Vec<Bldg>, 
 			map_data: &mut MapData, exf: &HashedMapEx, gstate: &mut GameState, map_sz: MapSz) {
 		#[cfg(feature="profile")]
 		let _g = Guard::new("attack_fronts.progress_state_to_assembly");
@@ -120,7 +122,12 @@ impl AttackFront {
 		if let AttackFrontState::Recruitment {unreachable_city_coords} = &self.state {
 			if self.n_empty_slots() != 0 {return;} // chk that all units have been added to the attack front
 			
-			if let Some(target_city_coord) = self.find_nearest_war_city_loc(ai_ind, unreachable_city_coords, units, bldgs, &gstate.relations, map_sz) {
+			// if a target city is not already supplied, find one
+			let target_city_coord_opt = if target_city_coord_opt.is_none() {
+				self.find_nearest_war_city_loc(ai_ind, unreachable_city_coords, units, bldgs, &gstate.relations, map_sz)
+			}else{target_city_coord_opt};
+			
+			if let Some(target_city_coord) = target_city_coord_opt {
 				/////////////////////////////// determine assembly point
 				let loc_dist = max(CITY_HEIGHT, CITY_WIDTH) as isize;
 				let blank_spot = {
@@ -241,7 +248,7 @@ impl AttackFront {
 				let u = &units[unit_ind];
 				let ai_ind = u.owner_id;
 				let mut action_iface = ActionInterfaceMeta {
-					action: ActionMeta::new(ActionType::MvIgnoreWalls),
+					action: ActionMeta::new(ActionType::MvIgnoreWallsAndOntoPopulationCenters),
 					unit_ind: Some(unit_ind),
 					max_search_depth: AI_MAX_SEARCH_DEPTH,
 					start_coord: Coord::frm_ind(u.return_coord(), map_sz), //*assemble_location, map_sz),
@@ -544,7 +551,7 @@ impl_saving!{AttackFronts {vals}}
 impl AttackFronts {
 	// returns next unit required for filling up the most completed attack front
 	// in the recruitment state
-	pub fn next_req_unit<'ut,'rt>(&mut self, n_cities: usize, pstats: &Stats, 
+	pub fn next_req_unit<'bt,'ut,'rt,'dt>(&mut self, n_cities: usize, pstats: &Stats<'bt,'ut,'rt,'dt>, 
 			unit_templates: &'ut Vec<UnitTemplate<'rt>>) -> Option<&'ut UnitTemplate<'rt>> {
 		// find most completed attack front (that isn't fully completed) in the recruitment state
 		if let Some(attack_front) = self.vals.iter()
@@ -684,7 +691,9 @@ impl AttackFronts {
 		false
 	}
 	
-	pub fn execute_actions<'bt,'ut,'rt,'dt>(&mut self, ai_ind: usize, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg>, map_data: &mut MapData<'rt>,
+	// if target_city_coord_opt is some value, the AI will target that city exclusively
+	pub fn execute_actions<'bt,'ut,'rt,'dt>(&mut self, ai_ind: usize, target_city_coord_opt: Option<u64>,
+			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg>, map_data: &mut MapData<'rt>,
 			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, map_sz: MapSz) {//, iface_settings: &mut IfaceSettings) {
 		#[cfg(feature="profile")]
 		let _g = Guard::new("attack_fronts.execute_actions");
@@ -726,24 +735,24 @@ impl AttackFronts {
 		if n_attack_fronts == 0 {return;}
 		let af = &mut self.vals[gstate.rng.usize_range(0, n_attack_fronts)];
 		
-		const CONT_CHANCE: f32 = 0.025;
+		//const CONT_CHANCE: f32 = 0.025;
 		
 		match &af.state {
 			AttackFrontState::Recruitment {..} => {
-				af.progress_state_to_assembly(ai_ind, units, bldgs, map_data, exs.last().unwrap(), gstate, map_sz);
+				af.progress_state_to_assembly(ai_ind, units, target_city_coord_opt, bldgs, map_data, exs.last().unwrap(), gstate, map_sz);
 			} AttackFrontState::AssembleToLocation {..} => {
-				if gstate.rng.gen_f32b() < CONT_CHANCE {
+				//if gstate.rng.gen_f32b() < CONT_CHANCE {
 					//printlnq!("assemble ai {}", ai_ind);
 					af.assemble_to_location(units, bldgs, map_data, exs, map_sz, &mut gstate.logs); // then progresses state
-				}
+				//}
 			} AttackFrontState::WallAttack {..} => {
-				if gstate.rng.gen_f32b() < CONT_CHANCE {
+				//if gstate.rng.gen_f32b() < CONT_CHANCE {
 					af.wall_attack(ai_ind, gstate, units, bldgs, exs, map_data, map_sz); // then progresses state
-				}
+				//}
 			} AttackFrontState::CityAttack {..} => {
-				if gstate.rng.gen_f32b() < CONT_CHANCE {
+				//if gstate.rng.gen_f32b() < CONT_CHANCE {
 					af.city_attack(ai_ind, &mut gstate.relations, units, bldgs, exs, map_data, map_sz); // then sets state to recruitment once finished
-				}
+				//}
 			}
 		}
 	}

@@ -44,7 +44,6 @@ impl MouseClick {
 	pub fn released_clicked_pressed_or_dragging(&self, mouse_event: &Option<MEVENT>) -> bool {
 		self.released(mouse_event) || self.clicked(mouse_event) || self.pressed(mouse_event) || self.dragging(mouse_event)
 	}
-
 }
 
 macro_rules! create_keys{($($entry:ident = $nm: expr)*) => (
@@ -113,6 +112,8 @@ create_keys!(
 	change_brigade_repair = "change_brigade_repair"
 	clear_brigade_repair = "clear_brigade_repair"
 	center_on_next_unmoved_unit = "center_on_next_unmoved_unit"
+	offer_trade_item = "offer_trade_item"
+	request_trade_item = "request_trade_item"
 	
 	/////// unit actions
 	disband = "disband"
@@ -124,6 +125,8 @@ create_keys!(
 	build_bldg = "build_bldg"
 	build_road = "build_road"
 	attack = "attack"
+	scale_walls = "scale_walls"
+	assassinate = "assassinate"
 	build_wall = "build_wall"
 	automate_zone_creation = "automate_zone_creation"
 	repair_wall = "repair_wall"

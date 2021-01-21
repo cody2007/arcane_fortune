@@ -1,12 +1,13 @@
 use std::cmp::max;
-use crate::disp::{CGRAY, DispChars};
+use crate::disp::{CGRAY};
 use crate::units::{ActionMeta, ActionType, Unit, UnitTemplate, add_unit, WARRIOR_NM, square_clear, Quad, ARCHER_NM};
 use crate::buildings::*;
 use crate::disp::ScreenSz;
 use crate::map::*;
 use crate::player::*;
+use crate::gcore::GAME_START_TURN;
 use crate::gcore::hashing::*;
-use crate::saving::{N_UNIT_PLACEMENT_ATTEMPTS, SmSvType, print_attempt_update, GAME_START_TURN};
+use crate::saving::{N_UNIT_PLACEMENT_ATTEMPTS, SmSvType, print_attempt_update};
 use crate::zones::StructureData;
 use super::*;
 use crate::map::utils::ExFns;
@@ -14,7 +15,6 @@ use crate::map::utils::ExFns;
 use crate::gcore::profiling::*;
 use crate::nn::*;
 use crate::ai::set_target_attackable;
-use crate::localization::Localization;
 use crate::containers::Templates;
 
 pub mod vars; pub use vars::*;
@@ -27,6 +27,9 @@ impl BarbarianState {
 			bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, 
 			map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, 
 			players: &mut Vec<Player>, unit_templates: &'ut Vec<UnitTemplate<'rt>>, map_sz: MapSz, gstate: &mut GameState) {
+		#[cfg(feature="profile")]
+		let _g = Guard::new("BarbarianState::plan_actions");
+		
 		if gstate.turn <= (GAME_START_TURN + 30*12*15) {return;}
 
 		let player = &players[player_ind];

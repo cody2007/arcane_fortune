@@ -55,7 +55,7 @@ pub const RIOTER_NM: &str = "Rioter";
 
 pub const WORKER_WALL_CONSTRUCTION_TURNS: usize = 2;
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Default)]
 pub struct UnitTemplate<'rt> {
 	pub id: SmSvType,
 	pub nm: Vec<String>,
@@ -71,6 +71,7 @@ pub struct UnitTemplate<'rt> {
 	pub attack_per_turn: Option<usize>, // health drain on attacked
 	pub siege_bonus_per_turn: Option<usize>, // health drain on walls in addition to attack_per_turn
 	pub repair_wall_per_turn: Option<usize>,
+	pub assassin_per_turn: Option<usize>,
 	pub attack_range: Option<usize>,
 	pub max_health: usize,
 	
@@ -81,7 +82,8 @@ pub struct UnitTemplate<'rt> {
 
 impl_saving_template!{UnitTemplate<'rt>{id, nm, tech_req, resources_req,
 			movement_type, carry_capac, actions_per_turn, attack_per_turn, siege_bonus_per_turn,
-			repair_wall_per_turn, attack_range, max_health, production_req, char_disp, upkeep}}
+			repair_wall_per_turn, assassin_per_turn,
+			attack_range, max_health, production_req, char_disp, upkeep}}
 
 impl <'rt>UnitTemplate<'rt> {
 	pub fn frm_str<'ut>(txt: &str, unit_templates: &'ut Vec<UnitTemplate<'rt>>) -> &'ut UnitTemplate<'rt> {
@@ -121,7 +123,7 @@ enum_From!{SectorCreationType {New, AddTo}}
 pub enum ActionType<'bt,'ut,'rt,'dt> {
 	Mv,
 	MvWithCursor, // only used with the player AI -- shouldn't be left at this state once the player exits this move mode
-	MvIgnoreWalls,
+	MvIgnoreWallsAndOntoPopulationCenters,
 	// ^ ignores walls for AI attack planning (into the city).
 	//   it is used to get the path coords for a standard movement `Mv` operation
 	//   where walls are not ignored. (due to the planning in ai/attack_fronts)
@@ -190,6 +192,11 @@ pub enum ActionType<'bt,'ut,'rt,'dt> {
 	WorkerRmZonesAndBldgs {
 		start_coord: Option<u64>,
 		end_coord: Option<u64>
+	},
+	
+	ScaleWalls, // used for assassains -- chance of discovery
+	Assassinate {
+		attack_coord: Option<u64> // coordinate to attack after traversing all of U.path_coords (end of the path will not contain final dest.)
 	}
 }
 
@@ -199,7 +206,7 @@ impl fmt::Display for ActionType<'_,'_,'_,'_> {
 			ActionType::Mv => String::from("Mv"),
 			ActionType::WorkerRmZonesAndBldgs {..} => String::from("WorkerRmZonesAndBldgs"),
 			ActionType::MvWithCursor => String::from("MvWithCursor"),
-			ActionType::MvIgnoreWalls => String::from("MvIgnoreWalls"),
+			ActionType::MvIgnoreWallsAndOntoPopulationCenters => String::from("MvIgnoreWallsAndOntoPopulationCenters"),
 			ActionType::MvIgnoreOwnWalls => String::from("MvIgnoreOwnWalls"),
 			ActionType::CivilianMv => String::from("CivilianMv"),
 			ActionType::AutoExplore {start_coord, ..} => format!("AutoExplore {}", start_coord),
@@ -214,6 +221,7 @@ impl fmt::Display for ActionType<'_,'_,'_,'_> {
 				let attackee_txt = if let Some(attackee) = attackee {format!("{}", attackee)} else {String::from("None")};
 				format!("Attack (coord: {}, attackee: {}, ignore_own_walls: {})", attack_coord_txt, attackee_txt, ignore_own_walls)
 			}
+			ActionType::Assassinate {..} => format!("Assassinate"),
 			ActionType::Fortify {turn} => format!("Fortify (turn: {})", turn),
 			ActionType::WorkerZone {..} => String::from("WorkerZone"),
 			ActionType::GroupMv{..} => String::from("GroupMv"),
@@ -223,7 +231,8 @@ impl fmt::Display for ActionType<'_,'_,'_,'_> {
 			ActionType::UIWorkerAutomateCity => String::from("UIWorkerAutomateCity"),
 			ActionType::BurnBuilding {..} => String::from("BurnBuilding"),
 			ActionType::WorkerContinueBuildBldg {..} => String::from("WorkerContinueBuildBldg"),
-			ActionType::SectorAutomation {..} => String::from("SectorAutomation")
+			ActionType::SectorAutomation {..} => String::from("SectorAutomation"),
+			ActionType::ScaleWalls => String::from("ScaleWalls")
 		})
 	}
 }
@@ -232,8 +241,8 @@ impl <'bt,'ut,'rt,'dt> ActionType<'bt,'ut,'rt,'dt> {
 	pub fn nm(&self, l: &Localization) -> String {
 		match self {
 			ActionType::WorkerRmZonesAndBldgs {..} => l.Removing_zones_and_bldgs.clone(),
-			ActionType::Mv | ActionType::MvWithCursor |
-			ActionType::MvIgnoreWalls | ActionType::MvIgnoreOwnWalls |
+			ActionType::Mv | ActionType::MvWithCursor | ActionType::ScaleWalls |
+			ActionType::MvIgnoreWallsAndOntoPopulationCenters | ActionType::MvIgnoreOwnWalls |
 			ActionType::GroupMv {..} => l.Moving.clone(),
 			ActionType::BrigadeCreation {..} => {panicq!("unit action shouldn't be set to brigade creation");}
 			ActionType::SectorCreation {..} => {panicq!("unit action shouldn't be set to sector creation");}
@@ -246,6 +255,7 @@ impl <'bt,'ut,'rt,'dt> ActionType<'bt,'ut,'rt,'dt> {
 			ActionType::WorkerBuildBldg {template, ..} => format!("{} {}", l.Building, template.nm[l.lang_ind]),
 			ActionType::WorkerContinueBuildBldg {..} => l.Building.clone(),
 			ActionType::Attack {..} => l.Attacking.clone(),
+			ActionType::Assassinate {..} => l.Assassinate.clone(),
 			ActionType::Fortify {..} => l.Fortified.clone(),
 			ActionType::WorkerZone {zone_type, ..} => format!("{} {}", l.Zoning, zone_type.to_str()),
 		      ActionType::WorkerZoneCoords {zone_type, ..} => format!("{} {}", l.Zoning, zone_type.to_str()),
@@ -322,6 +332,7 @@ pub struct Unit<'bt,'ut,'rt,'dt> {
 	pub nm: String,
 	pub health: usize,
 	pub owner_id: SmSvType,
+	pub creation_turn: SmSvType,
 	pub template: &'ut UnitTemplate<'rt>,
 	coord: u64,
 	
@@ -333,12 +344,12 @@ pub struct Unit<'bt,'ut,'rt,'dt> {
 	pub action: Vec<ActionMeta<'bt,'ut,'rt,'dt>>
 }
 
-impl_saving!{Unit<'bt,'ut,'rt,'dt> {nm, health, owner_id, template, coord, units_carried, actions_used, action}}
+impl_saving!{Unit<'bt,'ut,'rt,'dt> {nm, health, owner_id, creation_turn, template, coord, units_carried, actions_used, action}}
 
 impl <'bt,'ut,'rt,'dt> Unit<'bt,'ut,'rt,'dt> {
 	pub fn default(unit_templates: &'ut Vec<UnitTemplate<'rt>>) -> Self {
 		Unit {
-			nm: " ".to_string(), health: 0, owner_id: 0, template: &unit_templates[0],
+			nm: " ".to_string(), health: 0, owner_id: 0, creation_turn: 0, template: &unit_templates[0],
 			coord: 0, units_carried: None, actions_used: None, action: Vec::new()
 		}
 	}
@@ -404,6 +415,7 @@ pub fn add_unit<'bt,'ut,'rt,'dt>(coord: u64, is_cur_player: bool, unit_template:
 			nm: temps.nms.units[gstate.rng.usize_range(0, temps.nms.units.len())].clone(),
 			health: unit_template.max_health,
 			owner_id: player.id,
+			creation_turn: gstate.turn as SmSvType,
 			template: unit_template,
 			coord,
 			units_carried: None,

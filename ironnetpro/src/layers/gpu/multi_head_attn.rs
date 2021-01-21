@@ -1,9 +1,10 @@
 #![allow(non_snake_case)]
 use super::*;
 use crate::layers::{MultiHeadAttnParams, QKVLayerParams,
-		MulSoftmaxQKAndVParams, TransposeReshapeParams,
-		ActivationParams, FullyConnectedWBiasParams,
-		QKPlusQPosMaskFutureTimesSoftmaxWParams
+		TransposeReshapeParams, FullyConnectedWBiasParams,
+		FullyConnectedWBiasReluParams,
+		QKPlusQPosMaskFutureTimesSoftmaxWMulVParams
+		//QKPlusQPosMaskFutureTimesSoftmaxWParams
 };
 
 /*
@@ -13,6 +14,9 @@ use crate::layers::{MultiHeadAttnParams, QKVLayerParams,
 	
 	explicit summation formulas (plus learned rel position values):
 		 "Self-Attention with Relative Position Representations" Shaw, et al. 2018
+	also see "Music Transformer: Genrating music with long-term structure" Cheng-Zhi Anna Huang, et al. 2018
+		for a memory concise version of relative position. something like that is used here, but not exactly
+		(a custom GPU kernel is used, which prevents the need for padding the position matrix)
 */
 
 impl Model {
@@ -33,8 +37,7 @@ impl Model {
 		let vec_in = x_shape.h;
 		debug_assert!(x_shape.w == 1);
 		
-		//////////// multi-head attn
-		{
+		{ //////////// multi-head attn
 			let mut add_QKV_layer = || {
 				self.add_QKV_layer(x_layer_ind, QKVLayerParams {
 					weight_initialization: WeightInitialization::XavierUniform(vec_in, vec_in),
@@ -49,8 +52,7 @@ impl Model {
 			let K_layer_ind = add_QKV_layer();
 			let V_layer_ind = add_QKV_layer();
 			
-			// softmax_w( mask_future_times(Q*K + Q*pos) )
-			{
+			/*{ // softmax_w( mask_future_times(Q*K + Q*pos) )
 				let vec_out = self.layers[Q_layer_ind].y.tensor().shape.w;
 				// ^ Q[n_heads, batch_sz, n_time, vec_out]
 				
@@ -66,10 +68,24 @@ impl Model {
 				chk_shape!(params.n_heads, batch_sz, n_time, n_time);
 			}
 			
-			self.add_mul_softmaxQK_and_V(V_layer_ind, MulSoftmaxQKAndVParams {data_type});
+			self.add_mul_softmaxQK_and_V(V_layer_ind, MulSoftmaxQKAndVParams {data_type});*/
 			
-			// transpose, reshape
-			{
+			{ // softmax_w( mask_future_times(Q*K + Q*pos) ) * V
+				let vec_out = self.layers[Q_layer_ind].y.tensor().shape.w;
+				// ^ Q[n_heads, batch_sz, n_time, vec_out]
+				
+				assert!(vec_out == (vec_in / params.n_heads));
+				
+				self.add_QK_plus_Qpos_mask_future_times_softmaxw_mul_V(Q_layer_ind, K_layer_ind, V_layer_ind,
+					QKPlusQPosMaskFutureTimesSoftmaxWMulVParams {
+						weight_initialization: WeightInitialization::XavierUniform(n_time, vec_out),
+						scale: 1_f32/((vec_out as f32).sqrt()),
+						data_type
+					}, rng);
+				chk_shape!(params.n_heads, batch_sz, n_time, vec_out);
+			}
+			
+			{ // transpose, reshape
 				// X[n_heads, batch_sz, n_time, vec_out] -> [batch_sz, n_time, n_heads*vec_out, 1]
 				let x = self.layers[self.layers.len() - 1].y.tensor();
 				
@@ -100,17 +116,16 @@ impl Model {
 		
 		let before_feed_forward_ind = self.layers.len() - 1;
 		
-		/////////////// feed forward (2 fc layers)
-		{
+		{ /////////////// feed forward (2 fc layers)
 			chk_shape!(batch_sz, n_time, vec_in, 1);
-			self.add_fully_connected_w_bias(FullyConnectedWBiasParams {
+			self.add_fully_connected_w_bias_relu(FullyConnectedWBiasReluParams {
 					vec_out_sz: params.feed_forward_sz,
 					weight_initialization: WeightInitialization::XavierUniform(params.feed_forward_sz, vec_in),
 					bias_initialization: WeightInitialization::XavierUniform(params.feed_forward_sz, 1),
 					data_type
 			}, rng);
 			
-			self.add_relu(ActivationParams {data_type});
+			//self.add_relu(ActivationParams {data_type});
 			
 			chk_shape!(batch_sz, n_time, params.feed_forward_sz, 1);
 			self.add_fully_connected_w_bias(FullyConnectedWBiasParams {

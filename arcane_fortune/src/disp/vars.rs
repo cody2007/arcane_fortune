@@ -1,5 +1,6 @@
 use std::fmt;
 use std::cmp::min;
+use std::time::Instant;
 use crate::disp::SCROLL_ACCEL_INIT;
 use crate::map::*;
 use crate::units::vars::*;
@@ -28,7 +29,6 @@ pub struct ActionInterfaceMeta<'f,'bt,'ut,'rt,'dt> {
 	pub movable_to: &'f dyn Fn(u64, u64, &Map, &HashedMapEx, MvVarsAtZoom, &Vec<Bldg>, &Dest, MovementType) -> bool
 }
 
-enum_From!{ViewMvMode {Cursor, Screen}}
 enum_From!{AutoTurn {Off, On, FinishAllActions}}
 enum_From!{ZoneOverlayMap {None, ZoneDemands, Happiness, Crime}}
 
@@ -178,6 +178,41 @@ impl <'f,'bt,'ut,'rt,'dt>AddActionTo<'f,'bt,'ut,'rt,'dt> {
 	}
 }
 
+pub enum ShowExpandedSubmap {
+	Open,
+	Closed(Instant)
+}
+
+const DELAY_SUBMAP_OPEN: u64 = 3000; // in milliseconds. delay in re-opening submap
+impl ShowExpandedSubmap {
+	// only open if it has been closed for longer than DELAY_SUBMAP_OPEN
+	pub fn open(&mut self) {
+		if let Self::Closed(close_time) = &self {
+			if close_time.elapsed().as_millis() as u64 > DELAY_SUBMAP_OPEN {
+				*self = Self::Open;
+			}
+		}
+	}
+	
+	pub fn is_open(&self) -> bool {
+		match self {
+			Self::Open => true,
+			Self::Closed(_) => false
+		}
+	}
+	
+	pub fn close(&mut self) {
+		*self = Self::Closed(Instant::now());
+	}
+	
+	pub fn toggle_immediately(&mut self) {
+		match self {
+			Self::Open => {self.close();}
+			Self::Closed(_) => {*self = Self::Open;}
+		}
+	}
+}
+
 pub struct IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	// movement, worker zoning, building, ...
 	pub add_action_to: AddActionTo<'f,'bt,'ut,'rt,'dt>,
@@ -203,12 +238,12 @@ pub struct IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	
 	pub unit_subsel: usize, // used when more than one unit is on a plot, to denote which one to show or assign actions to
 	
-	pub show_expanded_submap: bool,
+	pub show_expanded_submap: ShowExpandedSubmap,
 	
 	pub map_screen_sz: ScreenSz, // size available to display map
 	pub screen_sz: ScreenSz,
 	
-	pub map_loc: Coord, // in map coordinates
+	pub map_loc: Coord, // in map coordinates (upper left-most part of map shown on the screen)
 	pub map_loc_v: VelocCoord,
 	
 	pub cur: Coord, // in screen coordinates
@@ -238,7 +273,8 @@ impl_saving!{IfaceSettings<'f,'bt,'ut,'rt,'dt> {add_action_to, underlay, show_st
 	     cur_player, zoom_ind, unit_subsel, show_expanded_submap,
 	     map_screen_sz, screen_sz, view_mv_mode,
 	     map_loc, map_loc_v, cur, cur_v, start_map_drag, all_player_pieces_mvd, workers_create_city_sectors, show_fog, show_actions,
-	     show_all_zone_information, auto_turn, interrupt_auto_turn,
+	     show_all_zone_information, 
+	     auto_turn, interrupt_auto_turn,
 	     save_nm, checkpoint_freq}}
 
 impl <'f,'bt,'ut,'rt,'dt> IfaceSettings<'f,'bt,'ut,'rt,'dt>{
@@ -246,7 +282,7 @@ impl <'f,'bt,'ut,'rt,'dt> IfaceSettings<'f,'bt,'ut,'rt,'dt>{
 		Self {
 			add_action_to: AddActionTo::None,
 			
-			underlay: Underlay::Arability,
+			underlay: if !screen_reader_mode() {Underlay::Arability} else {Underlay::WaterMountains},
 			
 			show_structures: true, show_units: true,
 			show_bldgs: true, show_zones: true, show_resources: true,
@@ -258,7 +294,7 @@ impl <'f,'bt,'ut,'rt,'dt> IfaceSettings<'f,'bt,'ut,'rt,'dt>{
 			zoom_ind: ZOOM_IND_ROOT,
 			unit_subsel: 0,
 			
-			show_expanded_submap: false,
+			show_expanded_submap: ShowExpandedSubmap::default(),
 			
 			map_screen_sz: ScreenSz { h: 0, w: 0, sz: 0},
 			screen_sz: ScreenSz { h: 0, w: 0, sz: 0},
@@ -312,6 +348,11 @@ impl <'f,'bt,'ut,'rt,'dt> IfaceSettings<'f,'bt,'ut,'rt,'dt>{
 		c
 	}
 	
+	pub fn cursor_to_map_string(&self, map_data: &MapData<'rt>) -> String {
+		let c = self.cursor_to_map_coord(map_data);
+		format!("{}, {}", c.y, c.x)
+	}
+	
 	// return coordinates fully zoomed in cursor coordinate from cursor position
 	pub fn cursor_to_map_coord_zoomed_in(&self, map_data: &MapData<'rt>) -> Coord {
 		let mut cursor_coord = self.cursor_to_map_coord(map_data);
@@ -332,19 +373,6 @@ impl <'f,'bt,'ut,'rt,'dt> IfaceSettings<'f,'bt,'ut,'rt,'dt>{
 		let c = self.screen_coord_to_map_coord(screen_coord, map_data);
 		(c.y *(map_data.map_szs[self.zoom_ind].w as isize)+ c.x) as u64
 	}
-
-	pub fn ctr_on_cur(&mut self, map_data: &MapData<'rt>) {
-		let cur_y_centered = ((self.map_screen_sz.h/2) + MAP_ROW_START) as isize;
-		let cur_x_centered = (self.map_screen_sz.w/2) as isize;
-		
-		self.map_loc.y -= cur_y_centered - self.cur.y;
-		self.map_loc.x -= cur_x_centered - self.cur.x;
-		
-		self.cur.y = cur_y_centered;
-		self.cur.x = cur_x_centered;
-		
-		self.chk_cursor_bounds(map_data);
-	}
 }
 
 pub fn set_auto_turn_sep(state: AutoTurn, iface_settings: &mut IfaceSettings, renderer: &mut Renderer) {
@@ -356,13 +384,13 @@ pub fn set_auto_turn_sep(state: AutoTurn, iface_settings: &mut IfaceSettings, re
 	});
 }
 
-impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn set_auto_turn(&mut self, state: AutoTurn) {
 		set_auto_turn_sep(state, &mut self.iface_settings, &mut self.renderer);
 	}
 }
 
-impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn player_end_game(&mut self, relations: &mut Relations) {
 		self.state.iface_settings.show_fog = false;
 		self.state.iface_settings.show_actions = true;
@@ -534,7 +562,7 @@ pub const TURN_ROW: i32 = MAP_ROW_START as i32;
 
 pub const FAST_TURN_INC: usize = 30;
 
-impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn create_tech_window(&mut self, prompt_tech: bool) {
 		self.reset_auto_turn();
 		
@@ -600,6 +628,10 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
 	pub fn create_window(&mut self, ui_mode: UIMode<'bt,'ut,'rt,'dt>) {
 		self.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 		self.ui_mode = ui_mode;
+	}
+	
+	pub fn create_alert_window(&mut self, txt: String) {
+		self.create_window(UIMode::GenericAlert(GenericAlertState {txt}));
 	}
 }
 
@@ -695,8 +727,10 @@ impl UIMode<'_,'_,'_,'_> {
 				
 			// hide the map when these are shown (when in screen reader mode)
 			UIMode::Trade(_) |
+			UIMode::ViewTrade(_) |
 			UIMode::ContactEmbassyWindow(_) |
 			UIMode::ContactNobilityWindow(_) |
+			UIMode::NobilityRequestWindow(_) |
 			UIMode::SaveAsWindow(_) |
 			UIMode::SaveAutoFreqWindow(_) |
 			UIMode::GoToCoordinateWindow(_) |
@@ -714,7 +748,9 @@ impl UIMode<'_,'_,'_,'_> {
 			UIMode::DoctrineWindow(_) |
 			UIMode::PlotWindow(_) |
 			UIMode::UnitsWindow(_) |
+			UIMode::NobilityDeclaresIndependenceWindow(_) |
 			UIMode::NobleUnitsWindow(_) |
+			UIMode::SetNobleTax(_) |
 			UIMode::GenericAlert(_) |
 			UIMode::NoblePedigree(_) |
 			UIMode::BrigadesWindow(_) |
@@ -735,9 +771,9 @@ impl UIMode<'_,'_,'_,'_> {
 			UIMode::ResourcesAvailableWindow(_) |
 			UIMode::ResourcesDiscoveredWindow(_) |
 			UIMode::HistoryWindow(_) |
-			UIMode::WarStatusWindow(_) |
+			UIMode::WarStatusWindow(_) | UIMode::FriendsAndFoesWindow(_) |
 			UIMode::EncyclopediaWindow(_) |
-			UIMode::InitialGameWindow(_) |
+			UIMode::InitialGameWindow(_) | UIMode::IntroNobilityJoinOptions(_) |
 			UIMode::EndGameWindow(_) |
 			UIMode::UnmovedUnitsNotification(_) |
 			UIMode::PrevailingDoctrineChangedWindow(_) |

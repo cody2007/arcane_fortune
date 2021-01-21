@@ -11,7 +11,6 @@ use crate::doctrine::DoctrineTemplate;
 use crate::tech::*;
 use crate::containers::*;
 use crate::resources::ResourceTemplate;
-use crate::gcore::{RelationStatus, Bonuses};//, HashStruct64};
 
 pub type SmSvType = u32; // ex, to cast down from usize
 
@@ -230,7 +229,8 @@ impl Default for LandDiscov {
 			map_sz_discov: MapSz {h: 0, w: 0, sz: 0},
 			map_sz: MapSz {h: 0, w: 0, sz: 0},
 			frac_i: 0., frac_j: 0.,
-			discovered: Vec::new()
+			discovered: Vec::new(),
+			n_discovered: 0
 }}}
 
 impl Default for Bonuses {
@@ -307,17 +307,6 @@ impl Default for StructureData {
 	}
 }
 
-impl Default for UnitTemplate<'_> {
-	fn default() -> Self {
-		UnitTemplate {id: 0, nm: Vec::new(), tech_req: None,
-			resources_req: Vec::new(),
-			movement_type: MovementType::Land, carry_capac: 0, 
-			actions_per_turn: 0., attack_per_turn: None, 
-			siege_bonus_per_turn: None, 
-			repair_wall_per_turn: None, attack_range: None,
-			max_health: 0, production_req: 0., char_disp: '!', upkeep: 0.
-}}}
-
 impl Default for BldgTemplate<'_,'_,'_> {
 	fn default() -> Self {
 		BldgTemplate {id: 0, nm: Vec::new(), 
@@ -330,7 +319,8 @@ impl Default for BldgTemplate<'_,'_,'_> {
 			crime_bonus: 0., happiness_bonus: 0.,
 			doctrinality_bonus: 0., pacifism_bonus: 0., health_bonus: 0.,
 			job_search_bonus: 0.,
-			barbarian_only: false
+			barbarian_only: false,
+			not_human_buildable: false
 }}}
 
 impl Default for ResourceTemplate {
@@ -339,6 +329,7 @@ impl Default for ResourceTemplate {
 			sz: ScreenSz {h: 0, w: 0, sz: 0}, print_str: String::new(),
 			plot_zoomed: '!', zone: ZoneType::N,
 			zone_bonuses: Vec::new(), arability_probs: Vec::new(),
+			ai_valuation: 0.
 }}}
 
 impl Default for MapSz {
@@ -444,17 +435,6 @@ impl Default for PerimCoords {
 		Self {coords: Vec::new(), turn_computed: 0}}
 }
 
-impl Default for BldgConfig {
-	fn default() -> Self {
-		Self {
-			fire_damage_rate: 0,
-			fire_repair_rate: 0,
-			max_bldg_damage: 0,
-			job_search_bonus_dist: 0
-		}
-	}
-}
-
 impl Default for ZoneAgnosticContribFracs {
 	fn default() -> Self {
 		Self {doctrine: 0., pacifism: 0., health: 0., unemployment: 0., crime: 0., pos_sum: 0., neg_sum: 0.}
@@ -499,17 +479,6 @@ impl Default for House {
 	}
 }
 
-impl Default for Noble {
-	fn default() -> Self {
-		Self {
-			name: Default::default(),
-			personality: Default::default(),
-			born_turn: 0,
-			gender_female: false
-		}
-	}
-}
-
 impl Default for Marriage {
 	fn default() -> Self {
 		Self {
@@ -539,3 +508,20 @@ impl Default for GameState {
 	}
 }
 
+/*impl Default for TradeDeal {
+	fn default() -> Self {
+		Self {
+			player_i_gives: Vec::new(),
+			player_j_gives: Vec::new(),
+			turn_started: 0
+		}
+	}
+}*/
+
+impl Default for TradeItem {
+	fn default() -> Self {Self::WorldMap}
+}
+
+impl Default for ShowExpandedSubmap {
+	fn default() -> Self {Self::Closed(Instant::now())}
+}

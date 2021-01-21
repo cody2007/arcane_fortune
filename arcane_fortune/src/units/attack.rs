@@ -12,11 +12,28 @@ use crate::buildings::*;
 use crate::player::{PlayerType};
 use crate::containers::*;
 
+// for empires, nobility and human players
+fn rm_units_and_destroy_civ<'bt,'ut,'rt,'dt>(owner_attacker_id: usize, owner_prev: usize,
+		units: &Vec<Unit>, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>,
+		disband_unit_inds: &mut Vec<usize>,
+		gstate: &mut GameState, disp: &mut Disp) {
+	// remove all units
+	for (unit_ind, _) in units.iter().enumerate().rev().filter(|(_, u)| 
+			u.owner_id == (owner_prev as SmSvType)) {
+		if !disband_unit_inds.contains(&unit_ind) {
+			disband_unit_inds.push(unit_ind);
+		}
+	}
+	
+	gstate.log_event(LogType::CivDestroyed {owner_attackee_id: owner_prev, owner_attacker_id});
+	civ_destroyed(players.len(), &mut players[owner_prev], gstate, disp);
+}
+
 pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: &mut Vec<usize>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
 		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState,
 		map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		disp: &mut Disp<'f,'bt,'ut,'rt,'dt>, cur_ui_ai_player_is_paused: Option<bool>,
+		disp: &mut Disp<'f,'_,'bt,'ut,'rt,'dt>, cur_ui_ai_player_is_paused: Option<bool>,
 		map_sz: MapSz, frame_stats: &mut FrameStats) {
 	#[cfg(feature="profile")]
 	let _g = Guard::new("do_attack_actions");
@@ -39,26 +56,6 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 	let path_coords_len = action.path_coords.len();
 	let action_type = &mut action.action_type;
 	
-	macro_rules! rm_units_and_destroy_civ{($owner_prev: expr) => {
-		// remove all units
-		for unit_ind in (0..units.len()).rev() {
-			if units[unit_ind].owner_id == ($owner_prev as SmSvType) {
-				if !disband_unit_inds.contains(&unit_ind) {
-					disband_unit_inds.push(unit_ind);
-				}
-			}
-		}
-		
-		// log
-		gstate.logs.push(Log {turn: gstate.turn,
-				   val: LogType::CivDestroyed {
-				   owner_attackee_id: $owner_prev,
-				   owner_attacker_id: units[unit_ind].owner_id as usize
-				}});
-		
-		civ_destroyed(&mut players[$owner_prev], gstate, disp);
-	};};
-
 	///////////////////////////////////////// move units
 	if path_coords_len != 0 {
 		if let ActionType::Attack{..} = action_type {
@@ -76,7 +73,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 			}*/
 			////////////////////
 			
-			mv_unit(unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(disband_unit_inds));
+			mv_unit(unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(disband_unit_inds), &mut Some(disp));
 			
 			//////////////////// debug
 			/*{
@@ -123,13 +120,12 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 		if u.template.nm[0] == ICBM_NM {
 			//printlnq!("icbm dropped on {} from {}", attack_owner, u.owner_id);
 			gstate.logs.push(Log {turn: gstate.turn, val: LogType::ICBMDetonation {owner_id: u.owner_id as usize}});
-			gstate.relations.declare_war(u.owner_id as usize, attack_owner as usize, &mut gstate.logs, players, gstate.turn, cur_ui_ai_player_is_paused, &mut gstate.rng, disp);
+			gstate.relations.declare_war(u.owner_id as usize, attack_owner as usize, &mut gstate.logs, players, gstate.turn, &mut gstate.rng, disp);
 			
-			// lower mood
-			{
+			{ // lower mood
 				const N_THREATEN_EQUIVS: usize = 10;
 				for _ in 0..N_THREATEN_EQUIVS {
-					gstate.relations.threaten(u.owner_id as usize, attack_owner as usize, gstate.turn);
+					gstate.relations.threaten(u.owner_id as usize, attack_owner as usize, players, gstate.turn);
 				}
 			}
 			
@@ -301,7 +297,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 				}
 				
 				rm_player_zones(owner_prev, bldgs, temps, players, exs, map_data, map_sz);
-				rm_units_and_destroy_civ!(owner_prev);
+				rm_units_and_destroy_civ(units[unit_ind].owner_id as usize, owner_prev, units, players, disband_unit_inds, gstate, disp);
 			}
 			
 			return;
@@ -349,11 +345,11 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 			let attacker_id = units[unit_ind].owner_id as usize;
 			
 			if attackee_id != attacker_id {
-				gstate.relations.declare_war(attackee_id, attacker_id, &mut gstate.logs, players, gstate.turn, cur_ui_ai_player_is_paused, &mut gstate.rng, disp);
+				gstate.relations.declare_war(attackee_id, attacker_id, &mut gstate.logs, players, gstate.turn, &mut gstate.rng, disp);
 			}
 			
-			let attackee_bonus = players[attackee_id].stats.bonuses.combat_factor;
-			let attacker_bonus = players[attacker_id].stats.bonuses.combat_factor;
+			let attackee_bonus = players[attackee_id].combat_bonus_factor();
+			let attacker_bonus = players[attacker_id].combat_bonus_factor();
 			
 			// attackee health and survival
 			let attackee_survives = {
@@ -416,8 +412,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 				} // unit survives
 			};
 			
-			// attacker health and survival
-			{
+			{ // attacker health & survival
 				if let Some(attack_per_turn) = units[max_health_unit_ind].template.attack_per_turn {
 					// attacker does not survive
 					let effective_attack_damage = ((attack_per_turn as f32)*fortify_scale_up*attackee_bonus).round() as usize;
@@ -493,10 +488,9 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 				structure.health -= effective_attack_damage as u8;
 			}
 			
-			// log
-			{
+			{ // log
 				let u_attacker = &units[unit_ind];
-				gstate.relations.declare_war(u_attacker.owner_id as usize, attackee_owner_id, &mut gstate.logs, players, gstate.turn, cur_ui_ai_player_is_paused, &mut gstate.rng, disp);
+				gstate.relations.declare_war(u_attacker.owner_id as usize, attackee_owner_id, &mut gstate.logs, players, gstate.turn, &mut gstate.rng, disp);
 				
 				// only log humans and active UI AI as having walls/structures destroyed
 				// also only log if this attacker has not attacked this wall in WALL_ATTACK_LOG_DELAY days
@@ -546,169 +540,183 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 			
 			// city hall
 			if let BldgArgs::PopulationCenter {nm, ..} = &b.args {
-				let city_attackee_nm = nm.clone();
-				
-				// if at city hall, check at entrance
-				let bldg_coord = Coord::frm_ind(b.coord, map_sz);
-				
-				let sz = b.template.sz;
-				
-				let w = sz.w as isize;
-				let h = sz.h as isize;
-				
-				//// not at entrance
-				//if map_sz.coord_wrap(bldg_coord.y + h-1, bldg_coord.x + w/2).unwrap() != attack_coord {reset_cont!();}
-				
 				let owner_prev = b.owner_id as usize;
-				players[owner_prev].stats.bldg_expenses -= b.template.upkeep;
+				let city_attackee_nm = nm.clone();
 				let u_owner_id = u.owner_id as usize;
-				// set owner, update map
-				b.owner_id = u.owner_id;
-				
-				players[u_owner_id].stats.bldg_expenses += b.template.upkeep;
-				
-				for i_off in 0..h {
-				for j_off in 0..w {
-					let coord = map_sz.coord_wrap(bldg_coord.y + i_off, bldg_coord.x + j_off).unwrap();
-					let ex = &mut exs.last_mut().unwrap().get_mut(&coord).unwrap();
-					ex.actual.owner_id = Some(u_owner_id as SmSvType);
-					compute_zooms_coord(coord, bldgs, temps.bldgs, map_data, exs, players);
-				}}
-				
-				//printlnq!("{} attacking {} at {}", u.owner_id, owner_prev, bldg_coord);
-				
-				gstate.relations.declare_war(u_owner_id, owner_prev, &mut gstate.logs, players, gstate.turn, cur_ui_ai_player_is_paused, &mut gstate.rng, disp);
-				
-				// loading screen
-				let prev_visibility = {
-					disp.state.print_clear_centered_logo_txt(if u_owner_id == cur_player || owner_prev == cur_player {
-						disp.state.local.A_new_order_is_being_established.clone()
-					}else{
-						disp.state.local.Please_wait_violent_take_over.clone()
-					});
-					disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE)
-				};
-				
-				//printlnq!("bldg coord {} from {} to {}", Coord::frm_ind(bldgs[bldg_ind].coord, map_sz), owner_prev, u_owner_id);
-				let mut to_city_state_opt = transfer_city_ai_state(bldg_ind, owner_prev, u_owner_id, cur_player, units, bldgs, temps, exs, map_data, players, gstate, map_sz);
-				
-				////////////////////////////////////////////
-				// set surrounding land ownership, update stats
-				{
-					let exf = exs.last().unwrap();
-					let zone_exs = &players[owner_prev].zone_exs;
-					
-					// save all exs which are zoned which use the city hall that is changing ownership
-					let mut adj_stack = Vec::new();
-					for (coord, ex) in exf.iter() {
-						// make sure owner matches and ex is actually a zone
-						if ex.actual.owner_id != Some(owner_prev as SmSvType) || ex.actual.ret_zone_type() == None {continue;}
-						
-						// ex has demand set
-						if let Some(zone_ex) = zone_exs.get(&return_zone_coord(*coord, map_sz)) {
-							// demand is calculated as using the city hall that changed ownership
-							if let Dist::Is {bldg_ind: bldg_ind_ch, ..} = zone_ex.ret_city_hall_dist() {
-								if bldg_ind_ch == bldg_ind {
-									adj_stack.push(*coord);
-								}
-							}
-						}
-					}
-					
-					///////// update owner info/bldg info in adj_stack[]
-					if let Some(to_city_state) = &mut to_city_state_opt {
-						set_all_adj_owner(adj_stack, u_owner_id, owner_prev, cur_player, &mut Some(to_city_state), units, bldgs, temps, exs, players, map_data, gstate, map_sz);
-					}else{
-						set_all_adj_owner(adj_stack, u_owner_id, owner_prev, cur_player, &mut None, units, bldgs, temps, exs, players, map_data, gstate, map_sz);
-					}
-				}
 				
 				// log
-				gstate.logs.push(Log {turn: gstate.turn,
-					   val: LogType::CityCaptured {
-							city_attackee_nm,
-							owner_attackee_id: owner_prev,
-							owner_attacker_id: units[unit_ind].owner_id as usize
-						}});
+				gstate.log_event(LogType::CityCaptured {
+					city_attackee_nm,
+					owner_attackee_id: owner_prev,
+					owner_attacker_id: u_owner_id
+				});
 				
-				///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-				// country destroyed because of no remaining city halls?
-				if !bldgs.iter().any(|b| b.owner_id == (owner_prev as SmSvType) && b.template.nm[0] == CITY_HALL_NM) {
-					////////////////////////////////// set all land over to attacker
-					
-					// gather coords
-					let exf = exs.last().unwrap();
-					let mut coords = Vec::with_capacity(exf.len());
-					for (coord, ex) in exf.iter() {
-						if ex.actual.owner_id == Some(owner_prev as SmSvType) {
-							coords.push(*coord);
-						}
-					}
-					
-					// set land over to attacker
-					for coord in coords {
-						if let Some(to_city_state) = &mut to_city_state_opt {
-							set_owner(coord, u_owner_id, owner_prev, cur_player, &mut Some(to_city_state), units, bldgs, temps, exs, players, map_data, gstate, map_sz);
-						}else{
-							set_owner(coord, u_owner_id, owner_prev, cur_player, &mut None, units, bldgs, temps, exs, players, map_data, gstate, map_sz);
-						}
-					}
-					
-					////////////////////////////////////////!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-					
-					rm_units_and_destroy_civ!(owner_prev);
-				}
+				gstate.relations.declare_war(u_owner_id, owner_prev, &mut gstate.logs, players, gstate.turn, &mut gstate.rng, disp);
 				
-				// push city state into attacker
-				if let Some(to_city_state) = to_city_state_opt {
-					if let Some(ai_state) = players[u_owner_id].ptype.any_ai_state_mut() {
-						ai_state.city_states.push(to_city_state);
-					}
-				}
+				transfer_population_center_ownership(u_owner_id, owner_prev, u_owner_id, bldg_ind, disband_unit_inds, bldgs, units, players, map_data, exs, temps, gstate, disp);
 				
-				disp.state.renderer.curs_set(prev_visibility);
-			
 			// barbarian camp
 			}else if b.template.nm[0] == BARBARIAN_CAMP_NM {
-				let attackee_id = b.owner_id as usize;
-				let attackee = &mut players[attackee_id];
-				debug_assertq!(attackee.stats.alive);
-				if let PlayerType::Barbarian {..} = attackee.ptype {
-					attackee.stats.alive = false;
-					
-					// remove units
-					if let PlayerType::Barbarian(barbarian_state) = &mut attackee.ptype {
-						for defender in barbarian_state.defender_inds.iter() {
-							debug_assertq!(!disband_unit_inds.contains(defender));
-							disband_unit_inds.push(*defender);
-						}
-						
-						for attacker in barbarian_state.attacker_inds.iter() {
-							debug_assertq!(!disband_unit_inds.contains(attacker));
-							disband_unit_inds.push(*attacker);
-						}
-					}
-					
-					// log
-					gstate.logs.push(Log {turn: gstate.turn,
-						   val: LogType::CivDestroyed {
-							owner_attackee_id: attackee_id,
-							owner_attacker_id: units[unit_ind].owner_id as usize
-						}});					
-				} // pressumably barbarian_states = None occurs when a barbarian takes over a city
-				// then if the AI later takes over the city, it then owns the camp the 
-				// barbarian owned, so the AI can have the camp but no barbarian state
-				
-				rm_bldg(bldg_ind, b.owner_id == cur_player as SmSvType, bldgs, temps.bldgs, map_data, exs, players,
-						  UnitDelAction::Record (disband_unit_inds), map_sz);
-				
-				//players[attackee_id].ptype = None;
-				
+				destroy_barbarian_camp(unit_ind, bldg_ind, disband_unit_inds, cur_player, players, bldgs, units, exs, map_data, gstate, temps);
 			}//else {reset_cont!();}
 		}else{reset_cont!();}
 		
 		disable_auto_turn!();
 		reset_cont!(); // removes attack action
 	} // attack
+}
+
+pub fn destroy_barbarian_camp<'bt,'ut,'rt,'dt>(unit_ind: usize, bldg_ind: usize, disband_unit_inds: &mut Vec<usize>,
+		cur_player: usize, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
+		units: &Vec<Unit<'bt,'ut,'rt,'dt>>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
+		map_data: &mut MapData<'rt>, gstate: &mut GameState, temps: &Templates<'bt,'ut,'rt,'dt,'_>) {
+	let b = &bldgs[bldg_ind];
+	let map_sz = *map_data.map_szs.last().unwrap();
+	
+	let attackee_id = b.owner_id as usize;
+	let attackee = &mut players[attackee_id];
+	debug_assertq!(attackee.stats.alive);
+	if let PlayerType::Barbarian(barbarian_state) = &mut attackee.ptype {
+		{ // remove units
+			for defender in barbarian_state.defender_inds.iter() {
+				debug_assertq!(!disband_unit_inds.contains(defender));
+				disband_unit_inds.push(*defender);
+			}
+			
+			for attacker in barbarian_state.attacker_inds.iter() {
+				debug_assertq!(!disband_unit_inds.contains(attacker));
+				disband_unit_inds.push(*attacker);
+			}
+		}
+		
+		attackee.stats.alive = false;
+		
+		// log
+		//printlnq!("barbarian attackee {} attacker {}", attackee_id, units[unit_ind].owner_id);
+		gstate.log_event(LogType::CivDestroyed {
+			owner_attackee_id: attackee_id,
+			owner_attacker_id: units[unit_ind].owner_id as usize
+		});					
+	} // pressumably barbarian_states = None occurs when a barbarian takes over a city
+	// then if the AI later takes over the city, it then owns the camp the 
+	// barbarian owned, so the AI can have the camp but no barbarian state
+	
+	rm_bldg(bldg_ind, b.owner_id == cur_player as SmSvType, bldgs, temps.bldgs, map_data, exs, players,
+			  UnitDelAction::Record (disband_unit_inds), map_sz);
+}
+
+// transfer population center from `owner_prev` to `owner_new`
+// if the empire is destroyed, `owner_attacker` is the destroyer -- (in the case of assassinations this can be different than `owner_new` which would be barbarians)
+pub fn transfer_population_center_ownership<'bt,'ut,'rt,'dt>(owner_new: usize, owner_prev: usize,
+		owner_attacker: usize, bldg_ind: usize, disband_unit_inds: &mut Vec<usize>,
+		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
+		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
+		temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+		gstate: &mut GameState, disp: &mut Disp) {
+	let map_sz = *map_data.map_szs.last().unwrap();
+	let cur_player = disp.state.iface_settings.cur_player as usize;
+	
+	let b = &mut bldgs[bldg_ind];
+	let bldg_coord = Coord::frm_ind(b.coord, map_sz);
+				
+	let sz = b.template.sz;
+	
+	let w = sz.w as isize;
+	let h = sz.h as isize;
+	
+	players[owner_prev].stats.bldg_expenses -= b.template.upkeep;
+	
+	// set owner, update map
+	b.owner_id = owner_new as SmSvType;
+	
+	players[owner_new].stats.bldg_expenses += b.template.upkeep;
+	
+	for i_off in 0..h {
+	for j_off in 0..w {
+		let coord = map_sz.coord_wrap(bldg_coord.y + i_off, bldg_coord.x + j_off).unwrap();
+		let ex = &mut exs.last_mut().unwrap().get_mut(&coord).unwrap();
+		ex.actual.owner_id = Some(owner_new as SmSvType);
+		compute_zooms_coord(coord, bldgs, temps.bldgs, map_data, exs, players);
+	}}
+	
+	//printlnq!("{} attacking {} at {}", u.owner_id, owner_prev, bldg_coord);
+	
+	// loading screen
+	let prev_visibility = {
+		disp.state.print_clear_centered_logo_txt(if owner_new == cur_player || owner_prev == cur_player {
+			disp.state.local.A_new_order_is_being_established.clone()
+		}else{
+			disp.state.local.Please_wait_violent_take_over.clone()
+		});
+		disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE)
+	};
+	
+	let mut to_city_state_opt = transfer_city_ai_state(bldg_ind, owner_prev, owner_new, cur_player, units, bldgs, temps, exs, map_data, players, gstate);
+	
+	////////////////////////////////////////////
+	{ // set surrounding land ownership, update stats
+		let exf = exs.last().unwrap();
+		let zone_exs = &players[owner_prev].zone_exs;
+		
+		// save all exs which are zoned which use the city hall that is changing ownership
+		let mut adj_stack = Vec::new();
+		for (coord, ex) in exf.iter() {
+			// make sure owner matches and ex is actually a zone
+			if ex.actual.owner_id != Some(owner_prev as SmSvType) || ex.actual.ret_zone_type() == None {continue;}
+			
+			// ex has demand set
+			if let Some(zone_ex) = zone_exs.get(&return_zone_coord(*coord, map_sz)) {
+				// demand is calculated as using the city hall that changed ownership
+				if let Dist::Is {bldg_ind: bldg_ind_ch, ..} = zone_ex.ret_city_hall_dist() {
+					if bldg_ind_ch == bldg_ind {
+						adj_stack.push(*coord);
+					}
+				}
+			}
+		}
+		
+		///////// update owner info/bldg info in adj_stack[]
+		if let Some(to_city_state) = &mut to_city_state_opt {
+			set_all_adj_owner(adj_stack, owner_new, owner_prev, cur_player, &mut Some(to_city_state), units, bldgs, temps, exs, players, map_data, gstate, map_sz);
+		}else{
+			set_all_adj_owner(adj_stack, owner_new, owner_prev, cur_player, &mut None, units, bldgs, temps, exs, players, map_data, gstate, map_sz);
+		}
+	}
+	
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// country destroyed because of no remaining city halls?
+	if !bldgs.iter().any(|b| b.owner_id == (owner_prev as SmSvType) && b.template.nm[0] == CITY_HALL_NM) {
+		////////////////////////////////// set all land over to attacker
+		
+		// gather coords
+		let exf = exs.last().unwrap();
+		let mut coords = Vec::with_capacity(exf.len());
+		for (coord, ex) in exf.iter() {
+			if ex.actual.owner_id == Some(owner_prev as SmSvType) {
+				coords.push(*coord);
+			}
+		}
+		
+		// set land over to attacker
+		for coord in coords {
+			if let Some(to_city_state) = &mut to_city_state_opt {
+				set_owner(coord, owner_new, owner_prev, cur_player, &mut Some(to_city_state), units, bldgs, temps, exs, players, map_data, gstate, map_sz);
+			}else{
+				set_owner(coord, owner_new, owner_prev, cur_player, &mut None, units, bldgs, temps, exs, players, map_data, gstate, map_sz);
+			}
+		}
+		
+		////////////////////////////////////////!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		rm_units_and_destroy_civ(owner_attacker, owner_prev, units, players, disband_unit_inds, gstate, disp);
+	}
+	
+	// push city state into attacker
+	if let Some(to_city_state) = to_city_state_opt {
+		if let Some(ai_state) = players[owner_new].ptype.any_ai_state_mut() {
+			ai_state.city_states.push(to_city_state);
+		}
+	}
+	
+	disp.state.renderer.curs_set(prev_visibility);
 }
 

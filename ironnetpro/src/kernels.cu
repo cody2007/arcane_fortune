@@ -12,6 +12,29 @@
 		printf("CUDA error: %s, %s, %i\n",cudaGetErrorString(err),__FILE__,__LINE__);return;}}
 
 /////////////////////////////////////
+// case of [n,1,h,w] being broadcast added to [n,c,h,w]
+__global__ void broadcast_across_channel_vals_kernel(const float * dy, float * dx, const size_t n_imgs, const size_t n_channels, const size_t hw) {
+	int ind = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
+	if(ind >= (n_imgs*n_channels*hw)) {return;}
+	
+	// (dx) ind = img*n_channels*hw + channel*hw + img_loc
+	int img = ind / (n_channels*hw);
+	int r = ind % (n_channels*hw);
+	int img_loc = r % hw;
+	
+	dx[ind] += dy[img*hw + img_loc];
+}
+
+extern "C" void broadcast_across_channel_vals(const float * dy, float * dx, const size_t n_imgs, const size_t n_channels, const size_t hw) {
+	size_t total_len = n_imgs*n_channels*hw;
+	int n_blocks = (int)ceil((double)(total_len)/MAX_THREADS_PER_BLOCK);
+	//cudaError_t err = cudaDeviceSynchronize(); CHECK_CUDA_ERR
+	
+	broadcast_across_channel_vals_kernel <<< n_blocks, MAX_THREADS_PER_BLOCK >>> (dy, dx, n_imgs, n_channels, hw);
+	//err = cudaDeviceSynchronize(); CHECK_CUDA_ERR
+}
+
+/////////////////////////////////////
 // case of [n,1,1,1] being broadcast added to [n,c,h,w]
 __global__ void broadcast_across_img_vals_kernel(const float * dy, float * dx, const size_t vals_per_img, const size_t total_len) {
 	int ind = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
@@ -219,9 +242,8 @@ extern "C" void shift_QR_pos_uright_triangle(float * dy, size_t n_heads_imgs, si
 
 
 ////////////////////////////////////////
-// mask future times & scale
-__global__ void mask_future_times_kernel(float * y, const float * x, const float scale,
-		size_t n_exemplars, size_t n_time) {
+// mask future times & scale (in-place)
+__global__ void mask_future_times_in_place_kernel(float * y, const float scale, size_t n_exemplars, size_t n_time) {
 	int ind = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
 	if(ind >= (n_exemplars*n_time*n_time)) {return;}
 	
@@ -233,18 +255,45 @@ __global__ void mask_future_times_kernel(float * y, const float * x, const float
 	if(time2 > time1) {
 		y[ind] = -INFINITY;
 	}else{
+		y[ind] *= scale;
+	}
+}
+
+extern "C" void mask_future_times_in_place(float * y, const float scale, size_t n_exemplars, size_t n_time) {
+	int n_blocks = (int)ceil( (((double)n_exemplars * (double)n_time * (double)n_time)) 
+					/ MAX_THREADS_PER_BLOCK);
+	// Asserts floating point compatibility at compile time (https://stackoverflow.com/questions/20016600/negative-infinity, Accessed May 18, 2020)
+	static_assert(std::numeric_limits<float>::is_iec559, "IEEE 754 required");
+	mask_future_times_in_place_kernel <<< n_blocks, MAX_THREADS_PER_BLOCK >>> (y, scale, n_exemplars, n_time);
+}
+
+////////////////////////////////////////
+// mask future times & scale
+__global__ void mask_future_times_kernel(float * y, const float * x, const float scale,
+		size_t n_exemplars, size_t n_time) {
+	int ind = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
+	if(ind >= (n_exemplars*n_time*n_time)) {return;}
+	
+	int r = ind % (n_time * n_time);
+	
+	int time1 = r / n_time; 
+	int time2 = r % n_time;
+	
+	if(time2 > time1) {
+		y[ind] = -INFINITY;
+	}else{
 		y[ind] = scale * x[ind];
 	}
 }
 
 extern "C" void mask_future_times(float * y, const float * x, const float scale,
-			size_t n_exemplars, size_t n_time) {
-	int n_blocks = (int)ceil( (((double)n_exemplars * (double)n_time * (double)n_time)) 
-					/ MAX_THREADS_PER_BLOCK);
+		size_t n_exemplars, size_t n_time) {
+	int n_blocks = (int)ceil( (((double)n_exemplars * (double)n_time * (double)n_time))
+		/ MAX_THREADS_PER_BLOCK);
 	// Asserts floating point compatibility at compile time (https://stackoverflow.com/questions/20016600/negative-infinity, Accessed May 18, 2020)
 	static_assert(std::numeric_limits<float>::is_iec559, "IEEE 754 required");
 	mask_future_times_kernel <<< n_blocks, MAX_THREADS_PER_BLOCK >>> (y, x, scale, n_exemplars, n_time);
-}
+} 
 
 ////////////////////////////////////////
 // (1) add Q*K and Q*pos inputs, (2) scale, (3) mask future times
@@ -531,5 +580,50 @@ extern "C" void adam_update_f16(
 	
 	adam_update_f16_kernel <<< n_blocks, MAX_THREADS_PER_BLOCK >>> (
 			a_t, beta1, beta2, denom_eps, dw, m, v, w, len);*/
+}
+
+////////////////////////
+// C = B'*A + beta*C (B' = B transpose)
+//	where C: [N, M] (shape)
+//		B: [K, N]
+//		A: [K, M]
+__global__ void mat_mul_Bt_A_kernel(
+			const size_t M,
+			const size_t N,
+			const size_t K,
+			const float beta,
+			float * C,
+			float * B,
+			float * A) {
+	int ind = blockIdx.x*MAX_THREADS_PER_BLOCK + threadIdx.x;
+	if(ind >= (N*M)) {return;}
+	
+	int n = ind / M;
+	int m = ind % M;
+	
+	float sum = 0.;
+	for(int k = 0; k < K; k++) {
+		sum += B[k*N + n] * A[k*M + m];
+	}
+	
+	if(beta != 0.) {
+		C[ind] = sum + beta*C[ind];
+	}else{
+		C[ind] = sum;
+	}
+}
+
+extern "C" void mat_mul_Bt_A(
+			const int M,
+			const int N,
+			const int K,
+			const float beta,
+			float * C,
+			float * B,
+			float * A) {
+	int n_blocks = (int)ceil((double)(N*M)/MAX_THREADS_PER_BLOCK);
+	
+	mat_mul_Bt_A_kernel <<< n_blocks, MAX_THREADS_PER_BLOCK >>> (
+			M, N, K, beta, C, B, A);
 }
 

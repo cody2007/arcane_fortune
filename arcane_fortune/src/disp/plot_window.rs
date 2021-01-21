@@ -23,7 +23,7 @@ pub enum ColoringType<'o> {
 pub fn plot_window_data<T: Into<f32> + Copy>(coloring_type: ColoringType, title_txt: String, 
 		data: &Vec<Vec<T>>, dstate: &mut DispState, players: &Vec<Player>,
 		relations: &Relations, map_data: &MapData, plot_first_player_only: bool) {
-	let mut r = &mut dstate.renderer;
+	let r = &mut dstate.renderer;
 	r.curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 	
 	let h = dstate.iface_settings.screen_sz.h as i32;

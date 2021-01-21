@@ -32,6 +32,19 @@ Speed of a galley:
 }
 
 {
+	nm: Assassin
+	actions_per_turn: 3000
+	max_health: 1
+	movement_type: Land
+	production_req: 2080
+	attack_range: 1
+	assassin_per_turn: 1
+	char_disp: {
+	upkeep: 1
+	tech_req: Art of Deception
+}
+
+{
 	nm: Rioter
 	actions_per_turn: 3000
 	max_health: 5

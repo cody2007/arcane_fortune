@@ -17,15 +17,14 @@ use crate::gcore::profiling::*;
 use super::*;
 
 pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
-		temps: &Templates<'bt,'ut,'rt,'dt,'_>, disp: &mut Disp<'f,'bt,'ut,'rt,'dt>, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
+		temps: &Templates<'bt,'ut,'rt,'dt,'_>, disp: &mut Disp<'f,'_,'bt,'ut,'rt,'dt>, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
 		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, frame_stats: &mut FrameStats) {
-	
-	let bldg_config = &temps.bldg_config;
-	
 	#[cfg(feature="profile")]
 	let _g = Guard::new("end_turn");
 	
 	let frame_start = Instant::now();
+	
+	let bldg_config = &temps.bldg_config;
 	
 	// for menu indicators
 	let cur_ui_ai_player_is_paused = disp.state.iface_settings.cur_player_paused(players);
@@ -37,6 +36,10 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 	
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
+	/////////////////////////
+	// events
+	rm_old_events(disp.state.iface_settings.cur_player, bldgs, units, gstate, &temps.bldgs, map_data, exs, players, map_sz);
+	
 	//////////////////////////////////////////////
 	// nobility
 	new_unaffiliated_nobility(players, units, bldgs, map_data, exs, gstate, temps, players[0].stats.alive_log.len(), map_sz);
@@ -45,19 +48,23 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 	// ai & barbarians
 	let mut disband_unit_inds = Vec::new();
 	
-	for player_ind in 0..players.len() {
-		let player = &players[player_ind];
-		if !player.stats.alive {continue;}
-		if let Some(AIState {paused: false, ..}) = player.ptype.any_ai_state() {
-			NobilityState::plan_actions(player_ind, player_ind == disp.state.iface_settings.cur_player as usize, players, units, bldgs, map_data, exs, &mut disband_unit_inds, gstate, map_sz, temps, disp);
-			EmpireState::plan_actions(player_ind, players, units, bldgs, gstate, map_data, exs, temps, &mut disband_unit_inds, map_sz, disp, cur_ui_ai_player_is_paused);
+	{
+		#[cfg(feature="profile")]
+		let _g = Guard::new("ai planning");
+		
+		for player_ind in 0..players.len() {
+			let player = &players[player_ind];
+			if !player.stats.alive {continue;}
+			if let Some(AIState {paused: false, ..}) = player.ptype.any_ai_state() {
+				NobilityState::plan_actions(player_ind, player_ind == disp.state.iface_settings.cur_player as usize, players, units, bldgs, map_data, exs, &mut disband_unit_inds, gstate, map_sz, temps, disp);
+				EmpireState::plan_actions(player_ind, players, units, bldgs, gstate, map_data, exs, temps, &mut disband_unit_inds, map_sz, disp);
+			}
+			BarbarianState::plan_actions(player_ind, units, bldgs, map_data, exs, players, temps.units, map_sz, gstate);
 		}
-		BarbarianState::plan_actions(player_ind, units, bldgs, map_data, exs, players, temps.units, map_sz, gstate);
 	}
 	
 	///////////////////////////////////////////
-	// rioting	
-	{
+	{ // rioting
 		#[cfg(feature="profile")]
 		let _g = Guard::new("rioting");
 		
@@ -146,9 +153,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 						}
 					}
 					
-					gstate.logs.push(Log {turn: gstate.turn,
-							val: LogType::CitizenDemand {owner_id: player.id as usize, reason}
-					});
+					gstate.log_event(LogType::CitizenDemand {owner_id: player.id as usize, reason});
 					
 					if player.id == disp.state.iface_settings.cur_player {
 						disp.create_interrupt_window(UIMode::CitizenDemandAlert(CitizenDemandAlertState {reason}));
@@ -162,8 +167,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 		
 		let ut = UnitTemplate::frm_str(RIOTER_NM, temps.units);
 		
-		// create rioters
-		{
+		{ // create rioters
 			const SATURATING_RIOTING_THRESH: f32 = -500.; // at this happiness level,
 			// the rioting probability will be MAX_PROB
 			
@@ -200,10 +204,11 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 					if let Some(coord) = sample_low_happiness_coords(&player.zone_exs, exs.last().unwrap(), map_sz, &mut gstate.rng) {
 						let owner_id = owner_ind as SmSvType;
 						
+						//printlnq!("adding rioter to owner {} is_empire {} is_barbarian {} is_nobility {} is_human {} {}", owner_id,
+						//		player.ptype.is_empire(), player.ptype.is_barbarian(), player.ptype.is_nobility(), player.ptype.is_human(), player.personalization.nm);
 						add_unit(coord, owner_id == disp.state.iface_settings.cur_player, ut, units, map_data, exs, bldgs, &mut players[owner_ind], gstate, temps);
 						
-						// log and create alert window if relevant
-						{
+						{ // log and create alert window if relevant
 							let c = Coord::frm_ind(coord, map_sz);
 							
 							// find closest city
@@ -228,9 +233,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 									}
 									
 									// log
-									gstate.logs.push(Log {turn: gstate.turn,
-										val: LogType::Rioting {city_nm: nm.clone(), owner_id: owner_ind}
-									});
+									gstate.log_event(LogType::Rioting {city_nm: nm.clone(), owner_id: owner_ind});
 									
 									// create alert window
 									if owner_id == disp.state.iface_settings.cur_player {
@@ -245,8 +248,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 			}
 		}
 		
-		// rm rioters
-		{
+		{ // rm rioters
 			const SATURATING_RIOTING_THRESH: f32 = 0.;
 			
 			// desired function:
@@ -275,11 +277,23 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				if prob > MAX_PROB {prob = MAX_PROB};
 				
 				if gstate.rng.gen_f32b() < prob {
-					for (unit_ind, u) in units.iter().enumerate().filter(|(_,u)| u.owner_id == owner_ind as SmSvType && u.template == ut) {
+					if let Some((unit_ind, u)) = units.iter().enumerate().find(|(_,u)|
+						u.owner_id == owner_ind as SmSvType &&
+						u.template == ut
+					) {
 						disband_unit(unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, players, gstate, map_sz);
-						break;
 					}
 				}
+			}
+			
+			//////////// remove old rioters
+			const MAX_RIOTER_AGE: usize = 4*TURNS_PER_YEAR;
+			if let Some((unit_ind, u)) = units.iter().enumerate().find(|(_,u)|
+				u.template == ut &&
+				u.action.len() == 0 &&
+				(gstate.turn - u.creation_turn as usize) > MAX_RIOTER_AGE
+			) {
+				disband_unit(unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, players, gstate, map_sz);
 			}
 		}
 		
@@ -294,8 +308,10 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 	}
 	
 	/////////////////////////////////////////
-	// brigades: build list & repair walls
-	{
+	{ // brigades: build list & repair walls
+		#[cfg(feature="profile")]
+		let _g = Guard::new("brigades");
+		
 		// repair walls
 		'player_loop: for player in players.iter_mut() {
 			if let Some(ai_state) = player.ptype.any_ai_state() {
@@ -391,8 +407,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 	}
 	
 	////////////////////////////////////////////
-	// unit management
-	{
+	{ // unit management
 		#[cfg(feature="profile")]
 		let _g = Guard::new("end_turn unit management");
 		
@@ -401,15 +416,18 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 			do_attack_action(unit_ind, &mut disband_unit_inds, units, bldgs, temps, players, gstate, map_data, exs, disp, cur_ui_ai_player_is_paused, map_sz, frame_stats);
 		}
 		
+		const MAX_UNIT_INDS_COMP: usize = 5;
+		let unit_inds = gstate.rng.inds(units.len());
+		//let unit_action_start = Instant::now();
+		
 		// all other actions aside from attacking
-		'outer: for unit_ind in 0..units.len() {
-			let u = &mut units[unit_ind];
+		'outer: for (unit_count, unit_ind) in unit_inds.iter().enumerate() {
+			let u = &mut units[*unit_ind];
 			
-			// no actions left to take
-			if u.actions_used.is_none() {continue;}
-			
-			// to be deleted
-			if disband_unit_inds.contains(&unit_ind) {continue;}
+			//if (unit_count > MAX_UNIT_INDS_COMP && !players[u.owner_id as usize].ptype.is_human()) || // limit # of non-human movements per turn
+			if u.actions_used.is_none() || // no actions left to take
+			   disband_unit_inds.contains(&unit_ind) // to be deleted
+			   {continue;}
 			
 			////////////// fority: restore health
 			// (if no actions have been taken and we can restore health and unit is idle or fortified)
@@ -474,7 +492,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				}else{
 					debug_assertq!(u.action.last().unwrap().actions_req > 0.);
 					debug_assertq!(u.action.last().unwrap().path_coords.len() > 0);
-					mv_unit(unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds));
+					mv_unit(*unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds), &mut Some(disp));
 				}
 			
 			/////////////////////////////// wall (see also WorkerRepairWall)
@@ -538,14 +556,14 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 					// for ai only
 					macro_rules! skip_to_next{() => {
 						loop {
-							let action = units[unit_ind].action.last_mut().unwrap();
+							let action = units[*unit_ind].action.last_mut().unwrap();
 							if let Some(next_coord) = action.path_coords.pop() {
 								if movable_to(u_coord, next_coord, &map_data.get(ZoomInd::Full, next_coord), exs.last().unwrap(), MvVarsAtZoom::NonCivil {units, start_owner: u_owner_id, blind_undiscov: None}, bldgs, &Dest::NoAttack, movement_type) {
-									set_coord(next_coord, unit_ind, u_owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, &mut players[u_owner_id as usize].stats, map_sz, gstate);
+									set_coord(next_coord, *unit_ind, u_owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, &mut players[u_owner_id as usize].stats, map_sz, gstate);
 									continue 'outer;
 								}
 							}else{
-								units[unit_ind].action.pop();
+								units[*unit_ind].action.pop();
 								continue 'outer;
 							}
 						}
@@ -555,7 +573,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 					match manhattan_dist_inds(next_coord, u_coord, map_sz) {
 						d if d < 2 => {
 							if disp.state.iface_settings.cur_player == u.owner_id || movable_to(u_coord, next_coord, &map_data.get(ZoomInd::Full, next_coord), exs.last().unwrap(), MvVarsAtZoom::NonCivil {units, start_owner: u_owner_id, blind_undiscov: None}, bldgs, &Dest::NoAttack, movement_type) {
-								mv_unit(unit_ind, u_owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds));
+								mv_unit(*unit_ind, u_owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds), &mut Some(disp));
 							}else{
 								skip_to_next!();
 							}
@@ -576,10 +594,10 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 					
 					// move to unexplored territory
 					if path_coords_len != 0 {
-						mv_unit(unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds));
+						mv_unit(*unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds), &mut Some(disp));
 					}
 					
-					let u = &mut units[unit_ind];
+					let u = &mut units[*unit_ind];
 					
 					// reached unexplored destination OR out of moves => add more to go to
 					// find next closest unexplored territory
@@ -589,20 +607,20 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 						let is_cur_player = disp.state.iface_settings.cur_player == u.owner_id;
 						
 						// found new unexplored territory near current position
-						if let Some(new_action) = explore_type.find_square_unexplored(unit_ind, start_coord, map_data, exs, units, bldgs, land_discov, map_sz, is_cur_player, &mut gstate.rng) {
-							units[unit_ind].action.push(new_action);
+						if let Some(new_action) = explore_type.find_square_unexplored(*unit_ind, start_coord, map_data, exs, units, bldgs, land_discov, map_sz, is_cur_player, &mut gstate.rng) {
+							units[*unit_ind].action.push(new_action);
 						
 						// go back to start
-						}else if units[unit_ind].return_coord() != start_coord {
+						}else if units[*unit_ind].return_coord() != start_coord {
 							match explore_type {
 								ExploreType::SpiralOut => {
 								} ExploreType::Random => {
 									let mfc = &map_data.get(ZoomInd::Full, start_coord);
-									let u = &units[unit_ind];
+									let u = &units[*unit_ind];
 									if movable_to(u.return_coord(), start_coord, mfc, exs.last().unwrap(), MvVarsAtZoom::NonCivil {units, start_owner: u.owner_id, blind_undiscov: None}, bldgs, &Dest::NoAttack, u.template.movement_type) {
 										let pstats = &mut players[u.owner_id as usize].stats;
-										set_coord(start_coord, unit_ind, disp.state.iface_settings.cur_player == units[unit_ind].owner_id, units, map_data, exs, pstats, map_sz, gstate);
-										units[unit_ind].action.push(ActionMeta::new(ActionType::AutoExplore {start_coord, explore_type})); //prev_action.unwrap());
+										set_coord(start_coord, *unit_ind, disp.state.iface_settings.cur_player == units[*unit_ind].owner_id, units, map_data, exs, pstats, map_sz, gstate);
+										units[*unit_ind].action.push(ActionMeta::new(ActionType::AutoExplore {start_coord, explore_type})); //prev_action.unwrap());
 									}
 								} ExploreType::N => {panicq!("invalid exploration type");}
 							}
@@ -639,16 +657,16 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				// not finished, move unit
 				if let Some(coord_new) = u.action.last_mut().unwrap().path_coords.pop() {
 					// verify land still movable to
-					if !movable_to(u_coord, coord_new, &map_data.get(ZoomInd::Full, coord_new), exs.last().unwrap(), MvVarsAtZoom::NonCivil{units, start_owner: units[unit_ind].owner_id, blind_undiscov: None},
-							bldgs, &Dest::NoAttack, units[unit_ind].template.movement_type) {
-						units[unit_ind].action.pop();
+					if !movable_to(u_coord, coord_new, &map_data.get(ZoomInd::Full, coord_new), exs.last().unwrap(), MvVarsAtZoom::NonCivil{units, start_owner: units[*unit_ind].owner_id, blind_undiscov: None},
+							bldgs, &Dest::NoAttack, units[*unit_ind].template.movement_type) {
+						units[*unit_ind].action.pop();
 						continue;
 					}
 					
 					// finally, move unit
 					compute_zooms_coord(u_coord, bldgs, temps.bldgs, map_data, exs, players);
-					let owner_id = units[unit_ind].owner_id;
-					set_coord(coord_new, unit_ind, owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, &mut players[owner_id as usize].stats, map_sz, gstate);
+					let owner_id = units[*unit_ind].owner_id;
+					set_coord(coord_new, *unit_ind, owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, &mut players[owner_id as usize].stats, map_sz, gstate);
 					
 				// finished
 				}else{
@@ -657,29 +675,49 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 					//	println!("unit_ind {} ending zone", unit_ind);
 					//}
 					////////
-					units[unit_ind].action.pop();
+					units[*unit_ind].action.pop();
 					continue;
 				}
 			
 			///////////////////////////////////////// move units
 			}else if path_coords_len != 0 {
-				if let ActionType::Mv | ActionType::MvIgnoreWalls | ActionType::MvIgnoreOwnWalls |
-						ActionType::WorkerBuildBldg{..} | ActionType::WorkerBuildStructure {..} |
+				if let ActionType::Mv | ActionType::MvIgnoreWallsAndOntoPopulationCenters | ActionType::MvIgnoreOwnWalls |
+						ActionType::WorkerBuildBldg{..} | ActionType::WorkerBuildStructure {..} | ActionType::ScaleWalls |
 						ActionType::WorkerZone{..} | ActionType::WorkerRmZonesAndBldgs {..} |
 						ActionType::WorkerRepairWall{..} = action_type {
 					
 					#[cfg(feature="profile")]
 					let _g = Guard::new("mv units");
 					
-					//printlnq!("{} {}", owners[u.owner_id as usize].nm, u.template.nm);
+					// limit # of non-human movements per turn
+					if (|| {
+						let u_owner = u.owner_id as usize;
+						
+						if unit_count > MAX_UNIT_INDS_COMP && // exceeded turn quota
+						   !players[u_owner].ptype.is_human() && // and player isn't human
+						   u.template.nm[0] != WORKER_NM  // and unit isn't a worker
+						{
+							// fiefdom of human -> do not limit movement
+							if let Some(fiefdom_owner) = gstate.relations.fiefdom_of(u_owner) {
+								if players[fiefdom_owner].ptype.is_human() {
+									return false;
+								}
+							}
+							return true;
+						}
+						false
+					})() {continue;}
 					
 					debug_assertq!(u.action.last().unwrap().actions_req > 0.);
 					debug_assertq!(u.action.last().unwrap().path_coords.len() > 0);
 					
-					//printlnq!("{} {}", u.template.nm, u.owner_id);
-					mv_unit(unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds));
+					mv_unit(*unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds), &mut Some(disp));
 				}
 			
+			//////////////////////////////////////// assassinate
+			}else if let ActionType::Assassinate {attack_coord} = action_type {
+				do_assassinate_action(*unit_ind, *attack_coord, &mut disband_unit_inds, units, bldgs, players, exs, map_data, gstate, disp, temps);
+				
 			///////////////////////////////////////// gate
 			}else if let ActionType::WorkerBuildStructure {structure_type: StructureType::Gate, ..} = action_type {
 				debug_assertq!(u.template.nm[0] == WORKER_NM);
@@ -819,16 +857,16 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				}
 				
 				// verify land still movable to
-				let u_owner = units[unit_ind].owner_id;
-				if !movable_to(units[unit_ind].return_coord(), coord_new, &map_data.get(ZoomInd::Full, coord_new), exs.last().unwrap(), MvVarsAtZoom::NonCivil{units, start_owner: u_owner, blind_undiscov: None}, bldgs, 
-						&Dest::NoAttack, units[unit_ind].template.movement_type) {
-					units[unit_ind].action.pop();
+				let u_owner = units[*unit_ind].owner_id;
+				if !movable_to(units[*unit_ind].return_coord(), coord_new, &map_data.get(ZoomInd::Full, coord_new), exs.last().unwrap(), MvVarsAtZoom::NonCivil{units, start_owner: u_owner, blind_undiscov: None}, bldgs, 
+						&Dest::NoAttack, units[*unit_ind].template.movement_type) {
+					units[*unit_ind].action.pop();
 					continue;
 				}
 				
 				// finally, move unit
 				compute_zooms_coord(u_coord, bldgs, temps.bldgs, map_data, exs, players);
-				set_coord(coord_new, unit_ind, u_owner == disp.state.iface_settings.cur_player, units, map_data, exs, &mut players[u_owner as usize].stats, map_sz, gstate);
+				set_coord(coord_new, *unit_ind, u_owner == disp.state.iface_settings.cur_player, units, map_data, exs, &mut players[u_owner as usize].stats, map_sz, gstate);
 			
 			//////////////////////////////////////////// zoning (from start/end coords from human UI)
 			}else if let ActionType::WorkerZone {zone_type, start_coord, end_coord, ..} = action_type {
@@ -931,17 +969,17 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				let coord_new = map_sz.coord_wrap(new_c.y, new_c.x).unwrap();
 				
 				// verify land still movable to
-				let u_owner = units[unit_ind].owner_id;
-				if !movable_to(units[unit_ind].return_coord(), coord_new, &map_data.get(ZoomInd::Full, coord_new), exs.last().unwrap(), MvVarsAtZoom::NonCivil{units, start_owner: u_owner, blind_undiscov: None}, bldgs, 
-						&Dest::NoAttack, units[unit_ind].template.movement_type) {
+				let u_owner = units[*unit_ind].owner_id;
+				if !movable_to(units[*unit_ind].return_coord(), coord_new, &map_data.get(ZoomInd::Full, coord_new), exs.last().unwrap(), MvVarsAtZoom::NonCivil{units, start_owner: u_owner, blind_undiscov: None}, bldgs, 
+						&Dest::NoAttack, units[*unit_ind].template.movement_type) {
 					
-					units[unit_ind].action.pop();
+					units[*unit_ind].action.pop();
 					continue;
 				}
 				
 				// finally, move unit
 				compute_zooms_coord(u_coord, bldgs, temps.bldgs, map_data, exs, players);
-				set_coord(coord_new, unit_ind, u_owner == disp.state.iface_settings.cur_player, units, map_data, exs, &mut players[u_owner as usize].stats, map_sz, gstate);
+				set_coord(coord_new, *unit_ind, u_owner == disp.state.iface_settings.cur_player, units, map_data, exs, &mut players[u_owner as usize].stats, map_sz, gstate);
 				
 			///////////////////////////////////////// buildings
 			}else if let ActionType::WorkerBuildBldg {template, bldg_coord, doctrine_dedication, ..} = action_type {
@@ -1114,7 +1152,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 					if let Some(min_city) = ai_state.city_states.iter_mut().min_by_key(|c| 
 							manhattan_dist(Coord::frm_ind(c.coord, map_sz), unit_coord, map_sz)) {
 						if min_city.worker_actions.len() != 0 {
-							min_city.set_worker_action(unit_ind, is_cur_player, units, &mut player.stats, bldgs, map_data, exs, gstate, map_sz);
+							min_city.set_worker_action(*unit_ind, is_cur_player, units, &mut player.stats, bldgs, map_data, exs, gstate, map_sz);
 						// no actions left
 						}else{u.action.pop();}
 					// no minimum city found
@@ -1152,7 +1190,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 						
 						macro_rules! chk_and_set {($coord: expr, $mv_vars: expr, $exf: expr) => {
 							if movable_to(u_coord, $coord, &map_data.get(ZoomInd::Full, $coord), $exf, $mv_vars, bldgs, &dest, movement_type) {
-								set_coord($coord, unit_ind, false, units, map_data, exs, &mut players[u_owner as usize].stats, map_sz, gstate);
+								set_coord($coord, *unit_ind, false, units, map_data, exs, &mut players[u_owner as usize].stats, map_sz, gstate);
 								continue 'outer;
 							}
 						};};
@@ -1202,7 +1240,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 							attackee: Some(u.owner_id),
 							ignore_own_walls: false
 						};
-						if set_target_attackable(&target, attacker_ind, false, MAX_SEARCH_DEPTH, units, bldgs, exs, map_data, map_sz) {
+						if set_target_attackable(&target, *attacker_ind, false, MAX_SEARCH_DEPTH, units, bldgs, exs, map_data, map_sz) {
 							continue 'outer;
 						}
 					};};
@@ -1214,18 +1252,19 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 								attack_unit!();
 							}
 						} SectorUnitEnterAction::Report => {
-							units[unit_ind].action.pop();
+							units[*unit_ind].action.pop();
 							if automated_unit_owner_id == disp.state.iface_settings.cur_player {
 								disp.create_interrupt_window(UIMode::ForeignUnitInSectorAlert(ForeignUnitInSectorAlertState {
 									sector_nm: sector.nm.clone(),
 									battalion_nm: automated_unit_nm
 								}));
 							}
+							continue;
 						} SectorUnitEnterAction::N => {panicq!("invalid unit enter action");}
 					}
 				}
 				
-				let u = &mut units[unit_ind];
+				let u = &mut units[*unit_ind];
 				
 				// repair health
 				if u.template.max_health > u.health {
@@ -1234,74 +1273,76 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				}
 				
 				// do the idle action
-				if let ActionType::SectorAutomation {ref mut idle_action, ..} = u.action.last_mut().unwrap().action_type {
-					match idle_action {
-						SectorIdleAction::Patrol {dist_monitor:_, perim_coord_ind, perim_coord_turn_computed} => {
-							let perim_coords = &sector.perim_coords;
-							
-							let mut action_iface = ActionInterfaceMeta {
-								action: ActionMeta::new(ActionType::Mv),
-								unit_ind: Some(automated_unit_owner_id as usize),
-								max_search_depth: 500,
-								start_coord: Coord::frm_ind(u_coord, map_sz),
-								movement_type,
-								movable_to: &movable_to
-							};
-							
-							// if perim_coord_ind is not stale
-							if *perim_coord_turn_computed == perim_coords.turn_computed {
-								// inc & wrap
-								if *perim_coord_ind < (perim_coords.coords.len()-1) {
-									*perim_coord_ind += 1;
+				if let Some(action) = u.action.last_mut() {
+					if let ActionType::SectorAutomation {ref mut idle_action, ..} = action.action_type {
+						match idle_action {
+							SectorIdleAction::Patrol {dist_monitor:_, perim_coord_ind, perim_coord_turn_computed} => {
+								let perim_coords = &sector.perim_coords;
+								
+								let mut action_iface = ActionInterfaceMeta {
+									action: ActionMeta::new(ActionType::Mv),
+									unit_ind: Some(automated_unit_owner_id as usize),
+									max_search_depth: 500,
+									start_coord: Coord::frm_ind(u_coord, map_sz),
+									movement_type,
+									movable_to: &movable_to
+								};
+								
+								// if perim_coord_ind is not stale
+								if *perim_coord_turn_computed == perim_coords.turn_computed {
+									// inc & wrap
+									if *perim_coord_ind < (perim_coords.coords.len()-1) {
+										*perim_coord_ind += 1;
+									}else{
+										*perim_coord_ind = 0;
+									}
+									
+									let next_c = Coord::frm_ind(perim_coords.coords[*perim_coord_ind], map_sz);
+									action_iface.update_move_search(next_c, map_data, exs, MvVars::NonCivil{units, start_owner: automated_unit_owner_id, blind_undiscov: None}, bldgs);
+									
+									let u = &mut units[*unit_ind];
+									
+									// if next coord is traversable (w/ move search) -> go there
+									if action_iface.action.path_coords.len() > 0 {
+										u.action.push(action_iface.action);
+									// else, move in direction of next location
+									}else{
+										let cur_loc = u.return_coord();
+										let cur_loc_c = Coord::frm_ind(cur_loc, map_sz);
+										let exf = exs.last().unwrap();
+										let mv_vars = MvVarsAtZoom::NonCivil {units, start_owner: automated_unit_owner_id, blind_undiscov: None};
+										let dest = Dest::NoAttack;
+										
+										macro_rules! chk_and_mv{($y_off: expr, $x_off: expr) => {
+											if let Some(cand_c) = map_sz.coord_wrap(cur_loc_c.y + $y_off, cur_loc_c.x + $x_off) {
+												let mfc = map_data.get(ZoomInd::Full, cand_c);
+												if movable_to(cur_loc, cand_c, &mfc, exf, mv_vars, bldgs, &dest, movement_type) {
+													let pstats = &mut players[automated_unit_owner_id as usize].stats;
+													set_coord(cand_c, *unit_ind, disp.state.iface_settings.cur_player == automated_unit_owner_id, units, map_data, exs, pstats, map_sz, gstate);
+													continue;
+												}
+											}
+										};};
+										
+										if cur_loc_c.y < next_c.y {chk_and_mv!(1, 0);}
+										if cur_loc_c.y > next_c.y {chk_and_mv!(-1, 0);}
+										if cur_loc_c.x < next_c.x {chk_and_mv!(0, 1);}
+										if cur_loc_c.x > next_c.x {chk_and_mv!(0, -1);}
+									}
+								// perim_coord_ind is stale
 								}else{
 									*perim_coord_ind = 0;
-								}
-								
-								let next_c = Coord::frm_ind(perim_coords.coords[*perim_coord_ind], map_sz);
-								action_iface.update_move_search(next_c, map_data, exs, MvVars::NonCivil{units, start_owner: automated_unit_owner_id, blind_undiscov: None}, bldgs);
-								
-								let u = &mut units[unit_ind];
-								
-								// if next coord is traversable (w/ move search) -> go there
-								if action_iface.action.path_coords.len() > 0 {
-									u.action.push(action_iface.action);
-								// else, move in direction of next location
-								}else{
-									let cur_loc = u.return_coord();
-									let cur_loc_c = Coord::frm_ind(cur_loc, map_sz);
-									let exf = exs.last().unwrap();
-									let mv_vars = MvVarsAtZoom::NonCivil {units, start_owner: automated_unit_owner_id, blind_undiscov: None};
-									let dest = Dest::NoAttack;
+									*perim_coord_turn_computed = perim_coords.turn_computed;
 									
-									macro_rules! chk_and_mv{($y_off: expr, $x_off: expr) => {
-										if let Some(cand_c) = map_sz.coord_wrap(cur_loc_c.y + $y_off, cur_loc_c.x + $x_off) {
-											let mfc = map_data.get(ZoomInd::Full, cand_c);
-											if movable_to(cur_loc, cand_c, &mfc, exf, mv_vars, bldgs, &dest, movement_type) {
-												let pstats = &mut players[automated_unit_owner_id as usize].stats;
-												set_coord(cand_c, unit_ind, disp.state.iface_settings.cur_player == automated_unit_owner_id, units, map_data, exs, pstats, map_sz, gstate);
-												continue;
-											}
-										}
-									};};
+									action_iface.update_move_search(Coord::frm_ind(perim_coords.coords[*perim_coord_ind], map_sz), map_data, exs, MvVars::NonCivil{units, start_owner: automated_unit_owner_id, blind_undiscov: None}, bldgs);
 									
-									if cur_loc_c.y < next_c.y {chk_and_mv!(1, 0);}
-									if cur_loc_c.y > next_c.y {chk_and_mv!(-1, 0);}
-									if cur_loc_c.x < next_c.x {chk_and_mv!(0, 1);}
-									if cur_loc_c.x > next_c.x {chk_and_mv!(0, -1);}
+									// if next coord is traversable (w/ move search) -> go there
+									if action_iface.action.path_coords.len() > 0 {
+										units[*unit_ind].action.push(action_iface.action);
+									}
 								}
-							// perim_coord_ind is stale
-							}else{
-								*perim_coord_ind = 0;
-								*perim_coord_turn_computed = perim_coords.turn_computed;
-								
-								action_iface.update_move_search(Coord::frm_ind(perim_coords.coords[*perim_coord_ind], map_sz), map_data, exs, MvVars::NonCivil{units, start_owner: automated_unit_owner_id, blind_undiscov: None}, bldgs);
-								
-								// if next coord is traversable (w/ move search) -> go there
-								if action_iface.action.path_coords.len() > 0 {
-									units[unit_ind].action.push(action_iface.action);
-								}
-							}
-						} SectorIdleAction::Sentry => {}
+							} SectorIdleAction::Sentry => {}
+						}
 					}
 				}
 			
@@ -1310,6 +1351,8 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				u.action.pop();
 			}
 		} // unit loop
+		
+		//printlnq!("{}", unit_action_start.elapsed().as_millis());
 		
 		///////////
 		// delete units
@@ -1324,8 +1367,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 	}
 	
 	///////////////////////////////////////////
-	// bldg management
-	{
+	{ // bldg management
 		#[cfg(feature="profile")]
 		let _g = Guard::new("end_turn bldg management");
 		
@@ -1333,22 +1375,30 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 		let mut bldg_inds = gstate.rng.inds_max(bldgs.len(), MAX_BLDG_INDS_COMP);
 		
 		/////////////////
-		// recompute city hall dists if not init
-		for bldg_ind in bldg_inds.iter() {
-			let b = &bldgs[*bldg_ind];
-			let owner_id = b.owner_id as usize;
-			if let Some(zone_ex) = players[owner_id].zone_exs.get(&return_zone_coord(b.coord, map_sz)) {
-				if let Dist::NotInit = zone_ex.ret_city_hall_dist() {
-					set_city_hall_dist(b.coord, map_data, exs, &mut players[owner_id], bldgs, temps.doctrines, map_sz, gstate.turn);
+		{ // recompute city hall dists if not init
+			#[cfg(feature="profile")]
+			let _g = Guard::new("recompute city hall dists");
+			
+			for bldg_ind in bldg_inds.iter() {
+				let b = &bldgs[*bldg_ind];
+				let owner_id = b.owner_id as usize;
+				if let Some(zone_ex) = players[owner_id].zone_exs.get(&return_zone_coord(b.coord, map_sz)) {
+					if let Dist::NotInit = zone_ex.ret_city_hall_dist() {
+						set_city_hall_dist(b.coord, map_data, exs, &mut players[owner_id], bldgs, temps.doctrines, map_sz, gstate.turn);
+					}
 				}
 			}
 		}
 		
 		/////////////
-		// building productions
-		for bldg_ind in 0..bldgs.len() {
-			let player = &mut players[bldgs[bldg_ind].owner_id as usize];
-			build_unit(bldg_ind, disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, player, gstate, temps);
+		{ // building productions
+			#[cfg(feature="profile")]
+			let _g = Guard::new("building productions");
+			
+			for bldg_ind in 0..bldgs.len() {
+				let player = &mut players[bldgs[bldg_ind].owner_id as usize];
+				build_unit(bldg_ind, disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, player, gstate, temps);
+			}
 		}
 		
 		///////////
@@ -1381,8 +1431,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 		}
 		
 		//////////////////////////////
-		// sell products, add/rm residents, find jobs
-		{
+		{ // sell products, add/rm residents, find jobs
 			#[cfg(feature="profile")]
 			let _g = Guard::new("sell products, add/rm residents, find jobs");
 			
@@ -1428,7 +1477,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 						// add residents
 						if b.template.resident_max > b.n_residents() {
 							demand = Some(return_potential_demand(coord, map_data, exs, player, bldgs, map_sz, gstate.turn));
-							return_happiness(coord, map_data, exs, bldgs, player, temps.doctrines, gstate, map_sz);
+							return_happiness(coord, map_data, exs, bldgs, player, temps, gstate, map_sz);
 							let effective_tax = b.ret_taxable_upkeep_pre_operating_frac();
 							
 							//println!("demand {} effective_tax {}", demand.unwrap(), -effective_tax);
@@ -1494,7 +1543,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 		}
 		/////////////
 		
-		randomly_update_happiness(map_data, exs, players, bldgs, temps.doctrines, gstate, map_sz);
+		randomly_update_happiness(map_data, exs, players, bldgs, temps, gstate, map_sz);
 		
 		////////////////////////
 		// fire damage
@@ -1522,38 +1571,41 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 		}
 	}
 	
-	// update prevailing doctrine
-	for player in players.iter_mut() {
-		let pstats = &mut player.stats;
-		let mut max_val = pstats.locally_logged.doctrinality_sum[0];
-		let prev_prevailing = pstats.doctrine_template;
-		pstats.doctrine_template = &temps.doctrines[0];
+	{ // update prevailing doctrine
+		#[cfg(feature="profile")]
+		let _g = Guard::new("update prevailing doctrine");
 		
-		for (doc_pts, d) in pstats.locally_logged.doctrinality_sum.iter()
-							.zip(temps.doctrines.iter())
-							.skip(1) {
-			if !d.bldg_reqs_met(pstats) || max_val >= *doc_pts {continue;}
+		for player in players.iter_mut() {
+			let pstats = &mut player.stats;
+			let mut max_val = pstats.locally_logged.doctrinality_sum[0];
+			let prev_prevailing = pstats.doctrine_template;
+			pstats.doctrine_template = &temps.doctrines[0];
 			
-			max_val = *doc_pts;
-			pstats.doctrine_template = d;
-		}
-		
-		// log change of doctrine and potentially open alert window
-		if pstats.doctrine_template != prev_prevailing {
-			gstate.logs.push(Log {turn: gstate.turn,
-					val: LogType::PrevailingDoctrineChanged {
-						owner_id: player.id as usize,
-						doctrine_frm_id: prev_prevailing.id,
-						doctrine_to_id: pstats.doctrine_template.id,
-			}});
+			for (doc_pts, d) in pstats.locally_logged.doctrinality_sum.iter()
+								.zip(temps.doctrines.iter())
+								.skip(1) {
+				if !d.bldg_reqs_met(pstats) || max_val >= *doc_pts {continue;}
+				
+				max_val = *doc_pts;
+				pstats.doctrine_template = d;
+			}
 			
-			if player.id == disp.state.iface_settings.cur_player {
-				disp.create_interrupt_window(UIMode::PrevailingDoctrineChangedWindow(PrevailingDoctrineChangedWindowState {}));
+			// log change of doctrine and potentially open alert window
+			if pstats.doctrine_template != prev_prevailing {
+				gstate.log_event(LogType::PrevailingDoctrineChanged {
+					owner_id: player.id as usize,
+					doctrine_frm_id: prev_prevailing.id,
+					doctrine_to_id: pstats.doctrine_template.id,
+				});
+				
+				if player.id == disp.state.iface_settings.cur_player {
+					disp.create_interrupt_window(UIMode::PrevailingDoctrineChangedWindow(PrevailingDoctrineChangedWindowState {}));
+				}
 			}
 		}
 	}
 	
-	research_techs(players, temps, disp);
+	research_techs(players, &mut gstate.relations, temps, disp);
 	
 	gstate.turn += 1;
 	disp.state.iface_settings.update_all_player_pieces_mvd_flag(units);
@@ -1578,163 +1630,148 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 		AddActionTo::IndividualUnit {..} => {}
 	}
 	
-	///////////////////////// update gold
-	for owner_id in 0..players.len() {
-		let player = &players[owner_id];
-		match player.ptype {
-			PlayerType::Barbarian(_) => {continue;}
-			PlayerType::Empire(_) | PlayerType::Human(_) | PlayerType::Nobility(_) => {}
-		}
-		if !player.stats.alive {continue;}
+	{ ///////////////////////// update gold
+		#[cfg(feature="profile")]
+		let _g = Guard::new("update gold");
 		
-		struct Expense { // for units and blgs (separately)
-			upkeep: f32,
-		  	ind: usize
-		};
-		
-		//////////// remove units
-		if in_debt(&player.stats) {
-			/////////// find max unit to remove
-			let mut unit_expenses = Vec::with_capacity(units.len());
-			
-			for (unit_ind, u) in units.iter().enumerate() {
-				if u.owner_id != owner_id as u32 {continue;}
-				unit_expenses.push(Expense {upkeep: u.template.upkeep, ind: unit_ind});
+		for owner_id in 0..players.len() {
+			let player = &players[owner_id];
+			match player.ptype {
+				PlayerType::Barbarian(_) => {continue;}
+				PlayerType::Empire(_) | PlayerType::Human(_) | PlayerType::Nobility(_) => {}
 			}
+			if !player.stats.alive {continue;}
 			
-			// sort from least to greatest
-			unit_expenses.sort_by(|a, b| a.upkeep.partial_cmp(&b.upkeep).unwrap_or(Ordering::Less));
+			struct Expense { // for units and blgs (separately)
+				upkeep: f32,
+				ind: usize
+			};
 			
-			// remove units
-			while in_debt(&players[owner_id].stats) {
-				if let Some(unit_expense) = unit_expenses.pop() {
-					// log
-					gstate.logs.push(Log {turn: gstate.turn,
-							   val: LogType::UnitDisbanded {
-							   	owner_id,
-								unit_nm: units[unit_expense.ind].nm.clone(),
-								unit_type_nm: units[unit_expense.ind].template.nm[disp.state.local.lang_ind].clone()
-					}});
-					
-					disband_unit(unit_expense.ind, owner_id as SmSvType == disp.state.iface_settings.cur_player, units, map_data, exs, players, gstate, map_sz);
-					
-					// last unit_ind should be updated to unit_expense.ind because it swapped position
-					for unit_expense_update in unit_expenses.iter_mut() {
-						if unit_expense_update.ind != units.len() {continue;}
-						*unit_expense_update = unit_expense;
-						break;
-					}
-				} else {break;} // no more units to remove
-			}
-		}
-		
-		let mut n_cities = bldgs.iter().filter(|b| { 
-			if let BldgArgs::PopulationCenter {..} = &b.args {
-				return b.owner_id == owner_id as SmSvType;
-			}
-			false
-		}).count();
-		
-		///////// remove buildings and possibly collapse civ
-		if in_debt(&players[owner_id].stats) {
-			/////////// find max bldg to remove
-			let mut bldg_expenses = Vec::with_capacity(bldgs.len());
-			
-			for (bldg_ind, b) in bldgs.iter().enumerate() {
-				if b.owner_id != owner_id as u32 {continue;}
-				bldg_expenses.push(Expense {upkeep: b.template.upkeep, ind: bldg_ind});
-			}
-			
-			// sort from least to greatest
-			bldg_expenses.sort_by(|a, b| a.upkeep.partial_cmp(&b.upkeep).unwrap_or(Ordering::Less));
-			
-			// remove bldgs
-			while in_debt(&players[owner_id].stats) {
-				if let Some(bldg_expense) = bldg_expenses.pop() {
-					// log bldg or city being destroyed
-					{
-						let b_rm = &bldgs[bldg_expense.ind];
-						if let BldgArgs::PopulationCenter {nm, ..} = &b_rm.args {
-							gstate.logs.push(Log {turn: gstate.turn,
-									   val: LogType::CityDisbanded {
-										owner_id,
-										city_nm: nm.clone()
-							}});
-							
-							n_cities -= 1;
-						}else if let BldgType::Gov(_) = b_rm.template.bldg_type {
-							gstate.logs.push(Log {turn: gstate.turn,
-									val: LogType::BldgDisbanded {
-										owner_id,
-										bldg_nm: b_rm.template.nm[disp.state.local.lang_ind].clone()
-							}});
-						}
-					}
-					
-					rm_bldg(bldg_expense.ind, owner_id as SmSvType == disp.state.iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, players, UnitDelAction::Delete {units, gstate}, map_sz);
-					
-					// last bldg_ind should be updated to bldg_expense.ind because it swapped position
-					for bldg_expense_update in bldg_expenses.iter_mut() {
-						if bldg_expense_update.ind != bldgs.len() {continue;}
-						*bldg_expense_update = bldg_expense;
-						break;
-					}
-				} else { // no more bldgs to remove, but still in debt?
-					#[cfg(any(feature="opt_debug", debug_assertions))]
-					{
-						endwin();
-						let pstats = &players[owner_id].stats;
+			//////////// remove units
+			if in_debt(&player.stats, players, &gstate.relations) {
+				/////////// find max unit to remove
+				let mut unit_expenses = Vec::with_capacity(units.len());
+				
+				for (unit_ind, u) in units.iter().enumerate().filter(|(_, u)| u.owner_id == owner_id as u32) {
+					unit_expenses.push(Expense {upkeep: u.template.upkeep, ind: unit_ind});
+				}
+				
+				// sort from least to greatest
+				unit_expenses.sort_by(|a, b| a.upkeep.partial_cmp(&b.upkeep).unwrap_or(Ordering::Less));
+				
+				// remove units
+				while in_debt(&players[owner_id].stats, players, &gstate.relations) {
+					if let Some(unit_expense) = unit_expenses.pop() {
+						// log
+						gstate.log_event(LogType::UnitDisbanded {
+							owner_id,
+							unit_nm: units[unit_expense.ind].nm.clone(),
+							unit_type_nm: units[unit_expense.ind].template.nm[disp.state.local.lang_ind].clone()
+						});
 						
-						println!("owner_id {}", owner_id);
-						println!("gold {}", pstats.gold);
-						println!("employed {}", pstats.employed);
-						println!("tax_income {}", pstats.tax_income);
-						println!("unit_expenses {}", pstats.unit_expenses);
-						println!("bldg_expenses {}", pstats.bldg_expenses);
-						panicq!("civilization in debt but has no buildings or units");
+						disband_unit(unit_expense.ind, owner_id as SmSvType == disp.state.iface_settings.cur_player, units, map_data, exs, players, gstate, map_sz);
+						
+						// last unit_ind should be updated to unit_expense.ind because it swapped position
+						for unit_expense_update in unit_expenses.iter_mut().filter(|unit_expense_update| unit_expense_update.ind == units.len()) {
+							*unit_expense_update = unit_expense;
+							break;
+						}
+					} else {break;} // no more units to remove
+				}
+			}
+			
+			let mut n_cities = bldgs.iter().filter(|b| { 
+				if let BldgArgs::PopulationCenter {..} = &b.args {
+					return b.owner_id == owner_id as SmSvType;
+				}
+				false
+			}).count();
+			
+			///////// remove buildings and possibly collapse civ
+			if in_debt(&players[owner_id].stats, players, &gstate.relations) {
+				/////////// find max bldg to remove
+				let mut bldg_expenses = Vec::with_capacity(bldgs.len());
+				
+				for (bldg_ind, b) in bldgs.iter().enumerate() {
+					if b.owner_id != owner_id as u32 {continue;}
+					bldg_expenses.push(Expense {upkeep: b.template.upkeep, ind: bldg_ind});
+				}
+				
+				// sort from least to greatest
+				bldg_expenses.sort_by(|a, b| a.upkeep.partial_cmp(&b.upkeep).unwrap_or(Ordering::Less));
+				
+				// remove bldgs
+				while in_debt(&players[owner_id].stats, players, &gstate.relations) {
+					if let Some(bldg_expense) = bldg_expenses.pop() {
+						{ // log bldg or city being destroyed 
+							let b_rm = &bldgs[bldg_expense.ind];
+							if let BldgArgs::PopulationCenter {nm, ..} = &b_rm.args {
+								gstate.log_event(LogType::CityDisbanded {owner_id, city_nm: nm.clone()});
+								
+								n_cities -= 1;
+							}else if let BldgType::Gov(_) = b_rm.template.bldg_type {
+								gstate.log_event(LogType::BldgDisbanded {
+									owner_id,
+									bldg_nm: b_rm.template.nm[disp.state.local.lang_ind].clone()
+								});
+							}
+						}
+						
+						rm_bldg(bldg_expense.ind, owner_id as SmSvType == disp.state.iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, players, UnitDelAction::Delete {units, gstate}, map_sz);
+						
+						// last bldg_ind should be updated to bldg_expense.ind because it swapped position
+						for bldg_expense_update in bldg_expenses.iter_mut() {
+							if bldg_expense_update.ind != bldgs.len() {continue;}
+							*bldg_expense_update = bldg_expense;
+							break;
+						}
+					} else { // no more bldgs to remove, but still in debt?
+						#[cfg(any(feature="opt_debug", debug_assertions))]
+						{
+							endwin();
+							let pstats = &players[owner_id].stats;
+							
+							println!("owner_id {}", owner_id);
+							println!("gold {}", pstats.gold);
+							println!("employed {}", pstats.employed);
+							println!("tax_income {}", pstats.tax_income);
+							println!("unit_expenses {}", pstats.unit_expenses);
+							println!("bldg_expenses {}", pstats.bldg_expenses);
+							panicq!("civilization in debt but has no buildings or units");
+						}
+						#[cfg(not(any(feature="opt_debug", debug_assertions)))]
+						break;
 					}
-					#[cfg(not(any(feature="opt_debug", debug_assertions)))]
-					break;
-				}
-			}	
-		}
-		
-		/////////// civ collapsed -- removed all units, bldgs, zones
-		if n_cities == 0 && players[owner_id].req_population_center(gstate.turn) {
-			gstate.logs.push(Log {
-				turn: gstate.turn,
-				val: LogType::CivCollapsed {owner_id}
-			});
-			
-			// rm units in reverse order to avoid index issues
-			for unit_ind in (0..units.len()).rev() {
-				if (owner_id as SmSvType) == units[unit_ind].owner_id {
-					disband_unit(unit_ind, owner_id as SmSvType == disp.state.iface_settings.cur_player, units, map_data, exs, players, gstate, map_sz);
-				}
+				}	
 			}
 			
-			// rm bldgs in reverse order to avoid index issues (the tax paying bldgs weren't removed above)
-			for bldg_ind in (0..bldgs.len()).rev() {
-				if (owner_id as SmSvType) == bldgs[bldg_ind].owner_id {
-					rm_bldg(bldg_ind, owner_id as SmSvType == disp.state.iface_settings.cur_player, bldgs, temps.bldgs, map_data, exs, players, UnitDelAction::Delete {units, gstate}, map_sz);
-				}
+			/////////// civ collapsed -- removed all units, bldgs, zones
+			if n_cities == 0 && players[owner_id].req_population_center(gstate.turn) {
+				gstate.log_event(LogType::CivCollapsed {owner_id});
+				civ_collapsed(owner_id, &mut None, players, units, bldgs, map_data, exs, gstate, map_sz, temps, disp);
 			}
 			
-			rm_player_zones(owner_id, bldgs, temps, players, exs, map_data, map_sz);
-			civ_destroyed(&mut players[owner_id], gstate, disp);
+			///////// update gold
+			let net_income = players[owner_id].stats.net_income(players, &gstate.relations);
+			let pstats = &mut players[owner_id].stats;
+			pstats.gold += net_income;
+			debug_assertq!(pstats.gold >= 0. || approx_eq_tol(pstats.gold, 0., TOL), "negative gold {}, owner: {}, tax_income {} unit_expenses {} bldg_expenses {} bldgs.len() {}",
+					pstats.gold, owner_id, pstats.tax_income, pstats.unit_expenses, pstats.bldg_expenses, bldgs.len());
 		}
-		
-		///////// update gold
-		let pstats = &mut players[owner_id].stats;
-		pstats.gold += pstats.net_income();
-		debug_assertq!(pstats.gold >= 0. || approx_eq_tol(pstats.gold, 0., TOL), "negative gold {}, owner: {}, tax_income {} unit_expenses {} bldg_expenses {} bldgs.len() {}",
-				pstats.gold, owner_id, pstats.tax_income, pstats.unit_expenses, pstats.bldg_expenses, bldgs.len());
 	}
 	
 	////////////////////// logging
 	if (gstate.turn % LOG_TURNS) == 0 {
+		#[cfg(feature="profile")]
+		let _g = Guard::new("logging");
+	
 		// log gold, population, zone demands
-		for player in players.iter_mut() {
+		//for player in players.iter_mut() {
+		for player_ind in 0..players.len() {
+			let net_income = players[player_ind].stats.net_income(players, &gstate.relations);
+			players[player_ind].stats.net_income_log.push(net_income);
+			
+			let player = &mut players[player_ind];
 			let pstats = &mut player.stats;
 			pstats.alive_log.push(pstats.alive);
 			pstats.population_log.push(pstats.population);
@@ -1754,7 +1791,6 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				pstats.health_log.push(pstats.health + d.health_bonus);
 			}
 			
-			pstats.net_income_log.push(pstats.net_income());
 			pstats.defense_power_log.push(0);
 			pstats.offense_power_log.push(0);
 			
@@ -1769,8 +1805,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 			
 			pstats.research_per_turn_log.push(pstats.research_per_turn);
 			
-			// research completed
-			{
+			{ // research completed
 				let mut research_completed = 0;
 				for (tp, tech_template) in pstats.techs_progress.iter()
 									.zip(temps.techs.iter()) {
@@ -1805,8 +1840,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 		}
 	}
 	
-	//////////////////////// auto-save
-	{
+	{ //////////////////////// auto-save
 		let day = (gstate.turn) % (30*12);
 		if day == 0 {
 			let year = gstate.turn/(30*12);
@@ -1817,7 +1851,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 	}
 	
 	#[cfg(any(feature="opt_debug", debug_assertions))]
-	chk_data(units, bldgs, exs, players, temps.doctrines, map_data, map_sz);
+	chk_data(units, bldgs, exs, players, &gstate.relations, temps.doctrines, map_data, map_sz);
 	
 	frame_stats.update(frame_start);
 }

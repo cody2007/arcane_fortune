@@ -7,7 +7,7 @@ use crate::player::Player;
 
 use super::*;
 
-impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn end_window(&mut self){
 		self.reset_auto_turn();
 		self.ui_mode = UIMode::None;
@@ -85,19 +85,84 @@ pub fn tree_window_movement(k: i32, sel_mv: &mut TreeSelMv, tree_offsets: &mut O
 	}
 }
 
+// called in individual window/states/*.rs for list mode updating
+// returns true if action should be performed
+pub fn list_mode_update_and_action(mode: &mut usize, n_items: usize, dstate: &DispState) -> bool {
+	if n_items == 0 {return false;}
+	
+	// mouse click
+	if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {
+		*mode = ind;
+		return true;
+	}
+	
+	// keyboard
+	match dstate.key_pressed {
+		k if dstate.kbd.down(k) => {
+			if (*mode + 1) <= (n_items-1) {
+				*mode += 1;
+			}else{
+				*mode = 0;
+			}
+		
+		// up
+		} k if dstate.kbd.up(k) => {
+			if *mode > 0 {
+				*mode -= 1;
+			}else{
+				*mode = n_items - 1;
+			}
+			
+		// enter
+		} k if k == dstate.kbd.enter => {
+			return true;
+		} _ => {}
+	}
+	false
+}
+
+// called in individual window/states/*.rs for list mode updating
+// returns true if action should be performed
+pub fn button_mode_update_and_action(mode: &mut usize, buttons: Vec<&mut Button>, key_pressed: i32,
+		mouse_event: &Option<MEVENT>, kbd: &KeyboardMap) -> Option<usize> {
+	// button is activated
+	if let Some(button_ind) = buttons.iter().position(|button| button.activated(0, mouse_event)) {
+		return Some(button_ind);
+	}
+	
+	// update hovered
+	if let Some(button_ind) = buttons.iter().position(|button| button.hovered(mouse_event)) {
+		*mode = button_ind;
+	}
+	
+	// key pressed
+	match key_pressed {
+		k if kbd.up(k) => {if *mode > 0 {*mode -= 1;} else {*mode = buttons.len()-1;}
+		} k if kbd.down(k) => {if *mode < (buttons.len()-1) {*mode += 1;} else {*mode = 0;}
+		// enter
+		} k if k == kbd.enter => {
+			return Some(*mode);
+		} _ => {}
+	}
+	
+	None
+}
+
 // returns true if window active, false if not active or no longer active
 pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, disp: &mut Disp<'f,'bt,'ut,'rt,'dt>,
+		units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, disp: &mut Disp<'f,'_,'bt,'ut,'rt,'dt>,
 		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		game_control: &mut GameControl, frame_stats: &FrameStats, game_difficulties: &GameDifficulties) -> UIRet {
 	
 	let dstate = &mut disp.state;
+	
+	if let UIMode::Trade(_) = &disp.ui_mode {} else // <- ignore this window because it will show sub-windows which use Esc_to_close, and we do not want to close the main trade screen when they close
 	if dstate.buttons.Esc_to_close.activated(dstate.key_pressed, &dstate.mouse_event) {
 		disp.end_window();
 		return UIRet::Active;
 	}
 	
-	// mouse hovering
+	// mouse hovering over list
 	if let Some(ind) = dstate.buttons.list_item_hovered(&dstate.mouse_event) {
 		match disp.ui_mode {
 			// window w/ inactive entries -- prevent inactive items from being selected
@@ -116,6 +181,8 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, exs: &mut
 			}
 			
 			// windows with lists
+			UIMode::IntroNobilityJoinOptions(IntroNobilityJoinOptionsState {ref mut mode, ..}) |
+			UIMode::NobilityDeclaresIndependenceWindow(NobilityDeclaresIndependenceWindowState {ref mut mode, ..}) |
 			UIMode::CivilizationIntelWindow(CivilizationIntelWindowState {ref mut mode, ..}) |
 			UIMode::DiscoverTechWindow(DiscoverTechWindowState {ref mut mode}) |
 			UIMode::ObtainResourceWindow(ObtainResourceWindowState {ref mut mode}) |
@@ -133,7 +200,23 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, exs: &mut
 			UIMode::CreateSectorAutomation(CreateSectorAutomationState {ref mut mode, ..}) |
 			UIMode::ProdListWindow(ProdListWindowState {ref mut mode}) |
 			UIMode::CurrentBldgProd(CurrentBldgProdState {ref mut mode}) |
+			UIMode::NobilityRequestWindow(NobilityRequestWindowState {ref mut mode, ..}) |
+			UIMode::ViewTrade(ViewTradeState {ref mut mode, ..}) |
+			UIMode::ContactNobilityWindow(ContactNobilityState::NobilitySelection {ref mut mode}) |
+			UIMode::ContactNobilityWindow(ContactNobilityState::PopulationTargetSelection {ref mut mode, ..}) |
 			UIMode::SelectBldgDoctrine(SelectBldgDoctrineState {ref mut mode, ..}) |
+			UIMode::Trade( // player is selecting an item to trade
+				TradeState {
+					add_trade_item: Some(
+						AddTradeItemUI {
+							state: 
+								AddTradeItemStateUI::SelItemType {ref mut mode},
+							..
+						}
+					),
+					..
+				}
+			) |
 			UIMode::SelectExploreType(SelectExploreTypeState {ref mut mode}) |
 			UIMode::NoblePedigree(NoblePedigreeState {ref mut mode, ..}) |
 			UIMode::EncyclopediaWindow(EncyclopediaWindowState::CategorySelection {ref mut mode}) |
@@ -148,6 +231,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, exs: &mut
 			// windows that do not use lists
 			UIMode::None |
 			UIMode::Trade(_) |
+			UIMode::SetNobleTax(_) |
 			UIMode::TextTab {..} |
 			UIMode::SetTaxes(_) |
 			UIMode::Menu {..} |
@@ -165,7 +249,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, exs: &mut
 			UIMode::ResourcesAvailableWindow(_) |
 			UIMode::HistoryWindow(_) |
 			UIMode::ContactNobilityWindow(_) |
-			UIMode::WarStatusWindow(_) |
+			UIMode::WarStatusWindow(_) | UIMode::FriendsAndFoesWindow(_) |
 			UIMode::GoToCoordinateWindow(_) |
 			UIMode::MvWithCursorNoActionsRemainAlert(_) |
 			UIMode::PrevailingDoctrineChangedWindow(_) |
@@ -178,28 +262,29 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, exs: &mut
 		}
 	}
 	
-	let map_sz = map_data.map_szs.last().unwrap();
+	let map_sz = map_data.map_szs.last().unwrap().clone();
 	let exf = exs.last().unwrap();
 	let cur_player = dstate.iface_settings.cur_player as usize;
 	let pstats = &mut players[cur_player].stats;
-	let cursor_coord = dstate.iface_settings.cursor_to_map_coord(map_data); // immutable borrow
 	
 	let ret = match &mut disp.ui_mode {
 		UIMode::None | UIMode::SetTaxes(_) | UIMode::TextTab {..} | UIMode::Menu {..} => {return UIRet::Inactive;}
-		UIMode::Trade(state) => {state.keys()}
+		UIMode::IntroNobilityJoinOptions(state) => {state.keys(players, units, bldgs, map_data, exs, gstate, temps, dstate)}
+		UIMode::Trade(state) => {state.keys(players, gstate, temps, map_data, dstate)}
+		UIMode::ViewTrade(state) => {state.keys(gstate, players, dstate)}
 		UIMode::SelectExploreType(state) => {state.keys(players, units, bldgs, gstate, map_data, exs, dstate)}
-		UIMode::ContactNobilityWindow(state) => {state.keys(dstate)}
+		UIMode::ContactNobilityWindow(state) => {state.keys(players, gstate, exs.last().unwrap(), bldgs, dstate)}
 		UIMode::SwitchToPlayerWindow(state) => {state.keys(players, temps, map_data, dstate)}
-		UIMode::ResourcesDiscoveredWindow(state) => {state.keys(units, bldgs, players, map_data, exs, temps, gstate, &players[cur_player].stats, dstate)}
+		UIMode::ResourcesDiscoveredWindow(state) => {state.keys(map_data, temps, &players[cur_player].stats, dstate)}
 		UIMode::CivilizationIntelWindow(state) => {state.keys(gstate, players, dstate)}
 		UIMode::DoctrineWindow(state) => {state.keys(dstate)}
-		UIMode::GoToCoordinateWindow(state) => {state.keys(gstate, map_data, players, units, bldgs, exs, dstate)}
+		UIMode::GoToCoordinateWindow(state) => {state.keys(map_data, dstate)}
 		UIMode::AcceptNobilityIntoEmpire(state) => {state.keys(gstate, players, dstate)}
 		UIMode::NoblePedigree(state) => {state.keys(gstate, players, dstate)}
 		UIMode::TechWindow(state) => {state.keys(pstats, temps, dstate)}
-		UIMode::ContactEmbassyWindow(state) => {state.keys(players, gstate, dstate)}
+		UIMode::ContactEmbassyWindow(state) => {state.keys(players, gstate, temps, dstate)}
 		UIMode::OpenWindow(state) => {state.keys(game_control, dstate)}
-		UIMode::NobleUnitsWindow(state) => {state.keys(players, gstate, units, bldgs, map_data, exs, dstate)}
+		UIMode::NobleUnitsWindow(state) => {state.keys(players, gstate, units, map_data, dstate)}
 		UIMode::GetTextWindow(state) => {state.keys(dstate)}
 		UIMode::EncyclopediaWindow(state) => {state.keys(temps, dstate)}
 		UIMode::SaveAsWindow(state) => {state.keys(gstate, map_data, exs, temps, bldgs, units, players, frame_stats, dstate)}
@@ -211,20 +296,24 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, exs: &mut
 		UIMode::SelectBldgDoctrine(state) => {state.keys(units, pstats, map_data, exf, temps, dstate)}
 		UIMode::HistoryWindow(state) => {state.keys(gstate, dstate)}
 		UIMode::BrigadeBuildList(state) => {state.keys(&mut players[cur_player].stats, units, dstate)}
-		UIMode::BrigadesWindow(state) => {state.keys(players, units, bldgs, map_data, gstate, exs, dstate)}
-		UIMode::CitiesWindow(state) => {state.keys(units, bldgs, players, map_data, exs, gstate, dstate)}
+		UIMode::BrigadesWindow(state) => {state.keys(players, units, map_data, dstate)}
+		UIMode::CitiesWindow(state) => {state.keys(bldgs, map_data, gstate, dstate)}
 		UIMode::CreateSectorAutomation(state) => {state.keys(pstats, units, map_data, exf, dstate)}
-		UIMode::BldgsWindow(state) => {state.keys(players, temps, units, bldgs, map_data, exs, gstate, dstate)}
-		UIMode::UnitsWindow(state) => {state.keys(players, units, bldgs, map_data, exs, gstate, temps, dstate)}
-		UIMode::ManorsWindow(state) => {state.keys(players, units, bldgs, gstate, map_data, exs, dstate)}
-		UIMode::SectorsWindow(state) => {state.keys(players, units, bldgs, gstate, map_data, exs, *map_sz, dstate)}
+		UIMode::BldgsWindow(state) => {state.keys(temps, bldgs, map_data, dstate)}
+		UIMode::UnitsWindow(state) => {state.keys(players, units, map_data, dstate)}
+		UIMode::ManorsWindow(state) => {state.keys(players, bldgs, gstate, map_data, dstate)}
+		UIMode::SectorsWindow(state) => {state.keys(players, map_data, map_sz, dstate)}
 		UIMode::DiscoverTechWindow(state) => {state.keys(pstats, temps, dstate)}
 		UIMode::ObtainResourceWindow(state) => {state.keys(pstats, temps, dstate)}
 		UIMode::SetDifficultyWindow(state) => {state.keys(players, game_difficulties, dstate)}
+		UIMode::NobilityRequestWindow(state) => {state.keys(players, bldgs, gstate, temps, map_data, exs, dstate)}
+		UIMode::InitialGameWindow(state) => {state.keys(players, temps, map_data, exf, map_sz, gstate, dstate)}
+		UIMode::NobilityDeclaresIndependenceWindow(state) => {state.keys(players, gstate, dstate)}
+		UIMode::SetNobleTax(state) => {state.keys(&mut gstate.relations, dstate)}
 		
 		// no key actions
-		UIMode::ResourcesAvailableWindow(_) | UIMode::AboutWindow(_) | UIMode::TechDiscoveredWindow(_) |
-		UIMode::WarStatusWindow(_) | UIMode::InitialGameWindow(_) | UIMode::EndGameWindow(_) | UIMode::CivicAdvisorsWindow(_) |
+		UIMode::ResourcesAvailableWindow(_) | UIMode::AboutWindow(_) | UIMode::TechDiscoveredWindow(_) | UIMode::FriendsAndFoesWindow(_) |
+		UIMode::WarStatusWindow(_) | UIMode::EndGameWindow(_) | UIMode::CivicAdvisorsWindow(_) |
 		UIMode::UnmovedUnitsNotification(_) | UIMode::RiotingAlert(_) | UIMode::MvWithCursorNoActionsRemainAlert(_) |
 		UIMode::CitizenDemandAlert(_) | UIMode::PublicPollingWindow(_) | UIMode::GenericAlert(_) |
 		UIMode::PrevailingDoctrineChangedWindow(_) | UIMode::ForeignUnitInSectorAlert(_) => {

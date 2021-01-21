@@ -22,8 +22,7 @@ impl InitialGameWindowState {
 		let owner = &players[dstate.iface_settings.cur_player as usize];
 		let mut window_w = format!("{} has been founded!", owner.personalization.nm).len() as i32;
 		
-		// determine max width of window
-		{
+		{ // determine max width of window
 			for txt in INTRO_TXT.iter() {
 				if window_w < (txt.len() as i32) {window_w = txt.len() as i32;}
 			}
@@ -61,16 +60,14 @@ impl InitialGameWindowState {
 			pr!();
 		};};
 		
-		/////// top ln
-		{
+		{ /////// top ln
 			d.mv(row, col); row += 1;
 			d.addch(dstate.chars.ulcorner_char);
 			for _ in 0..(window_w-2) {d.addch(dstate.chars.hline_char);}
 			d.addch(dstate.chars.urcorner_char);
 		}
 		
-		//////// print title: {} has been founded!
-		{
+		{ //////// print title: {} has been founded!
 			pl!();
 			let txt_len = format!("{} has been founded!", owner.personalization.nm).len() as i32;
 			for _ in 0..((window_w - txt_len)/2) {d.addch(' ');}
@@ -92,21 +89,35 @@ impl InitialGameWindowState {
 					
 		bln!();
 		
-		//////// esc
-		{
+		{ ///////// esc
 			pl!();
-			let button = &mut dstate.buttons.Esc_to_close;
+			let button = &mut dstate.buttons.Esc_to_continue;
 			for _ in 0..((window_w - button.print_txt(l).len() as i32)/2) {d.addch(' ');}
 			button.print(None, l, d);
 			clr!();
 		}
 		
-		////// bottom ln
-		{
+		{ ////// bottom ln
 			d.mv(row, col);
 			d.addch(dstate.chars.llcorner_char);
 			for _ in 0..(window_w-2) {d.addch(dstate.chars.hline_char);}
 			d.addch(dstate.chars.lrcorner_char);
+		}
+		UIModeControl::UnChgd
+	}
+	
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, players: &Vec<Player>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+			map_data: &mut MapData<'rt>, exf: &HashedMapEx<'bt,'ut,'rt,'dt>,
+			map_sz: MapSz, gstate: &mut GameState,
+			dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
+		if dstate.buttons.Esc_to_continue.activated(dstate.key_pressed, &dstate.mouse_event) {
+			let player_coord = dstate.iface_settings.cursor_to_map_ind(map_data);
+			
+			return if let Some(intro_nobility_join_options) = IntroNobilityJoinOptionsState::new(player_coord, players, temps, map_data, exf, map_sz, gstate) {
+				UIModeControl::New(UIMode::IntroNobilityJoinOptions(intro_nobility_join_options))
+			}else{
+				UIModeControl::Closed
+			};
 		}
 		UIModeControl::UnChgd
 	}

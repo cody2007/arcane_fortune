@@ -81,7 +81,7 @@
 pub type chtype = u32;
 pub type CInt = i32;
 pub type CShort = i16;
-use crate::disp_lib::curses::{MEVENT, mmask_t};
+use crate::renderer::curses::{MEVENT, mmask_t};
 use std::os::raw::{c_int};
 
 #[repr(C, packed)]

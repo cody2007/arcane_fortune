@@ -429,6 +429,24 @@ impl MemWShape for &Tensor {
 	}
 }
 
+impl MemWShape for Tensor {
+	fn mem(&self) -> gpuMem_t {self.mem.val}
+	
+	fn shape(&self) -> Vec<c_int> {
+		let mut s = Vec::with_capacity(4);
+		
+		s.push(self.shape.n);
+		if self.shape.c == 1 && self.shape.h == 1 && self.shape.w == 1 {return s;}
+		s.push(self.shape.c);
+		if self.shape.h == 1 && self.shape.w == 1 {return s;}
+		s.push(self.shape.h);
+		if self.shape.w == 1 {return s;}
+		s.push(self.shape.w);
+		
+		s
+	}
+}
+
 impl MemWShape for Filter {
 	fn mem(&self) -> gpuMem_t {self.mem.val}
 	

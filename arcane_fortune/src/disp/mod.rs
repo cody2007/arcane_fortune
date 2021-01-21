@@ -6,10 +6,10 @@ use crate::buildings::*;
 use crate::gcore::hashing::{HashedMapEx};
 use crate::zones::{FogVars, return_zone_coord, StructureData};
 use crate::ai::*;
-use crate::player::{Player, PlayerType, Stats, PersonName};
+use crate::player::{Player, PlayerType, Stats};
 use crate::localization::Localization;
 use crate::containers::*;
-use crate::gcore::Relations;
+use crate::gcore::{TURNS_PER_YEAR, Relations};
 
 mod vars;
 mod fns;
@@ -35,6 +35,7 @@ pub mod draw_selection; pub use draw_selection::*;
 pub mod buttons; pub use buttons::*;
 pub mod pie_plot; pub use pie_plot::*;
 pub mod screen_reader; pub use screen_reader::*;
+pub mod arrow_key_movements; pub use arrow_key_movements::*;
 
 pub use vars::*;
 pub use fns::*;
@@ -50,147 +51,8 @@ pub use profiling::*;
 pub use tree::*;
 pub use fire::*;
 
-#[derive(PartialEq)]
-pub enum CoordSet {X, Y}
-
-pub const SCROLL_ACCEL_INIT: f32 = 4.;
-const SCROLL_ACCEL: f32 = 2.;
-const SCROLL_MAX_V: f32 = 100.;
-
-impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'bt,'ut,'rt,'dt> {
-	pub fn reset_unit_subsel(&mut self){
-		match self.state.iface_settings.add_action_to {
-			AddActionTo::None |
-			AddActionTo::NoUnit {..} |
-			AddActionTo::BrigadeBuildList {..} |
-			AddActionTo::AllInBrigade {..} => {
-				self.state.iface_settings.unit_subsel = 0;
-			} AddActionTo::IndividualUnit {..} => {}
-		}
-		self.ui_mode = UIMode::None;
-	}
-	
-	// for the cursor
-	pub fn linear_update(&mut self, coord_set: CoordSet, sign: isize, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, gstate: &mut GameState,
-			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz) {
-		if coord_set == CoordSet::X {
-			self.state.iface_settings.cur.x += sign;
-		}else{
-			self.state.iface_settings.cur.y += sign;
-		}
-		
-		self.state.iface_settings.reset_cur_accel();
-		self.reset_unit_subsel();
-		self.state.iface_settings.chk_cursor_bounds(map_data);
-		self.update_move_search_ui(map_data, exs, units, bldgs, gstate, players, map_sz);
-	}
-	
-	// input is in screen coordinates
-	pub fn set_text_coord(&mut self, coord: Coord, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
-			exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, map_data: &mut MapData<'rt>,
-			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz, gstate: &mut GameState) {
-		
-		self.state.iface_settings.cur = coord;
-		self.reset_unit_subsel();
-		self.state.iface_settings.chk_cursor_bounds(map_data);
-		self.update_move_search_ui(map_data, exs, units, bldgs, gstate, players, map_sz);
-	}
-	
-	// for the view
-	pub fn linear_update_screen(&mut self, coord_set: CoordSet, sign: isize, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, gstate: &mut GameState,
-			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz) {
-		if coord_set == CoordSet::X {
-			self.state.iface_settings.map_loc.x += sign;
-		}else{
-			self.state.iface_settings.map_loc.y += sign;
-		}
-		
-		self.state.iface_settings.reset_cur_accel();
-		self.reset_unit_subsel();
-		self.state.iface_settings.chk_cursor_bounds(map_data);
-		self.update_move_search_ui(map_data, exs, units, bldgs, gstate, players, map_sz);
-	}
-	
-	pub fn accel_update(&mut self, coord_set: CoordSet, sign: f32, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, gstate: &mut GameState,
-			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz) {
-		
-		let iface_settings = &mut self.state.iface_settings;
-		if coord_set == CoordSet::X {
-			iface_settings.cur.x = ((iface_settings.cur.x as f32) + (iface_settings.cur_v.x * sign)) as isize;
-			iface_settings.cur_v.x = if iface_settings.cur_v.x > SCROLL_MAX_V {SCROLL_MAX_V}
-					else {iface_settings.cur_v.x + SCROLL_ACCEL};
-				
-		}else{
-			iface_settings.cur.y = ((iface_settings.cur.y as f32) + (iface_settings.cur_v.y * sign)) as isize;
-			iface_settings.cur_v.y = if iface_settings.cur_v.y > SCROLL_MAX_V {SCROLL_MAX_V}
-					else {iface_settings.cur_v.y + SCROLL_ACCEL};
-		}
-		
-		self.reset_unit_subsel();
-		self.state.iface_settings.chk_cursor_bounds(map_data);
-		self.update_move_search_ui(map_data, exs, units, bldgs, gstate, players, map_sz);
-	}
-	
-	pub fn accel_update_screen(&mut self, coord_set: CoordSet, sign: f32, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, gstate: &mut GameState,
-			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz) {
-		let iface_settings = &mut self.state.iface_settings;
-		if coord_set == CoordSet::X {
-			iface_settings.map_loc.x = ((iface_settings.map_loc.x as f32) + (iface_settings.map_loc_v.x * sign)) as isize;
-			iface_settings.map_loc_v.x = if iface_settings.map_loc_v.x > SCROLL_MAX_V {SCROLL_MAX_V}
-					else {iface_settings.map_loc_v.x + SCROLL_ACCEL};
-		}else{
-			iface_settings.map_loc.y = ((iface_settings.map_loc.y as f32) + (iface_settings.map_loc_v.y * sign)) as isize;
-			iface_settings.map_loc_v.y = if iface_settings.map_loc_v.y > SCROLL_MAX_V {SCROLL_MAX_V}
-					else {iface_settings.map_loc_v.y + SCROLL_ACCEL};
-		}
-		
-		self.reset_unit_subsel();
-		self.state.iface_settings.chk_cursor_bounds(map_data);
-		self.update_move_search_ui(map_data, exs, units, bldgs, gstate, players, map_sz);
-	}
-	
-	pub fn chg_zoom(&mut self, inc: isize, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
-			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, gstate: &mut GameState,
-			players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, map_sz: MapSz) {
-		let iface_settings = &mut self.state.iface_settings;
-		if ((inc == 1) && (iface_settings.zoom_ind == map_data.max_zoom_ind())) ||
-			((inc == -1) && (iface_settings.zoom_ind - 1) == ZOOM_IND_SUBMAP) { return; }
-		
-		let zoom_ind_prev = iface_settings.zoom_ind;
-		if inc == 1 { iface_settings.zoom_ind += 1; } else { iface_settings.zoom_ind -= 1; }
-		
-		debug_assertq!(zoom_ind_prev <= map_data.max_zoom_ind());
-		debug_assertq!(iface_settings.zoom_ind <= map_data.max_zoom_ind());
-		
-		let dy = (iface_settings.cur.y as f32) - (MAP_ROW_START as f32);
-		let dx = iface_settings.cur.x as f32;
-		
-		let h_full = map_data.map_szs[ZOOM_IND_ROOT].h as f32;
-		let w_full = map_data.map_szs[ZOOM_IND_ROOT].w as f32;
-		
-		let frac_prev_h = h_full / map_data.map_szs[zoom_ind_prev].h as f32;
-		let frac_prev_w = w_full / map_data.map_szs[zoom_ind_prev].w as f32;
-		
-		let frac_h = h_full / map_data.map_szs[iface_settings.zoom_ind].h as f32;
-		let frac_w = w_full / map_data.map_szs[iface_settings.zoom_ind].w as f32;
-		
-		iface_settings.map_loc.y = (((frac_prev_h*(iface_settings.map_loc.y as f32)) + ((frac_prev_h - frac_h)*dy))/frac_h).round() as isize;
-		iface_settings.map_loc.x = (((frac_prev_w*(iface_settings.map_loc.x as f32)) + ((frac_prev_w - frac_w)*dx))/frac_w).round() as isize;
-		iface_settings.start_map_drag = None;
-		
-		iface_settings.chk_cursor_bounds(map_data);
-		if iface_settings.zoom_ind == map_data.max_zoom_ind() {
-			self.update_move_search_ui(map_data, exs, units, bldgs, gstate, players, map_sz);
-		}
-	}
-}
-
 // Interface settings
-impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
+impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 	pub fn set_screen_sz(&mut self){
 		let iface_settings = &mut self.iface_settings;
 		iface_settings.screen_sz = getmaxyxu(&self.renderer);
@@ -201,54 +63,6 @@ impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'bt,'ut,'rt,'dt> {
 	
 	pub fn plot_zone(&mut self, zone: ZoneType){
 		self.renderer.addch(self.chars.land_char as chtype | COLOR_PAIR(zone.to_color()));
-	}
-}
-
-impl IfaceSettings<'_,'_,'_,'_,'_> {
-	pub fn chk_cursor_bounds(&mut self, map_data: &MapData){
-		let screen_sz = self.screen_sz;
-		let map_sz = map_data.map_szs[self.zoom_ind];
-		let map_screen_sz = self.map_screen_sz;
-		
-		// update map_loc_ when scrolling and set cursor within screen boundaries
-		if self.cur.y < (MAP_ROW_START as isize) {
-			self.map_loc.y -= (MAP_ROW_START as isize) - self.cur.y + 1;
-			self.cur.y = MAP_ROW_START as isize;
-		}
-		if self.cur.x < 0 {
-			self.map_loc.x -= 1 - self.cur.x;
-			self.cur.x = 0;
-		}
-		
-		let d = (screen_sz.w as isize) - (MAP_COL_STOP_SZ as isize);
-		if self.cur.x >= d {
-			self.map_loc.x += self.cur.x - d + 1;
-			self.cur.x = d - 1;
-		}
-		
-		let d = (self.screen_sz.h as isize) - (MAP_ROW_STOP_SZ as isize);
-		if self.cur.y >= d {
-			self.map_loc.y += self.cur.y - d + 1;
-			self.cur.y = d - 1;
-		}
-
-		let d = map_sz.h as isize;
-		if self.cur.y > d {self.cur.y = d;}
-
-		// dont let map_loc_y get out of bounds
-		let d = (map_sz.h as isize) - (map_screen_sz.h as isize);
-		if self.map_loc.y > d {self.map_loc.y = d;}
-
-		if self.map_loc.y < 0 {self.map_loc.y = 0;}
-		
-		// wrap map_loc_x around map
-		let d = map_sz.w as isize;
-		if self.map_loc.x >= d {self.map_loc.x %= d;};
-		if self.map_loc.x < 0 {self.map_loc.x = d + (self.map_loc.x % d);}
-	}
-
-	pub fn reset_cur_accel(&mut self){
-		self.cur_v = VelocCoord {x: SCROLL_ACCEL_INIT, y: SCROLL_ACCEL_INIT};	
 	}
 }
 
@@ -412,7 +226,14 @@ fn plot_bldg(plot_coord: u64, bldgs: &Vec<Bldg>, ex: &MapEx, players: &Vec<Playe
 pub const ROAD_CHAR: chtype = ' ' as chtype;
 pub const GATE_CHAR: chtype = '=' as chtype;
 
-impl Disp<'_,'_,'_,'_,'_> {
+fn land_discovered(coord: u64, cur_player: usize, zoom_ind: usize, players: &Vec<Player>, relations: &Relations) -> bool {
+	players.iter().enumerate()
+		.filter(|(player_ind, _)|
+			*player_ind == cur_player || relations.fiefdom(cur_player, *player_ind))
+		.any(|(_, player)| player.stats.land_discov[zoom_ind].map_coord_ind_discovered(coord))
+}
+
+impl Disp<'_,'_,'_,'_,'_,'_> {
 	pub fn update_cursor(&mut self, pstats: &Stats, map_data: &mut MapData) {
 		// handle screen reader conditions where the cursor needs to be set other than the map
 		//	-menu
@@ -448,8 +269,15 @@ impl Disp<'_,'_,'_,'_,'_> {
 			// these windows need to show the cursor in another location (input)
 			UIMode::ContactEmbassyWindow(_) | UIMode::SaveAsWindow(_) |
 			UIMode::SaveAutoFreqWindow(_) | UIMode::GoToCoordinateWindow(_) | UIMode::Trade(_) |
-			UIMode::CreateSectorAutomation(CreateSectorAutomationState {sector_nm: Some(_), unit_enter_action: Some(_),
-				idle_action: Some(_), ..}) | 
+			UIMode::CreateSectorAutomation(
+				CreateSectorAutomationState {
+					sector_nm: Some(_),
+					unit_enter_action: Some(_),
+					idle_action: Some(_),
+					..
+				}
+			) | 
+			UIMode::SetNobleTax(_) |
 			UIMode::GetTextWindow(_) => {}
 			
 			// show cursor at selection location (on map) -- cursor is hidden for options != None
@@ -459,6 +287,7 @@ impl Disp<'_,'_,'_,'_,'_> {
 			UIMode::Menu {..} |
 			UIMode::ProdListWindow(_) |
 			UIMode::ContactNobilityWindow(_) |
+			UIMode::NobilityRequestWindow(_) |
 			UIMode::CurrentBldgProd(_) |
 			UIMode::SelectBldgDoctrine(_) |
 			UIMode::CitizenDemandAlert(_) |
@@ -466,6 +295,7 @@ impl Disp<'_,'_,'_,'_,'_> {
 			UIMode::SelectExploreType(_) |
 			UIMode::OpenWindow(_) |
 			UIMode::TechWindow(_) |
+			UIMode::ViewTrade(_) |
 			UIMode::CreateSectorAutomation(_) |
 			UIMode::DoctrineWindow(_) |
 			UIMode::PlotWindow(_) |
@@ -493,10 +323,10 @@ impl Disp<'_,'_,'_,'_,'_> {
 			UIMode::ResourcesAvailableWindow(_) |
 			UIMode::ResourcesDiscoveredWindow(_) |
 			UIMode::HistoryWindow(_) |
-			UIMode::WarStatusWindow(_) |
+			UIMode::WarStatusWindow(_) | UIMode::FriendsAndFoesWindow(_) |
 			UIMode::EncyclopediaWindow(_) |
-			UIMode::InitialGameWindow(_) |
-			UIMode::EndGameWindow(_) |
+			UIMode::InitialGameWindow(_) | UIMode::IntroNobilityJoinOptions(_) |
+			UIMode::EndGameWindow(_) | UIMode::NobilityDeclaresIndependenceWindow(_) |
 			UIMode::UnmovedUnitsNotification(_) |
 			UIMode::PrevailingDoctrineChangedWindow(_) |
 			UIMode::MvWithCursorNoActionsRemainAlert(_) |
@@ -532,7 +362,7 @@ impl Disp<'_,'_,'_,'_,'_> {
 	
 	// `coord` is in map coordinates, not screen coordinates
 	pub fn plot_land(&mut self, zoom_ind: usize, coord: u64, map_data: &mut MapData, units: &Vec<Unit>, bldgs: &Vec<Bldg>,
-			exs: &Vec<HashedMapEx>, players: &Vec<Player>, relations: &Relations, sel: bool, alt_ind: usize) {
+			exs: &Vec<HashedMapEx>, players: &Vec<Player>, gstate: &GameState, sel: bool, alt_ind: usize) {
 		
 		let iface_settings = &self.state.iface_settings;
 		let map_sz = map_data.map_szs[zoom_ind];
@@ -541,10 +371,7 @@ impl Disp<'_,'_,'_,'_,'_> {
 		let cur_player = iface_settings.cur_player as usize;
 		let pstats = &players[cur_player].stats;
 		
-		let land_discovered = pstats.land_discov[zoom_ind].map_coord_ind_discovered(coord) ||
-			(0..players.len())
-				.filter(|&owner_ind| relations.fiefdom(cur_player, owner_ind))
-				.any(|owner_ind| players[owner_ind].stats.land_discov[zoom_ind].map_coord_ind_discovered(coord));
+		let land_discovered = land_discovered(coord, cur_player, zoom_ind, players, &gstate.relations);
 		
 		debug_assertq!(coord < (map_sz.h*map_sz.w) as u64);
 		
@@ -601,7 +428,7 @@ impl Disp<'_,'_,'_,'_,'_> {
 			}
 			
 			// show zone overlays (ex. demand, happiness, crime), bldg, road/wall, zones
-			if let Some(fog) = self.state.iface_settings.get_fog_or_actual(coord, ex, pstats) {
+			if let Some(fog) = self.state.iface_settings.get_fog_or_actual(coord, zoom_ind, ex, players, &gstate.relations) {
 				// bldg
 				if iface_settings.show_bldgs && (!fog.max_bldg_template.is_none() || !ex.bldg_ind.is_none()) {
 					plot_bldg(coord, bldgs, ex, players, map_sz, &fog, map_data, exs.last().unwrap(), &mut self.state);
@@ -875,8 +702,6 @@ pub fn float_string(gold: f32) -> String {
 	}
 }
 
-pub const TURNS_PER_YEAR: usize = 360;
-
 impl Localization {
 	fn month_str(&self, month: usize) -> String {
 		match month {
@@ -904,6 +729,7 @@ impl Localization {
 		format!("{}_{}_{}", self.month_str(month), day, year)
 	}
 	
+	// Mon day, year
 	pub fn date_str(&self, turn: usize) -> String {
 		let year = turn / TURNS_PER_YEAR;
 		let remainder = turn % TURNS_PER_YEAR;
@@ -967,12 +793,22 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 	//			None
 	//
 	// `show_fog` = false: returns `actual` variables from `ex`
-	pub fn get_fog_or_actual<'r,'bt,'ut,'rt,'dt>(&self, coord: u64, ex: &'r MapEx<'bt,'ut,'rt,'dt>,
-				pstats: &'r Stats<'bt,'ut,'rt,'dt>) -> Option<&'r FogVars<'bt,'ut,'rt,'dt>> {
+	pub fn get_fog_or_actual<'r,'bt,'ut,'rt,'dt>(&self, coord: u64, zoom_ind: usize, ex: &'r MapEx<'bt,'ut,'rt,'dt>,
+				players: &'r Vec<Player<'bt,'ut,'rt,'dt>>, relations: &Relations) -> Option<&'r FogVars<'bt,'ut,'rt,'dt>> {
 		if self.show_fog {
-			return if pstats.land_discov[self.zoom_ind].map_coord_ind_discovered(coord) {
+			let cur_player = self.cur_player as usize;
+			return if land_discovered(coord, cur_player, zoom_ind, players, relations) {
+				let most_recent_fog = players.iter().enumerate()
+					.filter(|(player_ind, _)|
+						*player_ind == cur_player || relations.fiefdom(cur_player, *player_ind))
+					.max_by_key(|(_, player)| {
+						if let Some(fog) = player.stats.fog[zoom_ind].get(&coord) {
+							fog.turn_represented
+						}else{0}
+					}).unwrap().1.stats.fog[zoom_ind].get(&coord);
+				
 				// unit is not present, show what was last visible
-				Some(if let Some(fog) = pstats.fog[self.zoom_ind].get(&coord) {
+				Some(if let Some(fog) = most_recent_fog {
 					fog
 				// unit is present, show `actual` ex
 				}else{
@@ -1070,9 +906,16 @@ pub fn direction_string(cur_coord: Coord, test_coord: Coord, map_sz: MapSz) -> S
 }
 
 pub fn addstr_c(txt: &str, color: i32, r: &mut Renderer) {
-	r.attron(COLOR_PAIR(color));
+	// text sometimes shows as black text on  black bg in TERM=`linux` terminals
+	
+	#[cfg(not(target_env="musl"))]
+	{
+		r.attron(COLOR_PAIR(color));
+		r.addstr(txt);
+		r.attroff(COLOR_PAIR(color));
+	}
+	#[cfg(target_env="musl")]
 	r.addstr(txt);
-	r.attroff(COLOR_PAIR(color));
 }
 
 pub fn addstr_attr(txt: &str, attr: chtype, d: &mut Renderer) {
@@ -1141,7 +984,7 @@ impl UIMode<'_,'_,'_,'_> {
 	}
 }
 
-impl Disp<'_,'_,'_,'_,'_> {
+impl Disp<'_,'_,'_,'_,'_,'_> {
 	pub fn print_key(&mut self, key: i32) {
 		self.ui_mode.print_key(key, &self.state.local, &mut self.state.renderer);
 	}
@@ -1180,12 +1023,6 @@ pub fn wrap_txt(mut txt: &str, w: usize) -> Vec<&str> {
 			lines.push(txt);
 			return lines;
 		}
-	}
-}
-
-impl PersonName {
-	pub fn txt(&self) -> String {
-		format!("{} {}", self.first, self.last)
 	}
 }
 

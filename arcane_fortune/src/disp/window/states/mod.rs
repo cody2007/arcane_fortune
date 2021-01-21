@@ -46,6 +46,12 @@ pub mod buildings; pub use buildings::*;
 pub mod set_difficulty; pub use set_difficulty::*;
 pub mod place_unit; pub use place_unit::*;
 pub mod trade; pub use trade::*;
+pub mod view_trade; pub use view_trade::*;
+pub mod friends_and_foes; pub use friends_and_foes::*;
+pub mod nobility_request; pub use nobility_request::*; // nobility requests main player do something
+pub mod intro_nobility_join_options; pub use intro_nobility_join_options::*; // list of nobility that could join the empire. shown at the start of the game
+pub mod nobility_declares_independence; pub use nobility_declares_independence::*;
+pub mod set_noble_tax; pub use set_noble_tax::*; // set the noble's dues to the human's empire
 
 pub enum UIModeControl<'bt,'ut,'rt,'dt> {
 	UnChgd,

@@ -10,8 +10,8 @@ impl UnitsWindowState {
 		UIModeControl::UnChgd
 	}
 	
-	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, players: &Vec<Player>, units: &Vec<Unit>, bldgs: &Vec<Bldg>, map_data: &mut MapData,
-			exs: &Vec<HashedMapEx>, gstate: &GameState, temps: &Templates, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
+	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, players: &Vec<Player>, units: &Vec<Unit>, map_data: &mut MapData,
+			dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let mut w = 0;
 		let mut label_txt_opt = None;
 		let cur_player = dstate.iface_settings.cur_player;
