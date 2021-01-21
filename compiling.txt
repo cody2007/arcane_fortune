@@ -74,7 +74,11 @@ Windows targets
 	cd ~/arcane_fortune/arcane_fortune/src
 	
 	# the pdcurses version:
+	#   (note: Rust 1.47.0 and newer broke the ability to link with pdcurses for some reason...
+	#    to switch to 1.46.0, run:
+	#        rustup default 1.46.0 # and  run `rustup install 1.46.0` if you haven't already installed that release
 	cargo build --release --target=x86_64-pc-windows-gnu
+	#   rustup default stable # to switch back to the stable release
 	
 	# full mouse support:
 	cargo build --release --features sdl --target=x86_64-pc-windows-gnu
