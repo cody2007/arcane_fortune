@@ -82,6 +82,9 @@ Windows targets
 	
 	# full mouse support:
 	cargo build --release --features sdl --target=x86_64-pc-windows-gnu
+	#   note: you can add "#![windows_subsystem = "windows"]" to the top of main.rs
+	#   if you want to prevent Windows from showing the console when the game runs.
+	#   It can be useful to *not* do this if you are debugging.
 
 ======================================================================================
 OS X targets
