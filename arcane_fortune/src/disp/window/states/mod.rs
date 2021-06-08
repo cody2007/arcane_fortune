@@ -52,6 +52,8 @@ pub mod nobility_request; pub use nobility_request::*; // nobility requests main
 pub mod intro_nobility_join_options; pub use intro_nobility_join_options::*; // list of nobility that could join the empire. shown at the start of the game
 pub mod nobility_declares_independence; pub use nobility_declares_independence::*;
 pub mod set_noble_tax; pub use set_noble_tax::*; // set the noble's dues to the human's empire
+pub mod zone_land; pub use zone_land::*;
+pub mod budget; pub use budget::*;
 
 pub enum UIModeControl<'bt,'ut,'rt,'dt> {
 	UnChgd,

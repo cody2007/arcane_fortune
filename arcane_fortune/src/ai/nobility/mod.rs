@@ -41,7 +41,7 @@ impl <'bt,'ut,'rt,'dt>NobilityState<'bt,'ut,'rt,'dt> {
 		let house = House::new(temps, gstate);
 		
 		let manor = &BldgTemplate::frm_str(MANOR_NM, temps.bldgs);
-		if let Some(ai_state) = AIState::new(coord, FIEFDOM_GRID_HEIGHT, MIN_DIST_FRM_FIEFDOM_CENTER, manor, temps, map_data, exf, map_sz, &mut gstate.rng) {
+		if let Some(ai_state) = AIState::new(coord, true, FIEFDOM_GRID_HEIGHT, MIN_DIST_FRM_FIEFDOM_CENTER, manor, temps, map_data, exf, map_sz, &mut gstate.rng) {
 			Some(Self {ai_state, house})
 		}else{
 			None
@@ -189,19 +189,24 @@ impl <'bt,'ut,'rt,'dt>NobilityState<'bt,'ut,'rt,'dt> {
 			units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg>, map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
 			gstate: &mut GameState, temps: &Templates<'bt,'ut,'rt,'dt,'_>, n_log_entries: usize) {
 		{ // add to players
-			let mut txt_gen = nn::TxtGenerator::new(gstate.rng.gen());
+			let personalization = {
+				let house = &self.house;
+				let personality = house.head_personality();
+				let head_noble = &house.noble_pairs[house.head_noble_pair_ind].noble;
+				let house_name = head_noble.name.last.clone();
+				let ruler_nm = head_noble.name.clone();
+				let gender_female = head_noble.gender_female;
+				
+				let mut txt_gen = nn::TxtGenerator::new(gstate.rng.gen());
+				
+				Personalization::random(personality, house_name, ruler_nm, gender_female, NOBILITY_COLOR, &mut txt_gen, gstate, temps)
+			};
+			
+			let ptype = PlayerType::Nobility(self.clone());
 			let nobility_bonuses = default_nobility_bonuses(players);
 			
-			let house = &self.house;
-			let personality = house.head_personality();
-			let head_noble = &house.noble_pairs[house.head_noble_pair_ind].noble;
-			let name = head_noble.name.last.clone();
-			let ruler_nm = head_noble.name.clone();
-			let gender_female = head_noble.gender_female;
-			let ptype = PlayerType::Nobility(self.clone());
-			
-			players.push(Player::new(players.len() as SmSvType, ptype, personality, name, ruler_nm,
-				gender_female, &nobility_bonuses, NOBILITY_COLOR, &mut txt_gen, gstate, n_log_entries, temps, map_data));
+			players.push(Player::new(players.len() as SmSvType, ptype, personalization,
+				&nobility_bonuses, gstate, n_log_entries, temps, map_data));
 		}
 		
 		{ // add units above the house location  (otherwise one of the workers can block the way for creating the manor)

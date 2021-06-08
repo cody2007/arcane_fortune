@@ -51,7 +51,7 @@ impl TechWindowState {
 				d.attron(title_c);
 				d.addstr(&format!("{}{}", sp, $txt));
 				d.attroff(title_c);
-			};};
+			};}
 			
 			center_txt!(if self.prompt_tech {&l.Select_a_new_tech} else {&l.Technology_tree}, w);
 			
@@ -64,7 +64,7 @@ impl TechWindowState {
 			let mut col = (w - txt_width)/2;
 			
 			macro_rules! nl{() => {d.mv(row, col); row += 1;};
-					($last:expr) => {d.mv(row,col);};};
+					($last:expr) => {d.mv(row,col);};}
 			
 			/////// instructions
 			nl!();
@@ -73,7 +73,8 @@ impl TechWindowState {
 			
 			let kbd = &dstate.kbd;
 			
-			if disp_properties.down_scroll || disp_properties.right_scroll {
+			// scroll view
+			if !screen_reader_mode() && (disp_properties.down_scroll || disp_properties.right_scroll) {
 				for key in &[kbd.left, kbd.down, kbd.right] {
 					print_key_always_active(*key, l, d);
 					d.addstr(", ");
@@ -95,73 +96,93 @@ impl TechWindowState {
 			d.addstr(&l.Start_researching);
 			
 			////////////// colors
-			row = disp_properties.instructions_start_row;
-			col += (key_width + gap_width) as i32;
-			
-			nl!();
-			center_txt!(&l.Color_indicators, color_width);
-			nl!();
-			
-			macro_rules! show_key{($c:expr, $txt:expr) => {
-				d.attron(COLOR_PAIR($c));
-				d.addch(dstate.chars.land_char);
-				d.attroff(COLOR_PAIR($c));
-				d.addstr(" ");
-				d.addstr($txt);
-			};};
-			
-			nl!();show_key!(CRED, "selected tech");
-			nl!();show_key!(C_UN_DISCOV, "undiscovered tech");
-			nl!();show_key!(C_DISCOV, "discovered tech");
-			nl!(1);show_key!(C_SCHEDULED, "researching");
+			if !screen_reader_mode() {
+				row = disp_properties.instructions_start_row;
+				col += (key_width + gap_width) as i32;
+				
+				nl!();
+				center_txt!(&l.Color_indicators, color_width);
+				nl!();
+				
+				macro_rules! show_key{($c:expr, $txt:expr) => {
+					d.attron(COLOR_PAIR($c));
+					d.addch(dstate.chars.land_char);
+					d.attroff(COLOR_PAIR($c));
+					d.addstr(" ");
+					d.addstr($txt);
+				};}
+				
+				nl!();show_key!(CRED, &l.selected_tech);
+				nl!();show_key!(C_UN_DISCOV, &l.undiscovered_tech);
+				nl!();show_key!(C_DISCOV, &l.discovered_tech);
+				nl!(1);show_key!(C_SCHEDULED, &l.researching);
+			}
 		}
+		
+		// sets txt cursor to the title
+		macro_rules! exit_and_set_txt_cursor{() => {
+			if let Some((row, col, _)) = disp_properties.sel_loc {
+				d.mv(row, col);
+			}
+			return UIModeControl::UnChgd;
+		};}
 		
 		// show infobox for selected tech (units & bldgs it can unlock)
 		if let Some((mut row, mut col, t)) = disp_properties.sel_loc {
-			// off the top edge of the screen
-			if row < 0 || col < 0 {return UIModeControl::UnChgd;}
-			
-			// if the tech isn't used to discover any units or bldgs, return
-			if !temps.units.iter().any(|ut| if let Some(tech_req) = &ut.tech_req {tech_req.contains(&(t as usize))} else {false}) &&
-			   !temps.bldgs.iter().any(|bt| if let Some(tech_req) = &bt.tech_req {tech_req.contains(&(t as usize))} else {false}) {
-				return UIModeControl::UnChgd;
+			// show under the tech instead of beside (on the right)
+			if screen_reader_mode() {
+				row = 12;
+				col = 0;
+			}else{
+				// off the top edge of the screen
+				if row < 0 || col < 0 {return UIModeControl::UnChgd;}
 			}
 			
-			let window_w = 20;
-			if window_w > w {return UIModeControl::UnChgd;} // screen too small
+			// if the tech isn't used to discover any units or bldgs, return and set text cursor for screen readers
+			if !temps.units.iter().any(|ut| if let Some(tech_req) = &ut.tech_req {tech_req.contains(&(t as usize))} else {false}) &&
+			   !temps.bldgs.iter().any(|bt| if let Some(tech_req) = &bt.tech_req {tech_req.contains(&(t as usize))} else {false}) {
+				exit_and_set_txt_cursor!();
+			}
+			
+			const WINDOW_W: i32 = 20;
+			if WINDOW_W > w {return UIModeControl::UnChgd;} // screen too small
 			
 			// off the right side of the screen
-			if (col + window_w) > w {
+			if (col + WINDOW_W) > w {
 				row += 5;
-				col = w - window_w - 2;
+				col = w - WINDOW_W - 2;
 			}
 			
 			// print window top line
-			{
+			if !screen_reader_mode() {
 				d.mv(row, col); row += 1;
 				d.addch(dstate.chars.ulcorner_char);
-				for _ in 0..window_w {d.addch(dstate.chars.hline_char);}
+				for _ in 0..WINDOW_W {d.addch(dstate.chars.hline_char);}
 				d.addch(dstate.chars.urcorner_char);
 			}
 			
+			macro_rules! clr_ln{() => {
+				if !screen_reader_mode() {
+					d.mv(row,col);
+					d.addch(dstate.chars.vline_char);
+					for _ in 0..WINDOW_W {d.addch(' ');}
+					d.addch(dstate.chars.vline_char);
+				}
+			}}
+			
 			macro_rules! lr_txt{($l_txt: expr, $r_txt: expr) => {
-				// clear line
-				d.mv(row,col);
-				d.addch(dstate.chars.vline_char);
-				for _ in 0..window_w {d.addch(' ');}
-				d.addch(dstate.chars.vline_char);
+				clr_ln!();
 				
 				// print txt
 				d.mv(row,col+2);
 				d.addstr($l_txt);
-				d.mv(row, col + window_w - $r_txt.len() as i32);
+				d.mv(row, col + WINDOW_W - $r_txt.len() as i32);
 				d.addstr($r_txt);
 				row += 1;
-			};};
+			};}
 			
 			
-			// units, bldgs, and resources discovered by the selected technology
-			{
+			{ // units, bldgs, and resources discovered by the selected technology
 				macro_rules! print_unit_bldg_discov{($templates: expr) => {
 					let mut any_discov = false;
 					for template in $templates.iter() {
@@ -169,12 +190,8 @@ impl TechWindowState {
 							if tech_req.contains(&(t as usize)) {
 								// first entry
 								if !any_discov {
-									// clear line
-									d.mv(row,col);
-									d.addch(dstate.chars.vline_char);
-									for _ in 0..window_w {d.addch(' ');}
-									d.addch(dstate.chars.vline_char);
-									
+									clr_ln!();
+																	
 									// print txt
 									d.mv(row,col+2);
 									d.attron(COLOR_PAIR(CGREEN));
@@ -188,28 +205,23 @@ impl TechWindowState {
 							}
 						}
 					}
-				};};
+				};}
 				
 				print_unit_bldg_discov!(temps.units); // temp
 				print_unit_bldg_discov!(temps.bldgs);
 				
-				// resources discovered (stored slightly differently in `temps.resources`)
-				{
+				{ // resources discovered (stored slightly differently in `temps.resources`)
 					let mut any_discov = false;
 					for template in temps.resources.iter() {
 						if template.tech_req.contains(&(t as usize)) {
 							// first entry
 							if !any_discov {
-								// clear line
-								d.mv(row,col);
-								d.addch(dstate.chars.vline_char);
-								for _ in 0..window_w {d.addch(' ');}
-								d.addch(dstate.chars.vline_char);
+								clr_ln!();
 								
 								// print txt
 								d.mv(row,col+2);
 								d.attron(COLOR_PAIR(CGREEN));
-								d.addstr("Discovers:");
+								d.addstr(&l.Discovers);
 								d.attroff(COLOR_PAIR(CGREEN));
 								row += 1;
 								
@@ -222,14 +234,16 @@ impl TechWindowState {
 			}
 			
 			// print window bottom line
-			{
+			if !screen_reader_mode() {
 				d.mv(row,col);
 				d.addch(dstate.chars.llcorner_char);
-				for _ in 0..window_w {d.addch(dstate.chars.hline_char);}
+				for _ in 0..WINDOW_W {d.addch(dstate.chars.hline_char);}
 				d.addch(dstate.chars.lrcorner_char);
 			}
 		}
-		UIModeControl::UnChgd
+		
+		// set text cursor at the name of the tech for screen readers
+		exit_and_set_txt_cursor!();
 	}
 	
 	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, pstats: &mut Stats, temps: &Templates,
@@ -278,8 +292,28 @@ impl TreeTemplate for TechTemplate {
 		}
 	}
 	
-	fn requirements_txt(&self, _: &Stats, l: &Localization) -> String {
-		l.Reqs_X_rsrch.replace("[]", &format!("{}", self.research_req))
+	fn requirements_txt(&self, pstats: &Stats, l: &Localization) -> String {
+		let mut txt = l.Reqs_X_rsrch.replace("[]", &format!("{}", self.research_req));
+		
+		if screen_reader_mode() {
+			txt.push_str(". ");
+			txt.push_str(match pstats.techs_progress[self.id as usize] {
+				TechProg::Finished => {&l.Your_empire_has_discov_tech}
+				TechProg::Prog(_) => {
+					if let Some(que_pos) = pstats.techs_scheduled.iter().position(|&sched_id| sched_id == self.id) {
+						if que_pos == (pstats.techs_scheduled.len() - 1) {
+							&l.Your_empire_hasnt_discov_tech_but_researching
+						}else{
+							&l.Your_empire_hasnt_discov_tech_but_sched
+						}
+					}else{
+						&l.Your_empire_hasnt_discov_tech
+					}
+				}
+			});
+		}
+		
+		txt
 	}
 }
 

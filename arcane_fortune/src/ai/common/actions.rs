@@ -87,7 +87,7 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 									} // buildable location
 								}
 							}
-						};};
+						};}
 						
 						// 1. wait for city hall to be constructed
 						// 2. repair walls
@@ -106,7 +106,7 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 												continue 'wall_loop;
 											}
 										}
-									};};
+									};}
 									
 									// check that it's not being actively repaired
 									for worker_ind in city.worker_inds.iter() {

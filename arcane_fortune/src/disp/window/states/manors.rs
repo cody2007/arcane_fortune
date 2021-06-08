@@ -34,7 +34,7 @@ impl ManorsWindowState {
 			manors_list(bldgs, dstate.iface_settings.cur_player, players, gstate, cursor_coord, &mut w, &mut label_txt_opt, map_sz, &dstate.local)
 		};
 		
-		if list_mode_update_and_action(&mut self.mode, entries.options.len(), dstate) {
+		if entries.list_mode_update_and_action(&mut self.mode, dstate) {
 			// move cursor to entry
 			let coord = match entries.options[self.mode].arg {
 				ArgOptionUI::BldgInd(bldg_ind) => {bldgs[bldg_ind].coord}

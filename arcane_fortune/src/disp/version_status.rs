@@ -6,12 +6,12 @@ use std::env;
 use super::{URL, screen_reader_mode};
 use super::logo_vars::{LOGO_HEIGHT, LOGO_WIDTH};
 
-const COMMIT_ID: &str = include_str!("../../../.git/refs/heads/v0.3.0");//master");
+const COMMIT_ID: &str = include_str!("../../../.git/refs/heads/v0.4.0");//master");
 const IRONNETPRO_COMMIT_ID: &str = COMMIT_ID; //include_str!("../../../../ironnetpro/.git/refs/heads/master");
 
 const COMMIT_LEN: usize = 9;
 
-pub const VERSION_NM: &str = "Noble War";
+pub const VERSION_NM: &str = "World Stage";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 const TARGET: &str = env!("TARGET");
 const PROFILE: &str = env!("PROFILE");

@@ -40,7 +40,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 			for _i in 0..pad {self.addch(' ' as chtype);}
 			self.state.txt_list.add_r(&mut self.state.renderer);
 			self.state.renderer.addstr($txt);
-		};};
+		};}
 		
 		macro_rules! ralign_txt{($txt: expr) => {
 			let (mut cy, mut cx) = (0,0);
@@ -52,7 +52,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 			for _i in 0..pad {self.addch(' ' as chtype);}
 			self.state.txt_list.add_r(&mut self.state.renderer);
 			self.state.renderer.addstr(&txt);
-		};};
+		};}
 		
 		let mut roff = TURN_ROW + 5;
 		macro_rules! mvclr{() => (self.mv(roff, turn_col); roff += 1; self.state.renderer.clrtoeol());}
@@ -72,7 +72,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 			macro_rules! button{($nm: ident) => {
 				self.state.txt_list.add_r(&mut self.state.renderer);
 				self.state.buttons.$nm.print(Some(&self.ui_mode), &self.state.local, &mut self.state.renderer);};
-			};
+			}
 			
 			match self.state.iface_settings.auto_turn {
 				AutoTurn::Off => {
@@ -283,7 +283,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 				self.state.renderer.addstr(" (");
 				self.print_key(self.state.kbd.toggle_cursor_mode);
 				self.addch(')');
-			};};
+			};}
 			
 			match self.state.iface_settings.view_mv_mode {
 				ViewMvMode::Screen => {
@@ -314,14 +314,16 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 				ViewMvMode::N => {}
 			}
 			
-			for _ in 0..2 {
-				mvclr!();
-			}
+			mvclr!();
 			self.mv(roff, turn_col); self.state.renderer.clrtoeol();
 		}
 		
 		{ // cursor location
 			mvclr!();
+			
+			for offset in 0..4 {self.mv(roff+offset, turn_col); self.state.renderer.clrtoeol();}
+			
+			self.mv(roff-1, turn_col);
 			self.state.txt_list.add_r(&mut self.state.renderer);
 			self.state.renderer.addstr(&self.state.local.Cursor_location);
 			self.mv(roff, turn_col); self.state.renderer.clrtoeol();

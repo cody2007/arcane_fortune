@@ -54,7 +54,7 @@ impl BrigadesWindowState {
 					let top_left = list_pos.top_left;
 					let mut roff = top_left.y as i32 + 2;
 					macro_rules! mvl{() => {dstate.mv(roff, top_left.x as i32 + 2); roff += 1;};
-						($fin: expr) => {dstate.mv(roff, top_left.x as i32 + 2);};};
+						($fin: expr) => {dstate.mv(roff, top_left.x as i32 + 2);};}
 					
 					mvl!();
 					
@@ -211,7 +211,7 @@ impl BrigadesWindowState {
 					}
 				}else{UIModeControl::Closed}
 			}else{panicq!("list not set properly");}
-		};};
+		};}
 		if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {	enter_action!(ind);}
 		
 		let kbd = &dstate.kbd;

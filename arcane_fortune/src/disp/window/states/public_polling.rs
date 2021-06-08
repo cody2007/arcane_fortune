@@ -24,7 +24,7 @@ impl PublicPollingWindowState {
 		
 		let mut row = 0;
 		macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;};
-					     ($final: expr) => {dstate.mv(row + y, x);}};
+					     ($final: expr) => {dstate.mv(row + y, x);}}
 		
 		// print key instructions
 		mvl!(); dstate.buttons.Esc_to_close.print(None, &dstate.local, &mut dstate.renderer);
@@ -44,7 +44,7 @@ impl PublicPollingWindowState {
 			dstate.attroff($entry.color);
 			dstate.renderer.addstr($txt);
 			dstate.addstr(&format!(" ({}%)", ($entry.frac*100.).round() as usize));
-		};};
+		};}
 		
 		{
 			dstate.mv(pos.y as i32 - 1, pos.x as i32);

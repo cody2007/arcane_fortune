@@ -74,7 +74,7 @@ impl ColorPair {
 				);
 				font_cache_entry.as_ref().unwrap()
 			};
-		};};
+		};}
 		
 		if !invert {
 			get_or_set_cache!(ch, self.font_cache_fg, self.fg);
@@ -177,7 +177,7 @@ impl TxtState {
 		// foreground
 		macro_rules! set_fg{() => {
 			self.sdl_renderer.set_draw_color(fg.r, fg.g, fg.b, fg.a);
-		};};
+		};}
 		
 		let half = |val| { // also takes the ceil
 			((val as f32)/2.).ceil() as c_int
@@ -592,7 +592,7 @@ impl Renderer {
 			write_prof();
 			
 			std::process::exit(0);
-		};};
+		};}
 		
 		let start_time = Instant::now();
 		'event_loop: loop {

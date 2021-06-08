@@ -51,7 +51,7 @@ fn fill_points(region: &mut Vec<f32>, dist: usize, center_y: usize, center_x: us
 		   region[$y*REGION_SZ + $x] == 0. { // and location unitialized
 			perim.push([$y, $x]);
 		}
-	};};
+	};}
 	
 	// corners
 	add_perim!(center_y + dist,   center_x + dist);
@@ -148,7 +148,7 @@ impl RegionSkeleton {
 				region[i*$row*REGION_SZ + $roff*REGION_SZ + i*$col + $coff] = val;
 				perimeter_sum += val;
 			}
-			};};
+			};}
 			
 			set_edge!((row-1)*TRACT_IN_SZ + col, self.ct, self.top, self.ul, self.ur, 0, 1, 0, 0); // top row
 			set_edge!((row+1)*TRACT_IN_SZ + col, self.cb, self.bottom, self.ll, self.lr, 0, 1, REGION_SZ-1, 0); // bottom row
@@ -156,8 +156,7 @@ impl RegionSkeleton {
 			set_edge!(row*TRACT_IN_SZ + col+1, self.cr, self.right, self.ur, self.lr, 1, 0, 0, REGION_SZ-1); // right col
 		}
 		
-		// set center
-		{
+		{ // set center
 			let mut rng = XorState::init(rand_off + (row*TRACT_IN_SZ + col) as u64);
 			const PAD: usize = 1;
 			let y = rng.usize_range(PAD, REGION_SZ-PAD-1);
@@ -278,7 +277,7 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 			resource_cont: None
 		}; TRACT_OUT_SZ*TRACT_OUT_SZ};
 	
-	struct Range {max: f32, min: f32};
+	struct Range {max: f32, min: f32}
 	
 	// generates map_out[:].$vals_out, and fills $range_in (instance of the Range struct)
 	macro_rules! gen_floats{($vals_out: ident, $range_in: ident) => {
@@ -296,7 +295,7 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 			mi.$vals_out -= $range_in.min;
 			mi.$vals_out /= $range_in.max - $range_in.min;
 		}
-
+		
 		// gen regions. space apart so we can feed "+" as points and have the tops
 		// and bottoms of each region be the same at neighboring regions
 		for region_i in 0..N_REGIONS_PER_TRACT { let row = region_i*2 + 2; let roff = region_i*(REGION_SZ-1);
@@ -307,15 +306,15 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 			// cl left center right cr
 			//     ll  bottom  lr
 			//           cb
-
+			
 			let skeleton = RegionSkeleton {
 				center: map_in[row*TRACT_IN_SZ + col].$vals_out,
-
+				
 				left: map_in[row*TRACT_IN_SZ + col-1].$vals_out,
 				right: map_in[row*TRACT_IN_SZ + col+1].$vals_out,
 				top: map_in[(row-1)*TRACT_IN_SZ + col].$vals_out,
 				bottom: map_in[(row+1)*TRACT_IN_SZ + col].$vals_out,
-
+				
 				ul: map_in[(row-1)*TRACT_IN_SZ + col-1].$vals_out,
 				ll: map_in[(row+1)*TRACT_IN_SZ + col-1].$vals_out,
 				ur: map_in[(row-1)*TRACT_IN_SZ + col+1].$vals_out,
@@ -330,21 +329,26 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 			let region = skeleton.gen_region(row, col, rand_off);
 			
 			// copy over
-			for i in 0..REGION_SZ {
+			/*for i in 0..REGION_SZ {
 			for j in 0..REGION_SZ {
 				map_out[(i + roff)*TRACT_OUT_SZ + j + coff].$vals_out = region[i*REGION_SZ + j]; // todo optimization: j loop could be implicit...
-			}}
+			}}*/
+			for (region_row, map_row) in region.chunks(REGION_SZ).zip(
+					map_out[roff*TRACT_OUT_SZ + coff..].chunks_mut(TRACT_OUT_SZ)) {
+				for (region_val, map_val) in region_row.iter().zip(map_row.iter_mut()) {
+					map_val.$vals_out = *region_val;
+				}
+			}
 		}} // row, col
-	};};
+	};}
 	
 	let mut elevation_range_in;
 	let mut arability_range_in;
-
+	
 	gen_floats!(elevation, elevation_range_in);
 	gen_floats!(arability, arability_range_in);
 	
-	////////////////////////// upsample show_snow
-	{
+	{ //////////////////// upsample show_snow
 		// gen region show_snow based on simple upsampling of 3x3 grid of the map-to-be-upsampled
 		for region_i in 0..N_REGIONS_PER_TRACT { let row = region_i*2 + 2; let roff = region_i*(REGION_SZ-1);
 		for region_j in 0..N_REGIONS_PER_TRACT { let col = region_j*2 + 2; let coff = region_j*(REGION_SZ-1);
@@ -352,14 +356,20 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 			//  ul   top    ur
 			// left center right
 			//  ll  bottom  lr
-
+			
 			let center = map_in[row*TRACT_IN_SZ + col].show_snow;
+			let map_out_start = &mut map_out[roff*TRACT_OUT_SZ + coff..];
 			
 			if center {
-				for i in 0..REGION_SZ {
+				/*for i in 0..REGION_SZ {
 				for j in 0..REGION_SZ {
 					map_out[(i + roff)*TRACT_OUT_SZ + j + coff].show_snow = true;
+				}}*/
+				for map_row in map_out_start.chunks_mut(TRACT_OUT_SZ).take(REGION_SZ) {
+				for map_val in map_row.iter_mut().take(REGION_SZ) {
+					map_val.show_snow = true;
 				}}
+				
 				continue;
 			}
 			
@@ -367,16 +377,19 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 			let right = map_in[row*TRACT_IN_SZ + col+1].show_snow;
 			let top = map_in[(row-1)*TRACT_IN_SZ + col].show_snow;
 			let bottom = map_in[(row+1)*TRACT_IN_SZ + col].show_snow;
-
+			
 			let ul = map_in[(row-1)*TRACT_IN_SZ + col-1].show_snow;
 			let ll = map_in[(row+1)*TRACT_IN_SZ + col-1].show_snow;
 			let ur = map_in[(row-1)*TRACT_IN_SZ + col+1].show_snow;
 			let lr = map_in[(row+1)*TRACT_IN_SZ + col+1].show_snow;
 			
 			// copy over
-			for i in 0..REGION_SZ {
-			for j in 0..REGION_SZ {
-				map_out[(i + roff)*TRACT_OUT_SZ + j + coff].show_snow = 
+			//for i in 0..REGION_SZ {
+			//for j in 0..REGION_SZ {
+			//	map_out[(i + roff)*TRACT_OUT_SZ + j + coff].show_snow = 
+			for (i, map_row) in map_out_start.chunks_mut(TRACT_OUT_SZ).take(REGION_SZ).enumerate() {
+			for (j, map_val) in map_row.iter_mut().take(REGION_SZ).enumerate() {
+				map_val.show_snow =
 					// top rows
 					if i < (REGION_SZ/3) {
 						if j < (REGION_SZ/3) {ul}
@@ -428,8 +441,7 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 		}} // i,j
 	}*/
 	
-	//////////////// find threshold
-	{
+	{ //////////// find threshold
 		let mut mountain_lower = 100.;
 		let mut land_upper = -10.;
 		
@@ -491,10 +503,14 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 					let mut sum = 0.;
 					let mut n_sum = 0;
 					
+					let map_start = &mut map_out[row*TRACT_OUT_SZ + col..];
+					
 					/////// sum
-					for i in 0..SMOOTH_SZ {
-						let ind_off = (row + i)*TRACT_OUT_SZ + col;
-						for mo in map_out[ind_off..(ind_off+SMOOTH_SZ)].iter() {
+					//for i in 0..SMOOTH_SZ {
+					//	let ind_off = (row + i)*TRACT_OUT_SZ + col;
+					//	for mo in map_out[ind_off..(ind_off+SMOOTH_SZ)].iter() {
+					for map_row in map_start.chunks(SMOOTH_SZ).take(SMOOTH_SZ) {
+						for mo in map_row.iter().take(SMOOTH_SZ) {
 							sum += mo.$vals_out;
 							n_sum += 1;
 						}
@@ -502,9 +518,11 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 					
 					///// match mean
 					let mean = sum / n_sum as f32;
-					for i in 0..SMOOTH_SZ {
-						let ind_off = (row + i)*TRACT_OUT_SZ + col;
-						for mo in map_out[ind_off..(ind_off+SMOOTH_SZ)].iter_mut() {
+					//for i in 0..SMOOTH_SZ {
+					//	let ind_off = (row + i)*TRACT_OUT_SZ + col;
+					//	for mo in map_out[ind_off..(ind_off+SMOOTH_SZ)].iter_mut() {
+					for map_row in map_start.chunks_mut(SMOOTH_SZ).take(SMOOTH_SZ) {
+						for mo in map_row.iter_mut().take(SMOOTH_SZ) {
 							mo.$vals_out = mo.$vals_out*(1.-SMOOTH_FRAC) + mean*SMOOTH_FRAC;
 						}
 					}
@@ -528,16 +546,15 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 			mo.$vals_out *= $range_in.max - $range_in.min;
 			mo.$vals_out += $range_in.min;
 		}
-	};};
+	};}
 	
 	match_mean_and_range!(elevation, elevation_range_in);
 	match_mean_and_range!(arability, arability_range_in);
 	
-	//////////////////// add resources
-	{
+	{ /////////////// add resources
 		let mut rng = XorState::init(rand_off + 0xBADF00D);
 		
-		struct ResourceLoc {y: usize, x: usize};
+		struct ResourceLoc {y: usize, x: usize}
 		let mut coords_lr = Vec::new(); // lower right extent of each resource added
 		
 		// loop over map
@@ -592,7 +609,7 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 						// check proposed resource is not partially outside region
 						if cand_lr.y >= TRACT_OUT_SZ || cand_lr.x >= TRACT_OUT_SZ
 								{continue 'resource_loop;}
-
+						
 						// check if proposed resource is not overlapping previously added resources
 						if coords_lr.iter().rev().
 								 any(|added_lr: &ResourceLoc| added_lr.y >= cand_ul.y && added_lr.x >= cand_ul.x)
@@ -600,10 +617,14 @@ fn gen_tract<'rt>(mut map_in: Vec<Map<'rt>>, rand_off: u64, resource_templates: 
 						
 						coords_lr.push(cand_lr);
 						m.resource = Some(r);
-						for i in 0..r.sz.h {
+						/*for i in 0..r.sz.h {
 						for j in 0..r.sz.w {
 							let ind = (cand_ul.y + i)*TRACT_OUT_SZ + cand_ul.x + j;
 							map_out[ind].resource_cont = Some(ResourceCont {offset_i: i as u8, offset_j: j as u8});
+						}}*/
+						for (i, map_row) in map_out[cand_ul.y*TRACT_OUT_SZ + cand_ul.x..].chunks_mut(TRACT_OUT_SZ).take(r.sz.h).enumerate() {
+						for (j, map_val) in map_row.iter_mut().take(r.sz.w).enumerate() {
+							map_val.resource_cont = Some(ResourceCont {offset_i: i as u8, offset_j: j as u8});
 						}}
 						//endwin();
 						//println!("{} {} {}", r.nm, r.sz.h, r.sz.w);
@@ -650,10 +671,9 @@ impl <'rt>MapData<'rt> {
 			
 			// requested location:
 			let zoom_in_ind = $zoom_ind_val - N_EXPLICITLY_STORED_ZOOM_LVLS; 
-			let mzc = self.zoom_in[zoom_in_ind].get(&coord);
 			
 			// coordinate is already cached
-			if let Some(mczu) = mzc {
+			if let Some(mczu) = self.zoom_in[zoom_in_ind].get(&coord) {
 				return *mczu;
 			
 			// must generate coordinate
@@ -736,7 +756,7 @@ impl <'rt>MapData<'rt> {
 				debug_assertq!(ind < tract.len());
 				return tract[ind];
 			}
-		};};
+		};}
 		
 		match zoom_ind {
 		   ZoomInd::Full => {

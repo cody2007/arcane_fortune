@@ -57,7 +57,7 @@ impl NobleUnitsWindowState {
 				
 				let list = owned_unit_list(units, house.id, cursor_coord, players, &mut w, &mut label_txt_opt, map_sz, &dstate.local);
 				
-				if list_mode_update_and_action(&mut self.mode, list.options.len(), dstate) {
+				if list.list_mode_update_and_action(&mut self.mode, dstate) {
 					// move cursor to entry
 					let coord = match list.options[self.mode].arg {
 						ArgOptionUI::UnitInd(unit_ind) => {units[unit_ind].return_coord()}
@@ -71,9 +71,10 @@ impl NobleUnitsWindowState {
 		
 		// get noble house to show units of
 		}else{
-			let list = gstate.relations.noble_houses(dstate.iface_settings.cur_player as usize);
+			let cur_player = dstate.iface_settings.cur_player as usize;
+			let list = gstate.relations.noble_houses(cur_player);
 			
-			if list_mode_update_and_action(&mut self.mode, list.len(), dstate) {
+			if noble_houses_list(cur_player, &gstate.relations, players, &dstate.local).list_mode_update_and_action(&mut self.mode, dstate) {
 				if let Some(house_ind) = list.get(self.mode) {
 					self.house_nm = Some(players[*house_ind].personalization.nm.clone());
 					self.mode = 0;

@@ -19,7 +19,7 @@ Generic text
 	Empty_txt: "", "" // should be first entry
 	Esc_to_exit_menu: "(<Esc> to exit menu)", "#(<Esc> to exit menu)"
 	Action: "Action", "#Action" // @
-	Edition: "Noble War", "#Noble War" // @
+	Edition: "World Stage", "#World Stage" // @
 	Language: "Language", "Langue" // @
 	Load_game: "Load game", "Chargement du jeu" // title screen @
 	New_game: "New game", "Nouveau jeu" // title screen @
@@ -37,10 +37,18 @@ Generic text
 	Road: "Road", "#Road"
 	Wall: "Wall", "#Wall"
 	Gate: "Gate", "#Gate"
+	Pipe: "Pipe", "#Pipe"
+	No_water_access: "No water access", "#No water access"
+	build_pipes: "(build pipes!)", "#(build pipes!)"
+	Cost_gold: "Cost: [] gold", "#Cost: [] gold"
+	Zone_land: "Zone land", "#Zone land"
+	Select_a_zone_type: "Select a zone type:", "#Select a zone type:"
+	Select_a_zone_density: "Select a zone density:", "#Select a zone density:"
 	House: "House", "House" // noble house
 	house_nm: "House of []", "#House of []"
 	Assassination_log_txt: "An assassination has occurred near [location] by an unknown assailant!", "#An assassination has occurred near by an unknown assailant!"
 	House_declares_independence_txt: "The House of [house_nm] has declared independence from the [empire] empire!", "#The House of [house_nm] has declared independence from the [empire] empire!"
+	txt_shown_as_two_cols: "(Options are shown in two columns)", "#(Options are shown as two columns)"
 	furiously: "furiously", "#furiously"
 	angrily: "angrily", "#angrily"
 	irritatedly: "irritatedly", "#irritatedly"
@@ -76,6 +84,7 @@ Generic text
 	Select_production: "Select production:", "#Select production:"
 	Select_technology: "Select technology:", "#Select technology:"
 	Move_cursor: "<Move cursor>", "#<Move cursor>"
+	Population_by_wealth_level: "Population for each wealth level", "#Population for each wealth level"
 	to_select_a_building: "to select a building", "#to select a building" // <move cursor> to select a building
 	to_change_build_location: "to change build location", "#to change build location"
 	to_cancel_building: "to cancel building", "#to cancel building"
@@ -83,6 +92,10 @@ Generic text
 	Russia: "Russia", "Russie" // @
 	Earth: "Earth", "Terre" // @
 	Number_of_players: "Number of players:", "#Number of players:"
+	What_type_of_game_do_you_want_to_play: "What type of game do you want to play?", "#What type of game do you want to play?"
+	What_civilization_do_you_want_to_play_as: "What civilization do you want to play as?", "#What civilizationd do you want to play as?"
+	A_historical_scenario: "A historical scenario.", "#A historical scenario."
+	Random_map_and_countries: "Random map and countries.", "#Random map and countries."
 	At_which_level_are_your_leadership_skills: "At which level are your leadership skills?", "À quel niveau sont vos compétences en leadership?" // @
 	Nomad: "Nomad", "Nomade" // @
 	Bourgeoisie: "Bourgeoisie", "Bourgeoisie"
@@ -141,10 +154,19 @@ Generic text
 	only_House_of: "House of", "#House of"
 	WAR_paren: "(WAR)", "#(WAR)"
 	Peace_treaty_paren: "(Peace treaty)", "#(Peace treaty)"
-	Civilization_collapsed: "The [] civilization has collapsed.", "#The [] civilization has collapsed."
+	Civilization_collapsed: "The [] civilization has collapsed due to extensive financial incompetance.", "#The [] civilization has collapsed due to extensive financial incompetance."
 	House_collapsed: "The [house_nm] has collapsed.", "#The [house_of] [name] has collapsed."
 	House_no_successor: "The [house_nm] has collapsed because there exists no successor.", "The [house_nm] has collapsed because there exists no successor."
+	This_is_the_prevailing_doctrine: "This is your empire's prevailing doctrine.", "#This is your empire's prevailing doctrine."
 	Mood: "Mood", "#Mood"
+	Wealth: "Wealth", "#Wealth"
+	Wealth_lowest: "Destitute", "#Destitute"
+	Wealth_lower: "Distressed", "#Distressed"
+	Wealth_low: "Meager", "#Meager"
+	Wealth_middle: "Modest", "#Modest"
+	Wealth_high: "Thriving", "#Thriving"
+	Wealth_higher: "Affluent", "#Affluent"
+	Wealth_highest: "Magnate", "#Magnate"
 	Gold_per_turn: "Gold per turn", "#Gold per turn"
 	Resource: "Resource", "#Resource"
 	Technology: "Technology", "#Technology"
@@ -385,6 +407,19 @@ Generic text
 	Residential: "Residential", "#Residential"
 	Business: "Business", "#Business"
 	Industrial: "Industrial", "#Industrial"
+	Agricultural_menu: "A|gricultural", "#A|gricultural"
+	Residential_menu: "R|esidential", "#R|esidential"
+	Business_menu: "B|usiness", "#B|usiness"
+	Industrial_menu: "I|ndustrial", "#I|ndustrial"
+	Low_menu: "L|ow", "#L|ow" // as in a low density
+	Medium_menu: "M|edium", "#M|edium"
+	High_menu: "H|igh", "#H|igh"
+	Low_density: "Low density", "#Low density"
+	Medium_density: "Medium density", "#Medium density"
+	High_density: "High density", "#High density"
+	Low: "Low ($)", "#Low ($)"
+	Medium: "Medium ($$)", "#Medium ($$)"
+	High: "High ($$$)", "#High ($$$)"
 	Production: "Production: ", "#Production: "
 	Producing: "Producing", "Producing"
 	City_Hall_dist: "City Hall dist: ", "#City Hall dist: "
@@ -455,6 +490,10 @@ Generic text
 	Zone_Demands: "Zone Demands", "#Zone Demands"
 	Milliseconds_runtime_per_game_day: "Milliseconds runtime per game day (performance measure)", "#Milliseconds runtime per game day (performance measure)"
 	Discovers: "Discovers:", "#Discovers:" // Discovers: unit]
+	Your_empire_has_discov_tech: "Your empire has discovered this tech.", "#Your empire has discovered this tech."
+	Your_empire_hasnt_discov_tech_but_sched: "Your empire hasn't discovered this tech, but your scholars are planning to research it.", "#Undiscov but planned"
+	Your_empire_hasnt_discov_tech_but_researching: "Your empire hasn't discovered this tech, but your scholars are researching it.", "#Undiscov but researching"
+	Your_empire_hasnt_discov_tech: "Your empire hasn't discovered this tech.", "#Your empire hasn't discovered this tech."
 	vs_time: "vs. time", "#vs. time" // suffix of something like: Crime vs. time
 	Keys: "Keys", "#Keys" // as in on your keyboard
 	Scroll_view: "Scroll view", "#Scroll view" // [keys]: Scroll view
@@ -497,6 +536,7 @@ Generic text
 	Building_road: "Building road", "#Building road"
 	Building_gate: "Building gate", "#Building gate"
 	Building_wall: "Building wall", "#Building wall"
+	Building_pipe: "Building pipe", "#Building pipe"
 	Repairing_wall: "Repairing wall", "#Repairing wall"
 	Building: "Building", "#Building"
 	Attacking: "Attacking", "#Attacking"
@@ -520,7 +560,9 @@ Generic text
 	The_Battalion: "The [nm] Battalion ([type])", "#The [nm] Battalion ([type])"
 	Create_bldg: ": Create bldg", "#: Create blg"
 	Build_road_to: ": Build road to...", "#: Build road to..."
+	Build_pipe_to: ": Build pipe to...", "#: Build pipe to..."
 	Build_road: "Build road:", "#Build road:"
+	Build_pipe: "Build pipe:", "#Build pipe:"
 	Build_gate: ": Build gate", "#: Build gate"
 	Build_gate_tool_tip: "Gates can be inserted into walls and will allow only your units to pass through. They are, however, weaker than walls.", "Gates can be inserted into walls and will allow only your units to pass through. They are, however, weaker than walls."
 	Build_gate_no_pre_colon: "Build gate:", "#Build gate:"
@@ -896,6 +938,8 @@ Buildings
 	_: "Plantation", "#Plantation"
 	_: "Small house", "#Small house"
 	_: "Medium house", "#Medium house"
+	_: "Town house", "#Town house"
+	_: "Apartments", "#Apartments"
 	_: "Estate", "#Estate"
 	_: "Small Shop", "#Small Shop"
 	_: "Bakery", "#Bakery"
@@ -922,6 +966,7 @@ Buildings
 	_: "Market", "#Market"
 	_: "Manor", "#Manor"
 	_: "Public event", "#Public event"
+	_: "Well", "#Well"
 }
 
 Technologies

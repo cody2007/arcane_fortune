@@ -179,6 +179,7 @@ impl Dest {
 			ActionType::BrigadeCreation {..} |
 			ActionType::SectorCreation {..} |
 			ActionType::SectorAutomation {..} |
+			ActionType::WorkerBuildPipe |
 			ActionType::GroupMv {..} => Dest::NoAttack
 		}
 	}
@@ -219,7 +220,7 @@ pub fn movable_to(src_coord: u64, dest_coord_chk: u64, mfc: &Map, exf: &HashedMa
 			
 			// not possible to travel on bldgs
 			if ex.bldg_ind != None {return false;}
-		};};
+		};}
 		
 		// at attack destination
 		match dest {
@@ -322,6 +323,25 @@ pub fn civil_movable_to(src_coord: u64, dest_coord: u64, mfc: &Map, exf: &Hashed
 		
 		if let Some(bldg_ind) = ex.bldg_ind {
 			if bldgs[bldg_ind].template.nm[0] == CITY_HALL_NM {
+				return true;
+			}
+		}
+	} // ex set
+	false
+}
+
+// is the coordinate movable for water? (pipes)
+// exf is exs at the full zoom
+pub fn water_movable_to(src_coord: u64, dest_coord: u64, mfc: &Map, exf: &HashedMapEx, _: MvVarsAtZoom, bldgs: &Vec<Bldg>,
+		_dest: &Dest, _: MovementType) -> bool {
+	debug_assertq!(src_coord != dest_coord); // civil src to dest are the same
+	if mfc.map_type != MapType::Land {return false;}
+	
+	if let Some(ex) = exf.get(&dest_coord) {
+		if !ex.actual.pipe_health.is_none() {return true}
+		
+		if let Some(bldg_ind) = ex.bldg_ind {
+			if bldgs[bldg_ind].template.water_source {
 				return true;
 			}
 		}

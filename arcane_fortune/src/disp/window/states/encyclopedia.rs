@@ -33,7 +33,7 @@ impl EncyclopediaWindowState {
 						let exemplar_options = OptionsUI::new(exemplar_nms.as_slice());
 						let list_pos = dstate.print_list_window(*mode, format!("Select a {}:", $txt), exemplar_options, Some(30), None, 0, None);
 						dstate.renderer.mv(list_pos.sel_loc.y as i32, list_pos.sel_loc.x as i32);
-					};};
+					};}
 					
 					match category {
 						EncyclopediaCategory::Unit => {set_exemplar_nms!(temps.units, "unit");}
@@ -122,7 +122,7 @@ impl EncyclopediaWindowState {
 				}
 			}
 			return UIModeControl::UnChgd;
-		};};
+		};}
 		
 		// list item clicked
 		if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {

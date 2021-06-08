@@ -7,7 +7,7 @@ use crate::units::UnitTemplate;
 use crate::map::{MapData, MapSz};
 use crate::containers::*;
 use crate::ai::*;
-use crate::nn;
+//use crate::nn;
 
 pub mod player_type; pub use player_type::*;
 pub mod personalization; pub use personalization::*;
@@ -142,27 +142,11 @@ impl <'bt,'ut,'rt,'dt>Player<'bt,'ut,'rt,'dt> {
 }
 
 impl <'bt,'ut,'rt,'dt>Player<'bt,'ut,'rt,'dt> {
-	pub fn new(id: SmSvType, ptype: PlayerType<'bt,'ut,'rt,'dt>, personality: AIPersonality,
-			nm: String, ruler_nm: PersonName, gender_female: bool, bonuses: &Bonuses, color: i32, 
-			txt_gen: &mut nn::TxtGenerator, gstate: &mut GameState, n_log_entries: usize,
+	pub fn new(id: SmSvType, ptype: PlayerType<'bt,'ut,'rt,'dt>, personalization: Personalization,
+			bonuses: &Bonuses, gstate: &mut GameState, n_log_entries: usize,
 			temps: &Templates<'bt,'ut,'rt,'dt,'_>, map_data: &MapData) -> Self {
 		
 		gstate.relations.add_player();
-		
-		let personalization = Personalization {
-			color,
-			nm, // of country
-			gender_female,
-			ruler_nm,
-			doctrine_advisor_nm: PersonName::new(&temps.nms, &mut gstate.rng).1,
-			crime_advisor_nm: PersonName::new(&temps.nms, &mut gstate.rng).1,
-			pacifism_advisor_nm: PersonName::new(&temps.nms, &mut gstate.rng).1,
-			health_advisor_nm: PersonName::new(&temps.nms, &mut gstate.rng).1,
-			unemployment_advisor_nm: PersonName::new(&temps.nms, &mut gstate.rng).1,
-			city_nm_theme: gstate.rng.usize_range(0, temps.nms.cities.len()),
-			motto: txt_gen.gen_str(nn::TxtCategory::from(&personality)),
-			founded: gstate.turn
-		};
 		
 		Self {
 			id,

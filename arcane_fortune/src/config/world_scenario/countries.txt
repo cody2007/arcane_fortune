@@ -1,0 +1,396 @@
+See ai/mod.rs for friendliness/spirituality definitions (they should range between -1:1)
+Negative friendliness is agression
+Negative spirituality is scientific inclination
+
+start_2_y and start_2_x are the starting coordinates for small maps.
+start_3_y and start_3_x are the starting coordinates for large maps.
+
+{
+	nm: England
+	nm_adj: English
+	leader_first: Alexandrina
+	leader_last: Victoria
+	gender_female: true
+	friendliness: 0
+	spirituality: 0.5
+	motto: God save the Queen.
+	founded: 0
+	start_2_y: 1754
+	start_2_x: 15730
+	start_3_y: 7053
+	start_3_x: 63774
+}
+
+{
+	nm: France
+	nm_adj: French
+	leader_last: Louis XIV
+	gender_female: false
+	friendliness: -0.25
+	spirituality: 0
+	motto: Liberty, equality, fraternity.
+	founded: 0
+	start_2_y: 1961
+	start_2_x: 15939
+	start_3_y: 7768
+	start_3_x: 64396
+}
+
+{
+	nm: Spain
+	nm_adj: Spanish
+	leader_last: Isabella I
+	gender_female: true
+	friendliness: -0.25
+	spirituality: -0.1
+	motto: Further beyond.
+	founded: 0
+	start_2_y: 2371
+	start_2_x: 15364
+	start_3_y: 8810
+	start_3_x: 62876
+}
+
+{
+	nm: Egypt
+	nm_adj: Egyptian
+	leader_last: Ramesses II
+	gender_female: false
+	friendliness: -0.1
+	spirituality: 0.5
+	motto: Life, health, well-being.
+	founded: 0
+	start_2_y: 2754
+	start_2_x: 18604
+	start_3_y: 11137
+	start_3_x: 75246
+}
+
+{
+	nm: Persia
+	nm_adj: Persian
+	leader_last: Cyrus II
+	gender_female: false
+	friendliness: -0.35
+	spirituality: 0
+	motto: This too shall pass.
+	founded: 0
+	start_2_y: 2488
+	start_2_x: 19693
+	start_3_y: 9951
+	start_3_x: 82981
+}
+
+{
+	nm: China
+	nm_adj: Chinese
+	leader_first: Qin
+	leader_last: Shi Huang
+	gender_female: false
+	friendliness: 0
+	spirituality: 0.5
+	motto: Civilize the mind, but make savage the body.
+	founded: 0
+	start_2_y: 2872
+	start_2_x: 25768
+	start_3_y: 11400
+	start_3_x: 104589
+}
+
+{
+	nm: India
+	nm_adj: Indian
+	leader_first: Mahatma
+	leader_last: Gandhi
+	gender_female: false
+	friendliness: 1
+	spirituality: 1
+	motto: Truth alone triumphs.
+	founded: 0
+	start_2_y: 3206
+	start_2_x: 22666
+	start_3_y: 12882
+	start_3_x: 91565
+}
+
+---------=================================================================---------------------------------
+
+{
+	nm: Japan
+	nm_adj: Japanese
+	leader_last: Sujin
+	gender_female: false
+	friendliness: -0.2
+	spirituality: 0.5
+	motto: The stake that sticks up gets hammered down.
+	founded: 0
+	start_2_y: 2542
+	start_2_x: 27708
+	start_3_y: 10205
+	start_3_x: 113844
+}
+
+{
+	nm: Russia
+	nm_adj: Russian
+	leader_first: Pyotr
+	leader_last: Alekseevich
+	gender_female: false
+	friendliness: 0
+	spirituality: 0.5
+	motto: The quieter you go, the further you'll get.
+	founded: 0
+	start_2_y: 1763
+	start_2_x: 17863
+	start_3_y: 6791
+	start_3_x: 73468
+}
+
+{
+	nm: Germany
+	nm_adj: German
+	leader_first: Wilhelm
+	leader_last: Luwdig
+	gender_female: false
+	friendliness: 0
+	spirituality: 0.1
+	motto: God with us.
+	founded: 0
+	start_2_y: 1730
+	start_2_x: 16934
+	start_3_y: 7118
+	start_3_x: 68671
+}
+
+{
+	nm: Aztec
+	nm_adj: Aztecan
+	leader_first: Moteuczomatzin
+	leader_last: Ilhuicamina
+	gender_female: false
+	friendliness: -1
+	spirituality: 0.5
+	motto: I join Tlaltecuhtli - to die.
+	founded: 0
+	start_2_y: 2916
+	start_2_x: 7120
+	start_3_y: 11658
+	start_3_x: 28801
+}
+
+{
+	nm: Maya
+	nm_adj: Mayan
+	leader_first: Yax
+	leader_last: Yopaat
+	gender_female: false
+	friendliness: 0
+	spirituality: 0
+	motto: It is not good to point at a rainbow or your finger will rot.
+	founded: 0
+	start_2_y: 3335
+	start_2_x: 7956
+	start_3_y: 12898
+	start_3_x: 32531
+}
+
+{
+	nm: Inca
+	nm_adj: Incan
+	leader_first: Mayta
+	leader_last: Capac
+	gender_female: false
+	friendliness: -0.1
+	spirituality: 0.1
+	motto: He who envies the good draws evil from them for himself.
+	founded: 0
+	start_2_y: 5002
+	start_2_x: 9839
+	start_3_y: 19313
+	start_3_x: 37259
+}
+
+{
+	nm: Khmer
+	nm_adj: Khmer
+	leader_last: Jayavarman II
+	gender_female: false
+	friendliness: 0.2
+	spirituality: 0.5
+	motto: Nation, religion, king.
+	founded: 0
+	start_2_y: 3473
+	start_2_x: 25016
+	start_3_y: 14054
+	start_3_x: 101259
+}
+
+{
+	nm: Zimbabwe
+	nm_adj: Zimbabwe
+	leader_first: Nyatsimba
+	leader_last: Mutota
+	gender_female: false
+	friendliness: 0
+	spirituality: 0.5
+	motto: Unity, freedom, work.
+	founded: 0
+	start_2_y: 4858
+	start_2_x: 18656
+	start_3_y: 19673
+	start_3_x: 75052
+}
+
+{
+	nm: Mongolia
+	nm_adj: Mongolian
+	leader_first: Genghis
+	leader_last: Khan
+	gender_female: false
+	friendliness: -1
+	spirituality: -0.25
+	motto: You can't put two saddles on the same horse.
+	founded: 0
+	start_2_y: 1675
+	start_2_x: 25074
+	start_3_y: 6597
+	start_3_x: 101506
+}
+
+{
+	nm: Mali
+	nm_adj: Mali
+	leader_first: Sundiata
+	leader_last: Keita
+	gender_female: false
+	friendliness: 0.1
+	spirituality: 0.25
+	motto: One people, one goal, one faith.
+	founded: 0
+	start_2_y: 3142
+	start_2_x: 15371
+	start_3_y: 12555
+	start_3_x: 62092
+}
+
+{
+	nm: Kush
+	nm_adj: Kushian
+	leader_last: Kashta
+	gender_female: false
+	friendliness: 0.75
+	spirituality: 0.25
+	motto: Our wasted days are the days we never laugh.
+	founded: 0
+	start_2_y: 3287
+	start_2_x: 18572
+	start_3_y: 13205
+	start_3_x: 75574
+}
+
+{
+	nm: Greece
+	nm_adj: Greek
+	leader_last: Alexander the Great
+	gender_female: false
+	friendliness: -0.3
+	spirituality: 0
+	motto: Many hands make light work.
+	founded: 0
+	start_2_y: 2075
+	start_2_x: 17768
+	start_3_y: 9119
+	start_3_x: 72289
+}
+
+{
+	nm: Ireland
+	nm_adj: Irish
+	leader_first: Mael
+	leader_last: Sechnaill
+	gender_female: false
+	friendliness: 0.1
+	spirituality: 0.2
+	motto: Hindight is the best insight to foresight.
+	founded: 0
+	start_2_y: 1666
+	start_2_x: 15193
+	start_3_y: 6726
+	start_3_x: 61377
+}
+
+{
+	nm: Viking
+	nm_adj: Viking
+	leader_last: Erik the Red
+	gender_female: false
+	friendliness: -0.75
+	spirituality: -0.2
+	motto: Too much ale and a man's heart is laid open for all to see.
+	founded: 0
+	start_2_y: 1379
+	start_2_x: 16963
+	start_3_y: 5958
+	start_3_x: 69128
+}
+
+{
+	nm: Netherlands
+	nm_adj: Dutch
+	leader_last: William I
+	gender_female: false
+	friendliness: 0
+	spirituality: -0.5
+	motto: I will maintain.
+	founded: 0
+	start_2_y: 1795
+	start_2_x: 16271
+	start_3_y: 7247
+	start_3_x: 65911
+}
+
+{
+	nm: Indonesia
+	nm_adj: Indonesian
+	leader_last: Jayabaya
+	gender_female: false
+	friendliness: 0.15
+	spirituality: 0.65
+	motto: Unity in diversity.
+	founded: 0
+	start_2_y: 4186
+	start_2_x: 25864
+	start_3_y: 16772
+	start_3_x: 103935
+}
+
+{
+	nm: Korea
+	nm_adj: Korean
+	leader_last: Sejong of Joseon
+	gender_female: false
+	friendliness: -0.1
+	spirituality: 0.1
+	motto: At the end of hardship comes happiness.
+	founded: 0
+	start_2_y: 2382
+	start_2_x: 27122
+	start_3_y: 9998
+	start_3_x: 109794
+}
+
+{
+	nm: Austria
+	nm_adj: Austrian
+	leader_last: Rudolf I
+	gender_female: false
+	friendliness: -0.1
+	spirituality: -0.25
+	motto: All the world is subject to Austria.
+	founded: 0
+	start_2_y: 1871
+	start_2_x: 17160
+	start_3_y: 7506
+	start_3_x: 69928
+}
+

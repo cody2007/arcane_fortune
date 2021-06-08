@@ -93,7 +93,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 		macro_rules! reset_cont{() => {
 			units[unit_ind].action.pop();
 			return;
-		};};
+		};}
 		
 		if attackee.is_none() {reset_cont!();}
 		
@@ -114,7 +114,7 @@ pub fn do_attack_action<'f,'bt,'ut,'rt,'dt>(unit_ind: usize, disband_unit_inds: 
 				disp.state.update_menu_indicators(cur_ui_ai_player_is_paused);
 				disp.center_on_next_unmoved_menu_item(false, FindType::Coord(attack_coord), map_data, exs, units, bldgs, gstate, players);
 			}
-		};};
+		};}
 		
 		// special animation & actions for ICBMs
 		if u.template.nm[0] == ICBM_NM {

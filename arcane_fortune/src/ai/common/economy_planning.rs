@@ -136,7 +136,7 @@ impl <'bt,'ut,'rt,'dt>AIState<'bt,'ut,'rt,'dt> {
 				});
 			}
 			return;
-		};};
+		};}
 		
 		//if personality.spirituality > 0. {
 			if rng.gen_f32b() < doctrine_bldg_prob {

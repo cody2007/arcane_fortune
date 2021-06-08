@@ -193,7 +193,7 @@ impl TxtPrinter {
 	}
 	
 	pub fn gen(&mut self) -> String {
-		macro_rules! ret_seq{() => {return self.seq.iter().collect::<String>();}};
+		macro_rules! ret_seq{() => {return self.seq.iter().collect::<String>();}}
 		if self.finished {ret_seq!();}
 		
 		let t_start = Instant::now();

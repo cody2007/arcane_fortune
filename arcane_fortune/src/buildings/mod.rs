@@ -13,6 +13,7 @@ use crate::localization::Localization;
 use crate::movement::manhattan_dist;
 use crate::player::*;
 use crate::containers::*;
+use crate::zones::*;
 
 mod vars; pub use vars::*;
 mod events; pub use events::*;
@@ -38,8 +39,13 @@ pub fn init_bldg_templates<'ut,'rt,'dt>(tech_templates: &Vec<TechTemplate>, unit
 		let units_producable_txt = find_opt_key_vec_string("units_producable_txt", keys);
 		let unit_production_rate = find_key_parse("unit_production_rate", 0, keys);
 		
-		let bldg_type = if let Some(zone) = find_opt_key_parse("taxable_zone", keys) {
-			BldgType::Taxable(zone)
+		let bldg_type = if let Some(ztype) = find_opt_key_parse("taxable_zone", keys) {
+			BldgType::Taxable(
+				Zone {
+					ztype,
+					density: ZoneDensity::frm_str(&find_req_key("zone_density", keys))
+				}
+			)
 		}else{
 			BldgType::Gov(load_zone_bonuses(keys))
 		};
@@ -73,6 +79,7 @@ pub fn init_bldg_templates<'ut,'rt,'dt>(tech_templates: &Vec<TechTemplate>, unit
 				units_producable,
 				units_producable_txt,
 				unit_production_rate,
+				water_source: find_key_parse("water_source", false, keys),
 				
 				construction_req: find_key_parse("construction_req", 0., keys),
 				upkeep: find_req_key_parse("upkeep", keys),
@@ -114,6 +121,10 @@ impl BldgConfig {
 				birth_celebration_bonus: find_req_key_parse("birth_celebration_bonus", &keys),
 				marriage_celebration_bonus: find_req_key_parse("marriage_celebration_bonus", &keys),
 				funeral_bonus: find_req_key_parse("funeral_bonus", &keys),
+				
+				cost_to_zone_low_density: find_req_key_parse("cost_to_zone_low_density", &keys),
+				cost_to_zone_medium_density: find_req_key_parse("cost_to_zone_medium_density", &keys),
+				cost_to_zone_high_density: find_req_key_parse("cost_to_zone_high_density", &keys),
 			}
 		}else{panicq!("could not find building configuration entries in {}", BLDG_CONFIG_FILE);}
 	}
@@ -132,7 +143,7 @@ pub fn land_clear_ign_zone_ign_owner(coord: u64, mfc: &Map, exf: &HashedMapEx) -
 }
 
 pub struct MatchZoneOwner {
-	pub zone: ZoneType,
+	pub zone_type: ZoneType,
 	pub owner_id: SmSvType
 }
 
@@ -149,7 +160,7 @@ pub fn land_clear(coord: u64, match_zone_owner: Option<MatchZoneOwner>, mfc: &Ma
 			
 			// zone type must match:
 			if let Some(zone_type) = ex.actual.ret_zone_type() {
-				return zo.zone == zone_type;
+				return zo.zone_type == zone_type;
 			}
 		} // ex present
 		
@@ -346,11 +357,11 @@ use crate::ai::{CITY_GRID_HEIGHT, CITY_GRID_WIDTH, city_hall_offset};
 
 pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, 
 		bt: &'bt BldgTemplate<'ut,'rt,'dt>, doctrine_dedication: Option<&'dt DoctrineTemplate>,
-		temps: &Templates<'bt,'ut,'rt,'dt,'_>,
+		wealth_level: Option<i32>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 		map_data: &mut MapData<'rt>, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>,
 		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, gstate: &mut GameState) -> bool {
 	
-	let get_doctrine_dedication = || {
+	let doctrine_dedication = (|| {
 		// if there is a doctrine dedication provided and this building
 		// contributes + doctrine points, use it, else, use the undefined doctrine
 		if let Some(dedication) = doctrine_dedication {
@@ -359,24 +370,21 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 			}
 		}
 		&temps.doctrines[0]
-	};
-	let doctrine_dedication = get_doctrine_dedication();
+	})();
 	
-	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
+	let map_sz = *map_data.map_szs.last().unwrap();
 	
 	let c = Coord::frm_ind(coord, map_sz);
-	let h = bt.sz.h as isize;
-	let w = bt.sz.w as isize;
 	
 	//// check if bldg can be constructed
 	let exf = exs.last().unwrap();
 	let mfc_pos = map_data.get(ZoomInd::Full, coord);
 	
-	for i_off in 0..h {
-	for j_off in 0..w {
+	for i_off in 0..bt.sz.h as isize {
+	for j_off in 0..bt.sz.w as isize {
 		if let Some(coord) = map_sz.coord_wrap(c.y + i_off, c.x + j_off) {
-			let mzo = if let BldgType::Taxable(zone) = bt.bldg_type {
-				Some(MatchZoneOwner {zone, owner_id})
+			let mzo = if let Some(zone_type) = bt.bldg_type.zone_type() {
+				Some(MatchZoneOwner {zone_type, owner_id})
 			}else{
 				None
 			};
@@ -407,54 +415,8 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 			}
 			
 			// choose name of city, making sure to not choose one that's already been used
-			let mut unused_nm = || {
-				let city_nms_use = &temps.nms.cities[player.personalization.city_nm_theme];
-				let inds = gstate.rng.inds(city_nms_use.len());
-				
-				let mut prefix = String::new();
-				let mut suffix = String::new();
-				
-				loop {
-					'nm_selection: for ind in inds.iter() {
-						let proposed_nm = &city_nms_use[*ind];
-						for log in gstate.logs.iter() {
-							if let LogType::CityFounded {city_nm, ..} = &log.val {
-								if *city_nm == *proposed_nm {
-									continue 'nm_selection;
-								}
-							}
-						}
-						
-						// if this point has been reached, no matches have been found
-						return if suffix == "shire" && proposed_nm.chars().last().unwrap() == 's' {
-							format!("{}{}-{}", prefix, proposed_nm, suffix)
-						}else{
-							format!("{}{}{}", prefix, proposed_nm, suffix)
-						};
-					}
+			let nm = temps.nms.new_city_name(&player.personalization, gstate);
 					
-					// if this point has been reached, every name tried has already been used,
-					// so we add a suffix or prefix and search again
-					
-					// create suffix
-					if suffix.len() == 0 && gstate.rng.gen_f32b() < 0.5 {
-						const SUFFIXES: &[&str] = &["shire", "borough", "ville", " Town", " City"];
-						let ind = gstate.rng.usize_range(0, SUFFIXES.len());
-						
-						suffix = String::from(SUFFIXES[ind]);
-					// append prefix
-					}else{
-						if prefix.len() == 0 && gstate.rng.gen_f32b() < 0.5 {
-							prefix = String::from("Fort ");
-						}else{
-							prefix.push_str("New ");
-						}
-					}
-				}
-			};
-			
-			let nm = unused_nm();
-			
 			// log
 			//if bt.nm[0] == MANOR_NM {
 				gstate.log_event(LogType::CityFounded {owner_id, city_nm: nm.clone()});
@@ -463,12 +425,13 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 			BldgArgs::PopulationCenter {
 				tax_rates: vec!{10; ZoneType::N as usize}.into_boxed_slice(),
 				production: Vec::new(),
-				population: 0,
+				population: vec![0; WealthLevel::N as usize],
 				nm
 			}
 		}else if let Some(_) = bt.units_producable {
 			BldgArgs::GenericProducable {production: Vec::new()}
-		
+		}else if let Some(wealth_level) = wealth_level {
+			BldgArgs::Taxable {wealth_level}
 		}else {BldgArgs::None};
 	
 	////////////////////////////////////////////////////////////////////////////////////////////
@@ -518,8 +481,8 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 	//// set map
 	let exf = exs.last_mut().unwrap();
 
-	for i_off in 0..h {
-	for j_off in 0..w {
+	for i_off in 0..bt.sz.h as isize {
+	for j_off in 0..bt.sz.w as isize {
 		let coord = map_sz.coord_wrap(c.y + i_off, c.x + j_off).unwrap();
 		exf.create_if_empty(coord);
 		let ex = exf.get_mut(&coord).unwrap();
@@ -527,8 +490,8 @@ pub fn add_bldg<'bt,'ut,'rt,'dt>(coord: u64, owner_id: SmSvType, bldgs: &mut Vec
 		// req taxable bldgs be entirely within the correct zone and owned by current owner
 		#[cfg(any(feature="opt_debug", debug_assertions))]
 		{
-			if let BldgType::Taxable(zone) = bt.bldg_type {
-				debug_assertq!(Some(zone) == ex.actual.ret_zone_type() && ex.actual.owner_id == Some(owner_id as SmSvType));
+			if let Some(zone_type) = bt.bldg_type.zone_type() {
+				debug_assertq!(Some(zone_type) == ex.actual.ret_zone_type() && ex.actual.owner_id == Some(owner_id as SmSvType));
 			}
 			
 			debug_assertq!(ex.actual.owner_id.is_none() || ex.actual.owner_id == Some(owner_id as SmSvType));
@@ -559,9 +522,9 @@ fn bldg_map_update<'bt,'ut,'rt,'dt>(c: Coord, bt: &BldgTemplate, bldgs: &Vec<Bld
 pub fn bldg_resource<'rt>(coord: u64, bt: &BldgTemplate, map_data: &mut MapData<'rt>, map_sz: MapSz) -> Option<&'rt ResourceTemplate> {
 	const DIST_SEARCH: isize = 25;
 	
-	if let BldgType::Taxable(zone_type) = bt.bldg_type {
+	if let Some(zone_type) = bt.bldg_type.zone_type() {
 		let c = Coord::frm_ind(coord, map_sz);
-
+		
 		for i_off in -DIST_SEARCH..(bt.sz.h as isize + DIST_SEARCH) {
 		for j_off in -DIST_SEARCH..(bt.sz.w as isize + DIST_SEARCH) {
 			if let Some(coord_chk) = map_sz.coord_wrap(c.y + i_off, c.x + j_off) {
@@ -626,6 +589,7 @@ pub fn bldg_frm_coord<'b,'bt,'ut,'rt,'dt>(coord: u64, bldgs: &'b mut Vec<Bldg<'b
 	bldgs.iter_mut().find(|b| b.coord == coord)
 }
 
+// used for rioters so that they do not initially target city halls
 pub fn closest_owned_non_city_hall_bldg<'b,'bt,'ut,'rt,'dt>(coord: Coord, 
 		population_thresh: u32, owner_id: SmSvType, 
 		bldgs: &'b Vec<Bldg<'bt,'ut,'rt,'dt>>, map_sz: MapSz) -> Option<&'b Bldg<'bt,'ut,'rt,'dt>> {
@@ -636,7 +600,7 @@ pub fn closest_owned_non_city_hall_bldg<'b,'bt,'ut,'rt,'dt>(coord: Coord,
 	let mut bldg_dist_opt: Option<BldgDist> = None;
 	for (bldg_ind, b) in bldgs.iter().enumerate().filter(|(_, b)| {
 		if let BldgArgs::PopulationCenter {population, ..} = &b.args {
-			if *population > population_thresh {
+			if population.iter().sum::<u32>() > population_thresh {
 				return false;
 			}
 		}

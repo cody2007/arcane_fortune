@@ -255,6 +255,8 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 			UIMode::SelectExploreType(state) => {state.print(dstate)}
 			UIMode::Trade(state) => {state.print(players, gstate, temps, dstate)}
 			UIMode::ViewTrade(state) => {state.print(gstate, temps, players, dstate)}
+			UIMode::ZoneLand(state) => state.print(dstate),
+			UIMode::Budget(state) => state.print(dstate)
 		};
 	
 		match ret {

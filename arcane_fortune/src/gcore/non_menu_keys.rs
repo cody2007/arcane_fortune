@@ -4,12 +4,12 @@ use crate::disp::*;
 use crate::units::*;
 use crate::map::*;
 use crate::gcore::*;
-use crate::zones::return_zone_coord;
+use crate::zones::*;
 use crate::disp::menus::{ArgOptionUI, FindType};
 
 // check if unit present, it is owned by current player, has actions available, and no other action mode is active
 impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
-	fn sel_units_owned(&self, pstats: &Stats, units: &Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData<'rt>, exf: &HashedMapEx<'bt,'ut,'rt,'dt>) -> Vec<usize> {
+	pub fn sel_units_owned(&self, pstats: &Stats, units: &Vec<Unit<'bt,'ut,'rt,'dt>>, map_data: &mut MapData<'rt>, exf: &HashedMapEx<'bt,'ut,'rt,'dt>) -> Vec<usize> {
 		if !self.add_action_to.first_action().is_none() {return Vec::new();} // areadly performing some other action
 		
 		// brigade
@@ -29,16 +29,8 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	}
 }
 
-// start zoning mode for worker
-fn start_zoning<'bt,'ut,'rt,'dt>(unit_inds: &Vec<usize>, zone_type: ZoneType, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>,
-		map_data: &mut MapData<'rt>, exf: &HashedMapEx, disp: &mut Disp) {
-	// zone if in build list mode or there is a worker selected
-	if disp.state.iface_settings.add_action_to.is_build_list() || unit_inds.iter().any(|&ind| units[ind].template.nm[0] == WORKER_NM) {
-		let act = ActionType::WorkerZone { valid_placement: false, zone_type, start_coord: None, end_coord: None };
-		disp.state.iface_settings.start_build_mv_mode(act, unit_inds, units, map_data);
-	
-	// set taxes
-	}else if let Some(bldg_ind) = disp.state.iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exf){
+fn set_zone_tax<'bt,'ut,'rt,'dt>(zone_type: ZoneType, bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>,	map_data: &mut MapData<'rt>, exf: &HashedMapEx, disp: &mut Disp) {
+	if let Some(bldg_ind) = disp.state.iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exf){
 		if bldgs[bldg_ind].template.nm[0] == CITY_HALL_NM {
 			disp.ui_mode = UIMode::SetTaxes(zone_type);
 		}
@@ -58,7 +50,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(map_data: &mut MapData<'rt>, exs: &mut 
 			ViewMvMode::Float => disp.linear_update_float($coord_set, $sign, map_data, exs, units, bldgs, gstate, players),
 			ViewMvMode::N => {panicq!("invalid view setting");}
 		}
-	}};
+	}}
 	macro_rules! aupdate{($coord_set: expr, $sign: expr)=> {
 		match disp.state.iface_settings.view_mv_mode {
 			ViewMvMode::Cursor => disp.accel_update($coord_set, ($sign) as f32, map_data, exs, units, bldgs, gstate, players),
@@ -66,10 +58,10 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(map_data: &mut MapData<'rt>, exs: &mut 
 			ViewMvMode::Float => disp.accel_update_float($coord_set, ($sign) as f32, map_data, exs, units, bldgs, gstate, players),
 			ViewMvMode::N => {panicq!("invalid view setting");}
 		}
-	}};
+	}}
 	
-	macro_rules! end_turn_c{()=>(end_turn(gstate, units, bldgs, temps, disp, map_data, exs, players, frame_stats););};
-		
+	macro_rules! end_turn_c{()=>(end_turn(gstate, units, bldgs, temps, disp, map_data, exs, players, frame_stats););}
+	
 	macro_rules! set_taxes{($inc: expr)=>{
 		if let UIMode::SetTaxes(zone_type) = disp.ui_mode {
 			if let Some(city_hall_ind_set) = disp.state.iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exs.last().unwrap()) {
@@ -104,7 +96,7 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(map_data: &mut MapData<'rt>, exs: &mut 
 				}else{panicq!("could not get population center bldg args");}
 			}else{panicq!("tax ui mode set but no bldg selected");}
 		} // in tax-setting UI mode
-	};};
+	};}
 	
 	let k = disp.state.key_pressed;
 	let mut cursor_moved = false;
@@ -218,169 +210,6 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(map_data: &mut MapData<'rt>, exs: &mut 
 	///// menu
 	if disp.state.kbd.open_top_menu == k {disp.start_menu();}
 	
-	{ //// zoom
-		macro_rules! set_text_coord{() => {
-			if let Some(screen_coord) = disp.state.renderer.mouse_pos() {
-				let screen_coord = Coord {y: screen_coord.0 as isize, x: screen_coord.1 as isize};
-				disp.set_text_coord(screen_coord, units, bldgs, exs, map_data, players, gstate);
-			}
-		};};
-		
-		macro_rules! chg_zoom{($dir:expr) => {disp.chg_zoom($dir, map_data, exs, units, bldgs, gstate, players, map_sz);};};
-		
-		if disp.state.kbd.zoom_in == k {chg_zoom!(1);}
-		if disp.state.kbd.zoom_out == k {chg_zoom!(-1);}
-		
-		if scroll_up(&disp.state.mouse_event) {set_text_coord!(); chg_zoom!(1);}
-		if scroll_down(&disp.state.mouse_event) {set_text_coord!(); chg_zoom!(-1);}
-	}
-	
-	if disp.state.kbd.toggle_cursor_mode == k {
-		disp.state.iface_settings.view_mv_mode.toggle();
-	}
-		
-	////////// cursor OR view straight
-	if disp.state.kbd.up_normal(k) {lupdate!(CoordSet::Y, -1); cursor_moved = true;}
-	if disp.state.kbd.down_normal(k) {lupdate!(CoordSet::Y, 1); cursor_moved = true;}
-	if disp.state.kbd.left == k || KEY_LEFT == k {lupdate!(CoordSet::X, -1); cursor_moved = true;}
-	if disp.state.kbd.right == k || KEY_RIGHT == k {lupdate!(CoordSet::X, 1); cursor_moved = true;}
-	
-	if disp.state.kbd.fast_up == k {aupdate!(CoordSet::Y, -1); cursor_moved = true;}
-	if disp.state.kbd.fast_down == k {aupdate!(CoordSet::Y, 1); cursor_moved = true;}
-	if disp.state.kbd.fast_left == k {aupdate!(CoordSet::X, -1); cursor_moved = true;}
-	if disp.state.kbd.fast_right == k {aupdate!(CoordSet::X, 1); cursor_moved = true;}
-	
-	/////////// screen reader text tabbing
-	if screen_reader_mode() {
-		if k == disp.state.kbd.start_tabbing_through_bottom_screen_mode {
-			disp.ui_mode = UIMode::TextTab {
-				mode: 0,
-				loc: TextTabLoc::BottomStats
-			};
-			disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
-		}
-		
-		if k == disp.state.kbd.start_tabbing_through_right_screen_mode {
-			disp.ui_mode = UIMode::TextTab {
-				mode: 0,
-				loc: TextTabLoc::RightSide
-			};
-			disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
-		}
-		
-		if k == disp.state.kbd.forward_tab {
-			if let UIMode::TextTab {ref mut mode, loc} = &mut disp.ui_mode {
-				*mode += 1;
-				// check if we wrap
-				match loc {
-					TextTabLoc::BottomStats => {
-						if disp.state.txt_list.bottom.len() <= *mode {*mode = 0;}
-					}
-					TextTabLoc::RightSide => {
-						if disp.state.txt_list.right.len() <= *mode {*mode = 0;}
-					}
-				}
-			}
-		}
-		
-		if k == disp.state.kbd.backward_tab {
-			if let UIMode::TextTab {ref mut mode, loc} = &mut disp.ui_mode {
-				if *mode >= 1 {
-					*mode -= 1;
-				// wrap
-				}else{
-					match loc {
-						TextTabLoc::BottomStats => {
-							*mode = disp.state.txt_list.bottom.len()-1;
-						}
-						TextTabLoc::RightSide => {
-							*mode = disp.state.txt_list.right.len()-1;
-						}
-					}
-				}
-			}
-		}
-	}
-	
-	{ /////////// cursor OR view diagonol
-		// upper right
-		if disp.state.kbd.diag_up_right == k {
-			lupdate!(CoordSet::X, 2);
-			lupdate!(CoordSet::Y, -1);
-			cursor_moved = true;
-		}
-		
-		if disp.state.kbd.fast_diag_up_right == k {
-			aupdate!(CoordSet::X, 2);
-			aupdate!(CoordSet::Y, -1);
-			cursor_moved = true;
-		}
-		
-		// upper left
-		if disp.state.kbd.diag_up_left == k {
-			lupdate!(CoordSet::X, -2);
-			lupdate!(CoordSet::Y, -1);
-			cursor_moved = true;
-		}
-		
-		if disp.state.kbd.fast_diag_up_left == k {
-			aupdate!(CoordSet::X, -2);
-			aupdate!(CoordSet::Y, -1);
-			cursor_moved = true;
-		}
-		
-		// lower right
-		if disp.state.kbd.diag_down_right == k {
-			lupdate!(CoordSet::X, 2);
-			lupdate!(CoordSet::Y, 1);
-			cursor_moved = true;
-		}
-		
-		if disp.state.kbd.fast_diag_down_right == k {
-			aupdate!(CoordSet::X, 2);
-			aupdate!(CoordSet::Y, 1);
-			cursor_moved = true;
-		}
-		
-		// lower left
-		if disp.state.kbd.diag_down_left == k {
-			lupdate!(CoordSet::X, -2);
-			lupdate!(CoordSet::Y, 1);
-			cursor_moved = true;
-		}
-		
-		if disp.state.kbd.fast_diag_down_left == k {
-			aupdate!(CoordSet::X, -2);
-			aupdate!(CoordSet::Y, 1);
-			cursor_moved = true;
-		}
-			
-		// center on cursor
-		if disp.state.kbd.center_on_cursor == k {disp.state.iface_settings.ctr_on_cur(map_data);}
-	}
-	
-	if disp.state.kbd.center_on_next_unmoved_unit == k {
-		disp.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, gstate, players);
-	}
-	
-	////////// end turn
-	if disp.state.buttons.progress_day.activated(k, &disp.state.mouse_event) && disp.state.iface_settings.all_player_pieces_mvd {end_turn_c!();}
-	if disp.state.buttons.progress_day_ign_unmoved_units.activated(k, &disp.state.mouse_event) { end_turn_c!();}
-	if disp.state.buttons.progress_month.activated(k, &disp.state.mouse_event) { for _i in 0..FAST_TURN_INC {end_turn_c!();}}
-	if disp.state.buttons.finish_all_unit_actions.activated(k, &disp.state.mouse_event) || disp.state.buttons.stop_fin_all_unit_actions.activated(k, &disp.state.mouse_event) {
-		// stop finishing all actions
-		if disp.state.iface_settings.auto_turn == AutoTurn::FinishAllActions {
-			disp.state.set_auto_turn(AutoTurn::Off);
-		// start finishing all actions
-		}else	if disp.state.iface_settings.all_player_pieces_mvd {
-			disp.state.set_auto_turn(AutoTurn::FinishAllActions);
-		// alert that there are unmoved units
-		}else if disp.state.iface_settings.auto_turn == AutoTurn::Off {
-			disp.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, gstate, players);
-			disp.create_interrupt_window(UIMode::UnmovedUnitsNotification(UnmovedUnitsNotificationState {}));
-		}
-	}
-	
 	let pstats = &players[disp.state.iface_settings.cur_player as usize].stats;
 	let exf = exs.last().unwrap();
 	
@@ -418,23 +247,20 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(map_data: &mut MapData<'rt>, exs: &mut 
 			if let Some(bldg_ind) = disp.state.iface_settings.bldg_ind_frm_cursor(bldgs, map_data, exf) { // checks cur_player owns it
 				let b = &bldgs[bldg_ind];
 				if let Some(_) = &b.template.units_producable {
-					let production_opt = match &b.args {
-						BldgArgs::PopulationCenter {production, ..} | 
-						BldgArgs::GenericProducable {production, ..} => production,
-						BldgArgs::None | BldgArgs::PublicEvent {..} => {panicq!("bldg arguments do not store production");}};
-					
-					// convert &UnitTemplate (production) into an index, to use for the window selection
-					let mode = if let Some(production) = production_opt.last() {
-						disp.state.production_options.bldgs[b.template.id as usize].as_ref().unwrap().options.iter().position(|o| {
-							if let ArgOptionUI::UnitTemplate(Some(ut)) = o.arg {
-								return ut == production.production;
-							}
-							false
-						}).unwrap()
-					}else{0};
-					
-					disp.create_window(UIMode::ProdListWindow(ProdListWindowState {mode}));
-					return;
+					if let Some(production_list) = b.args.production() {
+						// convert &UnitTemplate (production) into an index, to use for the window selection
+						let mode = if let Some(production) = production_list.last() {
+							disp.state.production_options.bldgs[b.template.id as usize].as_ref().unwrap().options.iter().position(|o| {
+								if let ArgOptionUI::UnitTemplate(Some(ut)) = o.arg {
+									return ut == production.production;
+								}
+								false
+							}).unwrap()
+						}else{0};
+						
+						disp.create_window(UIMode::ProdListWindow(ProdListWindowState {mode}));
+						return;
+					}else{panicq!("bldg arguments do not store production");}
 				}
 			}
 		}
@@ -749,6 +575,11 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(map_data: &mut MapData<'rt>, exs: &mut 
 				return;
 			}
 			
+			// pipe
+			if disp.state.buttons.build_pipe.activated(k, &disp.state.mouse_event) {
+				disp.state.iface_settings.start_build_mv_mode(ActionType::WorkerBuildPipe, &worker_unit_inds, units, map_data);
+			}
+			
 			// wall
 			if disp.state.buttons.build_wall.activated(k, &disp.state.mouse_event) {
 				// check that no other units are here... prevent building wall on them
@@ -777,11 +608,17 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(map_data: &mut MapData<'rt>, exs: &mut 
 				return;
 			}
 			
-			//////////// zoning (creation and setting tax rates)
-			if disp.state.buttons.zone_agricultural.activated(k, &disp.state.mouse_event) || disp.state.buttons.tax_agricultural.activated(k, &disp.state.mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Agricultural, units, bldgs, map_data, exf, disp); return;}
-			if disp.state.buttons.zone_residential.activated(k, &disp.state.mouse_event) || disp.state.buttons.tax_residential.activated(k, &disp.state.mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Residential, units, bldgs, map_data, exf, disp); return;}
-			if disp.state.buttons.zone_business.activated(k, &disp.state.mouse_event) || disp.state.buttons.tax_business.activated(k, &disp.state.mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Business, units, bldgs, map_data, exf, disp); return;}
-			if disp.state.buttons.zone_industrial.activated(k, &disp.state.mouse_event) || disp.state.buttons.tax_industrial.activated(k, &disp.state.mouse_event) {start_zoning(&worker_unit_inds, ZoneType::Industrial, units, bldgs, map_data, exf, disp); return;}
+			// zoning (setting tax rates)
+			if disp.state.buttons.tax_agricultural.activated(k, &disp.state.mouse_event) {set_zone_tax(ZoneType::Agricultural, bldgs, map_data, exf, disp); return;}
+			if disp.state.buttons.tax_residential.activated(k, &disp.state.mouse_event) {set_zone_tax(ZoneType::Residential, bldgs, map_data, exf, disp); return;}
+			if disp.state.buttons.tax_business.activated(k, &disp.state.mouse_event) {set_zone_tax(ZoneType::Business, bldgs, map_data, exf, disp); return;}
+			if disp.state.buttons.tax_industrial.activated(k, &disp.state.mouse_event) {set_zone_tax(ZoneType::Industrial, bldgs, map_data, exf, disp); return;}
+			
+			// zoning (creating zones)
+			if disp.state.buttons.zone_land.activated(k, &disp.state.mouse_event) {
+				disp.create_interrupt_window(UIMode::ZoneLand(ZoneLandState::new()));
+				return;
+			}
 		}
 	}
 	
@@ -816,6 +653,169 @@ pub fn non_menu_keys<'bt,'ut,'rt,'dt,'f>(map_data: &mut MapData<'rt>, exs: &mut 
 	// hide submap
 	if disp.state.kbd.action_drag.released(&disp.state.mouse_event) {
 		disp.state.iface_settings.show_expanded_submap.close();
+	}
+
+	{ //// zoom
+		macro_rules! set_text_coord{() => {
+			if let Some(screen_coord) = disp.state.renderer.mouse_pos() {
+				let screen_coord = Coord {y: screen_coord.0 as isize, x: screen_coord.1 as isize};
+				disp.set_text_coord(screen_coord, units, bldgs, exs, map_data, players, gstate);
+			}
+		};}
+		
+		macro_rules! chg_zoom{($dir:expr) => {disp.chg_zoom($dir, map_data, exs, units, bldgs, gstate, players, map_sz);};}
+		
+		if disp.state.kbd.zoom_in == k {chg_zoom!(1);}
+		if disp.state.kbd.zoom_out == k {chg_zoom!(-1);}
+		
+		if scroll_up(&disp.state.mouse_event) {set_text_coord!(); chg_zoom!(1);}
+		if scroll_down(&disp.state.mouse_event) {set_text_coord!(); chg_zoom!(-1);}
+	}
+	
+	if disp.state.kbd.toggle_cursor_mode == k {
+		disp.state.iface_settings.view_mv_mode.toggle();
+	}
+	
+	////////// cursor OR view straight
+	if disp.state.kbd.up_normal(k) {lupdate!(CoordSet::Y, -1); cursor_moved = true;}
+	if disp.state.kbd.down_normal(k) {lupdate!(CoordSet::Y, 1); cursor_moved = true;}
+	if disp.state.kbd.left == k || KEY_LEFT == k {lupdate!(CoordSet::X, -1); cursor_moved = true;}
+	if disp.state.kbd.right == k || KEY_RIGHT == k {lupdate!(CoordSet::X, 1); cursor_moved = true;}
+	
+	if disp.state.kbd.fast_up == k {aupdate!(CoordSet::Y, -1); cursor_moved = true;}
+	if disp.state.kbd.fast_down == k {aupdate!(CoordSet::Y, 1); cursor_moved = true;}
+	if disp.state.kbd.fast_left == k {aupdate!(CoordSet::X, -1); cursor_moved = true;}
+	if disp.state.kbd.fast_right == k {aupdate!(CoordSet::X, 1); cursor_moved = true;}
+	
+	/////////// screen reader text tabbing
+	if screen_reader_mode() {
+		if k == disp.state.kbd.start_tabbing_through_bottom_screen_mode {
+			disp.ui_mode = UIMode::TextTab {
+				mode: 0,
+				loc: TextTabLoc::BottomStats
+			};
+			disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		}
+		
+		if k == disp.state.kbd.start_tabbing_through_right_screen_mode {
+			disp.ui_mode = UIMode::TextTab {
+				mode: 0,
+				loc: TextTabLoc::RightSide
+			};
+			disp.state.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
+		}
+		
+		if k == disp.state.kbd.forward_tab {
+			if let UIMode::TextTab {ref mut mode, loc} = &mut disp.ui_mode {
+				*mode += 1;
+				// check if we wrap
+				match loc {
+					TextTabLoc::BottomStats => {
+						if disp.state.txt_list.bottom.len() <= *mode {*mode = 0;}
+					}
+					TextTabLoc::RightSide => {
+						if disp.state.txt_list.right.len() <= *mode {*mode = 0;}
+					}
+				}
+			}
+		}
+		
+		if k == disp.state.kbd.backward_tab {
+			if let UIMode::TextTab {ref mut mode, loc} = &mut disp.ui_mode {
+				if *mode >= 1 {
+					*mode -= 1;
+				// wrap
+				}else{
+					match loc {
+						TextTabLoc::BottomStats => {
+							*mode = disp.state.txt_list.bottom.len()-1;
+						}
+						TextTabLoc::RightSide => {
+							*mode = disp.state.txt_list.right.len()-1;
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	{ /////////// cursor OR view diagonol
+		// upper right
+		if disp.state.kbd.diag_up_right == k {
+			lupdate!(CoordSet::X, 2);
+			lupdate!(CoordSet::Y, -1);
+			cursor_moved = true;
+		}
+		
+		if disp.state.kbd.fast_diag_up_right == k {
+			aupdate!(CoordSet::X, 2);
+			aupdate!(CoordSet::Y, -1);
+			cursor_moved = true;
+		}
+		
+		// upper left
+		if disp.state.kbd.diag_up_left == k {
+			lupdate!(CoordSet::X, -2);
+			lupdate!(CoordSet::Y, -1);
+			cursor_moved = true;
+		}
+		
+		if disp.state.kbd.fast_diag_up_left == k {
+			aupdate!(CoordSet::X, -2);
+			aupdate!(CoordSet::Y, -1);
+			cursor_moved = true;
+		}
+		
+		// lower right
+		if disp.state.kbd.diag_down_right == k {
+			lupdate!(CoordSet::X, 2);
+			lupdate!(CoordSet::Y, 1);
+			cursor_moved = true;
+		}
+		
+		if disp.state.kbd.fast_diag_down_right == k {
+			aupdate!(CoordSet::X, 2);
+			aupdate!(CoordSet::Y, 1);
+			cursor_moved = true;
+		}
+		
+		// lower left
+		if disp.state.kbd.diag_down_left == k {
+			lupdate!(CoordSet::X, -2);
+			lupdate!(CoordSet::Y, 1);
+			cursor_moved = true;
+		}
+		
+		if disp.state.kbd.fast_diag_down_left == k {
+			aupdate!(CoordSet::X, -2);
+			aupdate!(CoordSet::Y, 1);
+			cursor_moved = true;
+		}
+			
+		// center on cursor
+		if disp.state.kbd.center_on_cursor == k {disp.state.iface_settings.ctr_on_cur(map_data);}
+	}
+	
+	if disp.state.kbd.center_on_next_unmoved_unit == k {
+		disp.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, gstate, players);
+	}
+	
+	////////// end turn
+	if disp.state.buttons.progress_day.activated_ign_not_being_on_screen(k, &disp.state.mouse_event) && disp.state.iface_settings.all_player_pieces_mvd {end_turn_c!();}
+	if disp.state.buttons.progress_day_ign_unmoved_units.activated_ign_not_being_on_screen(k, &disp.state.mouse_event) { end_turn_c!();}
+	if disp.state.buttons.progress_month.activated_ign_not_being_on_screen(k, &disp.state.mouse_event) { for _i in 0..FAST_TURN_INC {end_turn_c!();}}
+	if disp.state.buttons.finish_all_unit_actions.activated_ign_not_being_on_screen(k, &disp.state.mouse_event) || disp.state.buttons.stop_fin_all_unit_actions.activated(k, &disp.state.mouse_event) {
+		// stop finishing all actions
+		if disp.state.iface_settings.auto_turn == AutoTurn::FinishAllActions {
+			disp.state.set_auto_turn(AutoTurn::Off);
+		// start finishing all actions
+		}else	if disp.state.iface_settings.all_player_pieces_mvd {
+			disp.state.set_auto_turn(AutoTurn::FinishAllActions);
+		// alert that there are unmoved units
+		}else if disp.state.iface_settings.auto_turn == AutoTurn::Off {
+			disp.center_on_next_unmoved_menu_item(true, FindType::Units, map_data, exs, units, bldgs, gstate, players);
+			disp.create_interrupt_window(UIMode::UnmovedUnitsNotification(UnmovedUnitsNotificationState {}));
+		}
 	}
 	
 	// remaining keys are not currently configurable...

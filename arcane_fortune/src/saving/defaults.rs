@@ -199,7 +199,9 @@ impl Default for Personalization {
 		Self {
 			color: 0,
 			nm: String::new(),
+			nm_adj: String::new(),
 			gender_female: false,
+			personality: AIPersonality::default(),
 			ruler_nm: PersonName::default(),
 			doctrine_advisor_nm: PersonName::default(),
 			crime_advisor_nm: PersonName::default(),
@@ -249,6 +251,7 @@ impl <'bt,'ut,'rt,'st>Stats<'bt,'ut,'rt,'st> {
 			id: 0,
 			alive: true,
 			population: 0,
+			population_wealth_level: vec![0; WealthLevel::N as usize],
 			gold: 0.,
 			employed: 0,
 			
@@ -264,6 +267,7 @@ impl <'bt,'ut,'rt,'st>Stats<'bt,'ut,'rt,'st> {
 			
 			alive_log: Vec::new(),
 			population_log: Vec::new(),
+			population_wealth_level_log: Vec::new(),
 			unemployed_log: Vec::new(),
 			gold_log: Vec::new(),
 			net_income_log: Vec::new(),
@@ -312,8 +316,9 @@ impl Default for BldgTemplate<'_,'_,'_> {
 		BldgTemplate {id: 0, nm: Vec::new(), 
 			menu_txt: None, tech_req: None, doctrine_req: None, research_prod: 0,
 			sz: ScreenSz{h: 0, w: 0, sz: 0}, print_str: String::new(),
-			plot_zoomed: '!', bldg_type: BldgType::Taxable(ZoneType::N), units_producable: None,
+			plot_zoomed: '!', bldg_type: BldgType::Taxable(Zone::default()), units_producable: None,
 			units_producable_txt: None, unit_production_rate: 0,
+			water_source: false,
 			construction_req: 0., upkeep: 0.,
 			resident_max: 0, cons_max: 0, prod_max: 0,
 			crime_bonus: 0., happiness_bonus: 0.,

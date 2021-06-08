@@ -1,5 +1,5 @@
 use super::*;
-use crate::units::*;
+//use crate::units::*;
 pub struct ProdListWindowState {pub mode: usize}
 
 /////////// production by workers or buildings
@@ -62,12 +62,10 @@ impl ProdListWindowState {
 			
 			dstate.production_options = init_bldg_prod_windows(&temps.bldgs, pstats, &dstate.local);
 			
-			let opt = &dstate.production_options.worker; // get production options for worker
-			
-			macro_rules! set_production {($ind: expr) => (
+			if dstate.production_options.worker.list_mode_update_and_action(&mut self.mode, dstate) {
 				// start production
-				if $ind != 0 {
-					if let ArgOptionUI::BldgTemplate(Some(bt)) = &opt.options[$ind].arg {
+				if self.mode != 0 {
+					if let ArgOptionUI::BldgTemplate(Some(bt)) = &dstate.production_options.worker.options[self.mode].arg {
 						// choose doctrine to dedicate building?
 						if bt.doctrinality_bonus > 0. {
 							return UIModeControl::New(UIMode::SelectBldgDoctrine(SelectBldgDoctrineState {
@@ -76,50 +74,17 @@ impl ProdListWindowState {
 							}));
 						}else{
 							let act = ActionType::WorkerBuildBldg {
-									valid_placement: false,
-									doctrine_dedication: None,
-									template: bt,
-									bldg_coord: None 
+								valid_placement: false,
+								doctrine_dedication: None,
+								template: bt,
+								bldg_coord: None 
 							};
 							dstate.iface_settings.start_build_mv_mode(act, &worker_inds(&unit_inds, units), units, map_data);
 						}
 					}else{panicq!("Option argument not set");}
 				}
 				return UIModeControl::Closed;
-			);};
-			
-			// shortcut key pressed?
-			for (new_menu_ind, option) in opt.options.iter().enumerate() {
-				// match found
-				if option.key == Some(dstate.key_pressed as u8 as char) {
-					set_production!(new_menu_ind);
-				}
 			}
-			if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {set_production!(ind);}
-
-			// generic keys
-			match dstate.key_pressed {
-				// down
-				k if dstate.kbd.down(k) => {
-					if (self.mode + 1) <= (opt.options.len()-1) {
-						self.mode += 1;
-					}else{
-						self.mode = 0;
-					}
-					
-				// up
-				} k if dstate.kbd.up(k) => {
-					if self.mode > 0 {
-						self.mode -= 1;
-					}else{
-						self.mode = opt.options.len() - 1;
-					}
-					
-				// enter
-				} k if k == dstate.kbd.enter => {
-					set_production!(self.mode);
-				} _ => {}
-			} // end key match
 			
 			return UIModeControl::UnChgd;
 		
@@ -130,58 +95,20 @@ impl ProdListWindowState {
 			dstate.production_options = init_bldg_prod_windows(&temps.bldgs, pstats, &dstate.local);
 			
 			if let Some(opt) = &dstate.production_options.bldgs[b.template.id as usize] { // get production options for current bldg
-				macro_rules! set_production {($ind: expr) => (
-					match b.args { // unwrap bldg arguments:
-						BldgArgs::PopulationCenter {ref mut production, ..} |
-						BldgArgs::GenericProducable {ref mut production} => {	
-							// start production
-							if $ind != 0 {
-								if let ArgOptionUI::UnitTemplate(Some(ut)) = &opt.options[$ind].arg {
-									production.push(ProductionEntry {
-										production: ut,
-										progress: 0
-									});
-								}	
-							}/*else{
-								*production_progress = None;
-								*production = None;
-							}*/
-						} BldgArgs::None | BldgArgs::PublicEvent {..} => {panicq!("bldg arguments do not store production");}	
-					}
+				if opt.list_mode_update_and_action(&mut self.mode, dstate) {
+					if let Some(production) = b.args.production_mut() {
+						// start production
+						if self.mode != 0 {
+							if let ArgOptionUI::UnitTemplate(Some(ut)) = &opt.options[self.mode].arg {
+								production.push(ProductionEntry {
+									production: ut,
+									progress: 0
+								});
+							}	
+						}
+					}else{panicq!("bldg arguments do not store production");}
+					
 					return UIModeControl::Closed;
-				);};
-				if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {	set_production!(ind);}
-				
-				// shortcut key pressed?
-				for (new_menu_ind, option) in opt.options.iter().enumerate() {
-					// match found
-					if option.key == Some(dstate.key_pressed as u8 as char) {
-						set_production!(new_menu_ind);
-					}
-				}
-				
-				// generic keys
-				match dstate.key_pressed {
-					// down
-					k if dstate.kbd.down(k) => {
-						if (self.mode + 1) <= (opt.options.len()-1) {
-							self.mode += 1;
-						}else{
-							self.mode = 0;
-						}
-						
-					// up
-					} k if dstate.kbd.up(k) => {
-						if self.mode > 0 {
-							self.mode -= 1;
-						}else{
-							self.mode = opt.options.len() - 1;
-						}
-						
-					// enter
-					} k if k == dstate.kbd.enter => {
-						set_production!(self.mode);
-					} _ => {}
 				}
 				return UIModeControl::UnChgd;
 			} // unwrapping of production_options for selected bldg

@@ -127,11 +127,11 @@ impl_as_cast!(usize, u32);
 impl_as_cast!(isize, i32);
 
 // enums
-impl_frm_cast!(MapType, SmSvType);
-impl_frm_cast!(ZoneType, SmSvType);
-impl_frm_cast!(StructureType, SmSvType);
-impl_frm_cast!(Underlay, SmSvType);
-impl_frm_cast!(MovementType, SmSvType);
+impl_frm_cast!(MapType, u8);//SmSvType);
+impl_frm_cast!(ZoneType, u8);//SmSvType);
+impl_frm_cast!(StructureType, u8);//SmSvType);
+impl_frm_cast!(Underlay, u8);
+impl_frm_cast!(MovementType, u8);
 impl_frm_cast!(Neighbors, SmSvType);
 impl_frm_cast!(ViewMvMode, SmSvType);
 impl_frm_cast!(AutoTurn, SmSvType);
@@ -142,6 +142,7 @@ impl_frm_cast!(SectorCreationType, SmSvType);
 impl_frm_cast!(PacifismMilitarism, SmSvType);
 impl_frm_cast!(MoodType, SmSvType);
 impl_frm_cast!(PublicEventType, SmSvType);
+impl_frm_cast!(ZoneDensity, u8);//SmSvType);
 
 ////////////////////////// saving/loading non-castable (to integer) primitives
 
@@ -258,7 +259,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for HappinessCategory {
 	
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 		
 		*self = match res[*o-1] {
 			0 => HappinessCategory::Doctrine,
@@ -290,7 +291,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for SectorIdleAction {
 	
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 		
 		*self = match res[*o-1] {
 			0 => SectorIdleAction::Sentry,
@@ -317,7 +318,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for FireTile {
 
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 
 		*self = match res[*o-1] {
 			0 => FireTile::Smoke,
@@ -359,7 +360,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for AttackFrontState {
 	
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 		
 		*self = match res[*o-1] {
 			0 => { 
@@ -424,7 +425,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for TradeItem {
 	
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 		
 		*self = match res[*o-1] {
 			0 => {
@@ -483,7 +484,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for RelationStatus {
 	
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 		
 		*self = match res[*o-1] {
 			0 => {RelationStatus::Undiscovered
@@ -537,7 +538,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for PlayerType<'bt,'ut,'rt,'dt
 	
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 		
 		*self = match res[*o-1] {
 			0 => {
@@ -585,13 +586,13 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for BldgType {
 
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 		
 		*self = match res[*o-1] {
 			0 => {
-				let mut d = BldgType::Taxable(ZoneType::N);
-				if let BldgType::Taxable(ref mut zt) = d {
-					ld_vals!(zt);
+				let mut d = BldgType::Taxable(Zone::default());
+				if let BldgType::Taxable(ref mut zone) = d {
+					ld_vals!(zone);
 				}
 				d
 			} 1 => {
@@ -616,7 +617,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for TechProg {
 
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 
 		*self = match res[*o-1] {
 			0 => {
@@ -731,7 +732,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for LogType {
 	
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 		
 		*self = match res[*o-1] {
 			0 => {
@@ -998,7 +999,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for Dist {
 
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &Vec<BldgTemplate>, unit_templates: &Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 
 		*self = match res[*o-1] {
 			0 => Dist::NotInit,
@@ -1052,18 +1053,21 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for BldgArgs<'ut,'rt> {
 				public_event_type.sv(res);
 				nm.sv(res);
 				turn_created.sv(res);
-			} BldgArgs::None => {
+			} BldgArgs::Taxable {wealth_level} => {
 				res.push(3);
+				wealth_level.sv(res);
+			} BldgArgs::None => {
+				res.push(4);
 	}}}
 	
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 
 		*self = match res[*o-1] {
 			0 => {
 				let mut args = BldgArgs::PopulationCenter {tax_rates: Vec::new().into_boxed_slice(), production: Vec::new(), 
-					nm: String::new(), population: 0};
+					nm: String::new(), population: Vec::new()};
 				if let BldgArgs::PopulationCenter {ref mut tax_rates, ref mut production, ref mut population, ref mut nm} = args {
 					ld_vals!(tax_rates, production, population, nm);
 				}else{panicq!("unknown state");}
@@ -1080,7 +1084,13 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for BldgArgs<'ut,'rt> {
 					ld_vals!(public_event_type, nm, turn_created);
 				}else{panicq!("invalid bldg args");}
 				args
-			} 3 => {BldgArgs::None
+			} 3 => {
+				let mut args = BldgArgs::Taxable {wealth_level: 0};
+				if let BldgArgs::Taxable {ref mut wealth_level} = args {
+					ld_vals!(wealth_level);
+				}else{panicq!("invalid bldg args");}
+				args
+			} 4 => {BldgArgs::None
 			} _ => {panicq!("invalid BldArgs id")
 }}}}
 
@@ -1118,10 +1128,10 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for ActionType<'bt,'ut,'rt,'dt
 			} ActionType::Fortify {turn} => {
 				res.push(9);
 				turn.sv(res);
-			} ActionType::WorkerZone {valid_placement, zone_type, start_coord, end_coord} => {
+			} ActionType::WorkerZone {valid_placement, zone, start_coord, end_coord} => {
 				res.push(10);
 				valid_placement.sv(res);
-				zone_type.sv(res);
+				zone.sv(res);
 				start_coord.sv(res);
 				end_coord.sv(res);
 			} ActionType::GroupMv {start_coord, end_coord} => {
@@ -1139,9 +1149,9 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for ActionType<'bt,'ut,'rt,'dt
 				creation_type.sv(res);
 				start_coord.sv(res);
 				end_coord.sv(res);
-			} ActionType::WorkerZoneCoords {zone_type} => {
+			} ActionType::WorkerZoneCoords {zone} => {
 				res.push(14);
-				zone_type.sv(res);
+				zone.sv(res);
 			} ActionType::UIWorkerAutomateCity => {res.push(15);
 			} ActionType::BurnBuilding {coord} => {
 				res.push(16);
@@ -1161,12 +1171,13 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for ActionType<'bt,'ut,'rt,'dt
 			} ActionType::Assassinate {attack_coord} => {
 				res.push(22);
 				attack_coord.sv(res);
+			} ActionType::WorkerBuildPipe => {res.push(23);
 	}}}
 	
 	fn ld(&mut self, res: &Vec<u8>, o: &mut usize, bldg_templates: &'bt Vec<BldgTemplate<'ut,'rt,'dt>>, unit_templates: &'ut Vec<UnitTemplate<'rt>>, resource_templates: &'rt Vec<ResourceTemplate>, doctrine_templates: &'dt Vec<DoctrineTemplate>){
 		*o += 1;
 		
-		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);};
+		macro_rules! ld_vals{($($val:ident),*) => ($($val.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);)*);}
 		
 		*self = match res[*o-1] {
 			0 => {ActionType::Mv
@@ -1212,9 +1223,9 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for ActionType<'bt,'ut,'rt,'dt
 				}
 				at
 			} 10 => {
-				let mut at = ActionType::WorkerZone {valid_placement: false, zone_type: ZoneType::N, start_coord: None, end_coord: None};
-				if let ActionType::WorkerZone{ref mut valid_placement, ref mut zone_type, ref mut start_coord, ref mut end_coord} = at {
-					ld_vals!(valid_placement, zone_type, start_coord, end_coord);
+				let mut at = ActionType::WorkerZone {valid_placement: false, zone: Zone::default(), start_coord: None, end_coord: None};
+				if let ActionType::WorkerZone{ref mut valid_placement, ref mut zone, ref mut start_coord, ref mut end_coord} = at {
+					ld_vals!(valid_placement, zone, start_coord, end_coord);
 				}
 				at
 			} 11 => {
@@ -1238,9 +1249,9 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for ActionType<'bt,'ut,'rt,'dt
 				}else{panicq!("load error");}
 				at
 			} 14 => {
-				let mut at = ActionType::WorkerZoneCoords {zone_type: ZoneType::N};
-				if let ActionType::WorkerZoneCoords {ref mut zone_type} = at {
-					ld_vals!(zone_type);
+				let mut at = ActionType::WorkerZoneCoords {zone: Zone::default()};
+				if let ActionType::WorkerZoneCoords {ref mut zone} = at {
+					ld_vals!(zone);
 				}else{panicq!("load error");}
 				at
 			} 15 => {ActionType::UIWorkerAutomateCity
@@ -1278,6 +1289,7 @@ impl <'f,'bt,'ut,'rt,'dt>  Sv<'f,'bt,'ut,'rt,'dt> for ActionType<'bt,'ut,'rt,'dt
 					ld_vals!(attack_coord);
 				}else{panicq!("load error");}
 				at
+			} 23 => {ActionType::WorkerBuildPipe
 			} _ => {panicq!("unknown ActionType id {}", res[*o-1]) }};}}
 
 ////////////////////////////////// misc
@@ -1438,8 +1450,11 @@ macro_rules! impl_vec_ld{() => (
 		sz.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);
 		
 		*self = vec!{Default::default(); sz};
+		//printlnq!("sz {}", sz);
+		//let mut i = 0;
 		
 		for d in self.iter_mut() {
+			//printlnq!("load {}", i); i += 1;
 			d.ld(res, o, bldg_templates, unit_templates, resource_templates, doctrine_templates);
 }});}
 

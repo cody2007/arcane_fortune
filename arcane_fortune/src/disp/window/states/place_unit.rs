@@ -1,5 +1,5 @@
 use super::*;
-use crate::units::*;
+//use crate::units::*;
 pub struct PlaceUnitWindowState {pub mode: usize}
 
 impl PlaceUnitWindowState {
@@ -25,7 +25,7 @@ impl PlaceUnitWindowState {
 			}else{panicq!("invalid UI setting");}
 			
 			return UIModeControl::Closed;
-		};};
+		};}
 		if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {enter_action!(ind);}
 		
 		match dstate.key_pressed {

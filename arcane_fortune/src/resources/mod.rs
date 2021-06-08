@@ -14,7 +14,7 @@ use crate::renderer::*;
 
 pub const N_RESOURCES_DISCOV_LOG: usize = 20; // # of locations to log for each resource type
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct ResourceTemplate {
 	pub id: SmSvType,
 	pub nm: Vec<String>,

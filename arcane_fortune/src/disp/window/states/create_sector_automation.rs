@@ -1,5 +1,5 @@
 use super::*;
-use crate::units::*;
+//use crate::units::*;
 use std::convert::TryFrom;
 
 pub struct CreateSectorAutomationState {
@@ -26,7 +26,7 @@ impl CreateSectorAutomationState {
 				
 				let mut row = 0;
 				macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;};
-							     ($final: expr) => {dstate.mv(row + y, x);}};
+							     ($final: expr) => {dstate.mv(row + y, x);}}
 				
 				mvl!();
 				dstate.buttons.Esc_to_close.print(None, &dstate.local, &mut dstate.renderer);
@@ -119,7 +119,7 @@ impl CreateSectorAutomationState {
 				macro_rules! enter_action{($mode: expr) => {
 					self.sector_nm = Some(pstats.sectors[$mode].nm.clone());
 					self.mode = 0;
-				};};
+				};}
 				if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {	enter_action!(ind);}
 				
 				match dstate.key_pressed {
@@ -156,7 +156,7 @@ impl CreateSectorAutomationState {
 					self.unit_enter_action = Some(SectorUnitEnterAction::from(self.mode));
 					self.mode = 0;
 					return UIModeControl::UnChgd;
-				};};
+				};}
 				
 				// shortcut key pressed
 				for (option_ind, option) in options.options.iter().enumerate() {
@@ -226,7 +226,7 @@ impl CreateSectorAutomationState {
 						dstate.renderer.curs_set(CURSOR_VISIBILITY::CURSOR_VERY_VISIBLE);
 					}
 					return UIModeControl::UnChgd;
-				};};
+				};}
 				
 				// shortcut key pressed
 				for (option_ind, option) in idle_options.options.iter().enumerate() {

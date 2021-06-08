@@ -88,54 +88,74 @@ fn print_tree_recur<T: TreeTemplate>(mut row: i32, col: i32, root_children: &Vec
 		
 		let n_lines = strs_show.len() as i32;
 		
-		if entry_sel == Some(*t) {
-			dstate.attron(COLOR_PAIR(CRED));
+		let cur_entry_sel = entry_sel == Some(*t);
+		// set selected location & color
+		if cur_entry_sel {
 			*sel_loc = Some((row + BOX_GAP - 2, col + box_cols_per_entry + 2, *t));
 		}
 		
-		// corners
-		addch_chk!(row + BOX_GAP - 1, col - 1, dstate.chars.ulcorner_char);
-		addch_chk!(row + BOX_GAP - 1, col + box_cols_per_entry, dstate.chars.urcorner_char);
-		addch_chk!(row + BOX_GAP + n_lines, col - 1, dstate.chars.llcorner_char);
-		addch_chk!(row + BOX_GAP + n_lines, col + box_cols_per_entry, dstate.chars.lrcorner_char);
-		
-		// left/right
-		for row_offset in 0..n_lines {
-			addch_chk!(row + BOX_GAP + row_offset, col - 1, dstate.chars.vline_char);
-			addch_chk!(row + BOX_GAP + row_offset, col + box_cols_per_entry, dstate.chars.vline_char);
-		}
-		
-		// top/bottom
-		for col_offset in 0..box_cols_per_entry {
-			addch_chk!(row + BOX_GAP - 1, col + col_offset, dstate.chars.hline_char);
-			addch_chk!(row + BOX_GAP + n_lines, col + col_offset, dstate.chars.hline_char);
-		}
-		
-		if entry_sel == Some(*t) {dstate.attroff(COLOR_PAIR(CRED));}
-		
-		// print centered (loop over rows)
-		for (i, txt) in strs_show.iter().enumerate() {
-			let line_len = txt.chars().count() as i32;
-			let gap_len = (box_cols_per_entry - line_len)/2; // column
+		// avoid printing unselected techs when in screen reader mode, to avoid cluttering the screen
+		if !screen_reader_mode() || cur_entry_sel {
+			// print box around entry
+			if !screen_reader_mode() {
+				if cur_entry_sel {dstate.attron(COLOR_PAIR(CRED));}
+				
+				// corners
+				addch_chk!(row + BOX_GAP - 1, col - 1, dstate.chars.ulcorner_char);
+				addch_chk!(row + BOX_GAP - 1, col + box_cols_per_entry, dstate.chars.urcorner_char);
+				addch_chk!(row + BOX_GAP + n_lines, col - 1, dstate.chars.llcorner_char);
+				addch_chk!(row + BOX_GAP + n_lines, col + box_cols_per_entry, dstate.chars.lrcorner_char);
+				
+				// left/right
+				for row_offset in 0..n_lines {
+					addch_chk!(row + BOX_GAP + row_offset, col - 1, dstate.chars.vline_char);
+					addch_chk!(row + BOX_GAP + row_offset, col + box_cols_per_entry, dstate.chars.vline_char);
+				}
+				
+				// top/bottom
+				for col_offset in 0..box_cols_per_entry {
+					addch_chk!(row + BOX_GAP - 1, col + col_offset, dstate.chars.hline_char);
+					addch_chk!(row + BOX_GAP + n_lines, col + col_offset, dstate.chars.hline_char);
+				}
+				
+				if cur_entry_sel {dstate.attroff(COLOR_PAIR(CRED));}
+			}
 			
-			let row_print = row + i as i32 + BOX_GAP;
-			let col_print = col + gap_len;
-			
-			if row_print >= row_stop || col_print >= col_stop || row_print < row_start {break;}
-			
-			let color = COLOR_PAIR(tp.line_color(i, pstats));
-			
-			// print
-			if col_print >= 0 {
-				dstate.mv(row_print, col_print);
-				dstate.attron(color);
-				dstate.renderer.addnstr(txt, col_stop - col_print);
-				dstate.attroff(color);
-			}else if (col_print + line_len) > 0{
-				dstate.mv(row_print, 0);
-				dstate.attron(color);
-				dstate.renderer.addnstr(&txt[((-col_print) as usize)..], col_stop);
-				dstate.attroff(color);
+			// print centered (loop over rows)
+			for (i, txt) in strs_show.iter().enumerate() {
+				let line_len = txt.chars().count() as i32;
+				
+				let (row_print, col_print) = if !screen_reader_mode() {
+					let gap_len = (box_cols_per_entry - line_len)/2; // column
+					(row + i as i32 + BOX_GAP, col + gap_len)
+				}else{
+					(3 + i as i32 + BOX_GAP, 0)
+				};
+				
+				if row_print >= row_stop || col_print >= col_stop || row_print < row_start {break;}
+				
+				let color = COLOR_PAIR(tp.line_color(i, pstats));
+				
+				// print
+				if col_print >= 0 || screen_reader_mode() {
+					dstate.mv(row_print, col_print);
+					// selection location of tech name for screen readers
+					if i == 0 && cur_entry_sel && screen_reader_mode() {
+						*sel_loc = Some((row_print, col_print, *t));
+					}
+					dstate.attron(color);
+					if screen_reader_mode() {
+						dstate.renderer.addstr(txt)
+					}else{
+						dstate.renderer.addnstr(txt, col_stop - col_print);
+					}
+					dstate.attroff(color);
+				}else if (col_print + line_len) > 0 {
+					dstate.mv(row_print, 0);
+					dstate.attron(color);
+					dstate.renderer.addnstr(&txt[((-col_print) as usize)..], col_stop);
+					dstate.attroff(color);
+				}
 			}
 		}
 		
@@ -153,35 +173,37 @@ fn print_tree_recur<T: TreeTemplate>(mut row: i32, col: i32, root_children: &Vec
 			row += entry_sz_print.h as i32;
 		}else{
 			///////////// connections to children
-			let row_off = row + BOX_GAP + 1;
-			let col_off = col + box_cols_per_entry + 1;
-			
-			//// -
-			addch_chk!(row_off, col_off, dstate.chars.hline_char);
-			addch_chk!(row_off, col_off + 1, dstate.chars.hline_char);
-			
-			//// |
-			for row_offset in 0..(entry_sz_print.h as i32 * (n_children - 1)) {
-				addch_chk!(row_off + 1 + row_offset, col_off + 1, dstate.chars.vline_char);
-			}
-			
-			//// - to each child
-			for child in 0..n_children {
-				let mut col_off_i = col_off + 2;
-							
-				for _ in 0..(entry_sz_print.w as i32 - BOX_GAP - box_cols_per_entry - 2) {
-					addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i, dstate.chars.hline_char);
-					col_off_i += 1;
-				}
-				addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i, '>' as chtype);
+			if !screen_reader_mode() {
+				let row_off = row + BOX_GAP + 1;
+				let col_off = col + box_cols_per_entry + 1;
 				
-				// (hack) print '...' if nothing has been shown for the child (i.e., it is shown further down the tree in another location)
-				if (' ' as chtype) == (dstate.inch() & A_CHARTEXT()) {
-					addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i + 1, ' ' as chtype);
-					addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i + 2, ' ' as chtype);
-					addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i + 3, '.' as chtype);
-					addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i + 4, '.' as chtype);
-					addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i + 5, '.' as chtype);
+				//// -
+				addch_chk!(row_off, col_off, dstate.chars.hline_char);
+				addch_chk!(row_off, col_off + 1, dstate.chars.hline_char);
+				
+				//// |
+				for row_offset in 0..(entry_sz_print.h as i32 * (n_children - 1)) {
+					addch_chk!(row_off + 1 + row_offset, col_off + 1, dstate.chars.vline_char);
+				}
+				
+				//// - to each child
+				for child in 0..n_children {
+					let mut col_off_i = col_off + 2;
+								
+					for _ in 0..(entry_sz_print.w as i32 - BOX_GAP - box_cols_per_entry - 2) {
+						addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i, dstate.chars.hline_char);
+						col_off_i += 1;
+					}
+					addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i, '>' as chtype);
+					
+					// (hack) print '...' if nothing has been shown for the child (i.e., it is shown further down the tree in another location)
+					if (' ' as chtype) == (dstate.inch() & A_CHARTEXT()) {
+						addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i + 1, ' ' as chtype);
+						addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i + 2, ' ' as chtype);
+						addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i + 3, '.' as chtype);
+						addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i + 4, '.' as chtype);
+						addch_chk!(row_off + child*entry_sz_print.h as i32, col_off_i + 5, '.' as chtype);
+					}
 				}
 			}
 			
@@ -548,51 +570,54 @@ impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 		
 		let d = &mut self.renderer;
 		
-		// scroll bars (left-right)
-		if right_scroll {		
-			let scroll_track_w = w-3;
-			let frac_covered = (col_tree_stop as f32) / (tree_cols as f32);
-			let scroll_bar_w = ((scroll_track_w as f32) * frac_covered).round() as i32;
-			debug_assertq!(frac_covered <= 1.);
-			
-			let frac_at = ((-(tree_offsets.col - 1)) as f32) / (tree_cols as f32);
-			let scroll_bar_start = ((scroll_track_w as f32) * frac_at).round() as i32;
-			
-			// print
-			d.mv(h-7, 0);
-			d.attron(COLOR_PAIR(CLOGO));
-			d.addch('[' as chtype);
-			d.mv(h-7, 1 + scroll_bar_start);
-			d.addch('<' as chtype);
-			for _ in 0..scroll_bar_w-2 {
-				d.addch('=' as chtype);
+		// scroll bars
+		if !screen_reader_mode() {
+			// scroll bars (left-right)
+			if right_scroll {		
+				let scroll_track_w = w-3;
+				let frac_covered = (col_tree_stop as f32) / (tree_cols as f32);
+				let scroll_bar_w = ((scroll_track_w as f32) * frac_covered).round() as i32;
+				debug_assertq!(frac_covered <= 1.);
+				
+				let frac_at = ((-(tree_offsets.col - 1)) as f32) / (tree_cols as f32);
+				let scroll_bar_start = ((scroll_track_w as f32) * frac_at).round() as i32;
+				
+				// print
+				d.mv(h-7, 0);
+				d.attron(COLOR_PAIR(CLOGO));
+				d.addch('[' as chtype);
+				d.mv(h-7, 1 + scroll_bar_start);
+				d.addch('<' as chtype);
+				for _ in 0..scroll_bar_w-2 {
+					d.addch('=' as chtype);
+				}
+				d.addch('>' as chtype);
+				d.mv(h-7, w-2);
+				d.addch(']' as chtype);
+				d.attroff(COLOR_PAIR(CLOGO));
 			}
-			d.addch('>' as chtype);
-			d.mv(h-7, w-2);
-			d.addch(']' as chtype);
-			d.attroff(COLOR_PAIR(CLOGO));
-		}
-		
-		// scroll bars (up-down)
-		if down_scroll {			
-			let scroll_track_h = h-7;
-			let frac_covered = ((row_tree_stop - row_tree_start) as f32) / (tree_rows as f32);
-			let scroll_bar_h = ((scroll_track_h as f32) * frac_covered).round() as i32;
-			debug_assertq!(frac_covered <= 1.);
 			
-			let frac_at = (-tree_offsets.row as f32) / (tree_rows as f32);
-			let scroll_bar_start = ((scroll_track_h as f32) * frac_at).round() as i32;
-			
-			d.mv(0, w-1);
-			d.attron(COLOR_PAIR(CLOGO));
-			d.addch(self.chars.hline_char);
-			for row in 0..scroll_bar_h-1 {
-				d.mv(row+1+scroll_bar_start, w-1);
-				d.addch('#' as chtype);
+			// scroll bars (up-down)
+			if down_scroll {			
+				let scroll_track_h = h-7;
+				let frac_covered = ((row_tree_stop - row_tree_start) as f32) / (tree_rows as f32);
+				let scroll_bar_h = ((scroll_track_h as f32) * frac_covered).round() as i32;
+				debug_assertq!(frac_covered <= 1.);
+				
+				let frac_at = (-tree_offsets.row as f32) / (tree_rows as f32);
+				let scroll_bar_start = ((scroll_track_h as f32) * frac_at).round() as i32;
+				
+				d.mv(0, w-1);
+				d.attron(COLOR_PAIR(CLOGO));
+				d.addch(self.chars.hline_char);
+				for row in 0..scroll_bar_h-1 {
+					d.mv(row+1+scroll_bar_start, w-1);
+					d.addch('#' as chtype);
+				}
+				d.mv(h-7, w-1);
+				d.addch(self.chars.hline_char);
+				d.attroff(COLOR_PAIR(CLOGO));
 			}
-			d.mv(h-7, w-1);
-			d.addch(self.chars.hline_char);
-			d.attroff(COLOR_PAIR(CLOGO));
 		}
 		
 		// esc to close

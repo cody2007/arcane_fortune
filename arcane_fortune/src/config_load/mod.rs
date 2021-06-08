@@ -204,7 +204,7 @@ pub fn config_parse(buf: Vec<u8>) -> Vec<Vec<KeyPair>> {
 				entry.val.push_str($line);
 			}
 			continue;
-		};};	
+		};}
 		
 		// sub-block action (store text or close block and continue)
 		match sub_block {

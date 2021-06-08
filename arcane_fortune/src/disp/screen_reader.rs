@@ -48,6 +48,5 @@ impl TxtList {
 		let curs = cursor_pos(r);
 		self.window.push((curs.y as i32, curs.x as i32));
 	}
-
 }
 

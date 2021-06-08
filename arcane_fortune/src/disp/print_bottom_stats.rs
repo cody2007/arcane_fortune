@@ -23,7 +23,7 @@ impl ActionType<'_,'_,'_,'_> {
 			
 		macro_rules! action_key {
 			($nm: expr, $color: expr) => {mvl!(); disp.attron(COLOR_PAIR($color)); disp.state.renderer.addstr($nm); disp.attroff(COLOR_PAIR($color))};
-			($nm: expr, $color: expr, $last: expr) => {disp.mv(*roff, UNIT_STATS_COL); disp.attron(COLOR_PAIR($color)); disp.state.renderer.addstr($nm); disp.attroff(COLOR_PAIR($color))};};
+			($nm: expr, $color: expr, $last: expr) => {disp.mv(*roff, UNIT_STATS_COL); disp.attron(COLOR_PAIR($color)); disp.state.renderer.addstr($nm); disp.attroff(COLOR_PAIR($color))};}
 		
 		let cur_player = disp.state.iface_settings.cur_player;
 		let map_sz = *map_data.map_szs.last().unwrap();
@@ -37,7 +37,7 @@ impl ActionType<'_,'_,'_,'_> {
 			disp.attroff(COLOR_PAIR(CGREEN));
 			disp.addch(' ');
 			disp.state.renderer.addstr($txt);
-		};};
+		};}
 		
 		match self {
 			ActionType::MvWithCursor => {
@@ -171,7 +171,14 @@ impl ActionType<'_,'_,'_,'_> {
 						disp.state.local.Building_instructions.clone(),
 						(disp.state.local.Change_dest.clone(), disp.state.local.drag_the_X.clone()),
 						(disp.state.local.Build_road.clone(), disp.state.local.stop_dragging.clone()), disp);
-
+			
+			} ActionType::WorkerBuildPipe => {
+				print_mv_to_sel2(full_zoom, PathValid::from(path_valid),
+						Some((actions_req, turns_est)), roff,
+						disp.state.local.Building_instructions.clone(),
+						(disp.state.local.Change_dest.clone(), disp.state.local.drag_the_X.clone()),
+						(disp.state.local.Build_pipe.clone(), disp.state.local.stop_dragging.clone()), disp);
+			
 			} ActionType::WorkerBuildStructure {structure_type: StructureType::Wall, ..} => {
 				print_mv_to_sel2(full_zoom, PathValid::from(path_valid),
 						Some((actions_req, turns_est)), roff,
@@ -236,9 +243,9 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 			let player = &players[$id];
 			self.txt_list.add_b(&mut self.renderer);
 			set_player_color(player, true, &mut self.renderer);
-			self.addstr(&player.personalization.nm);
+			self.addstr(&player.personalization.nm_adj);
 			set_player_color(player, false, &mut self.renderer);
-		};};
+		};}
 		
 		let mut max_width = 0;
 		
@@ -247,7 +254,7 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 				mvl!();
 				self.txt_list.add_b(&mut self.renderer);
 				self.local.print_date_log(log.turn, &mut self.renderer);
-			};};
+			};}
 	
 			match &log.val {
 				LogType::LeaderAssassinated {city_nm, ..} => {
@@ -268,7 +275,7 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 								(&self.local.Founded_by_the_civilization,
 								 vec![KeyValColor {
 									key: String::from("[]"),
-									val: personalization.nm.clone(),
+									val: personalization.nm_adj.clone(),
 									attr: COLOR_PAIR(personalization.color)
 								}])
 							}
@@ -300,7 +307,7 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 						
 						let width = "Captured by the ".len() +
 							" civilization.".len() +
-							players[*owner_attacker_id].personalization.nm.len();
+							players[*owner_attacker_id].personalization.nm_adj.len();
 						
 						if width > max_width {max_width = width;}
 					}
@@ -314,7 +321,7 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 						
 						let width = "Destroyed by the ".len() +
 							" civilization.".len() +
-							players[*owner_attacker_id].personalization.nm.len();
+							players[*owner_attacker_id].personalization.nm_adj.len();
 						
 						if width > max_width {max_width = width;}
 					}
@@ -340,7 +347,7 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 						
 						let tags = vec![KeyValColor {
 							key: String::from("[empire_nm]"),
-							val: empire.nm.clone(),
+							val: empire.nm_adj.clone(),
 							attr: COLOR_PAIR(empire.color)
 						}];
 						
@@ -395,7 +402,7 @@ impl PathValid {
 fn print_mv_to_sel2(full_zoom: bool, path_valid: PathValid, turns_req: Option<(f32, bool)>, roff: &mut i32,
 		title: String, change: (String, String), mut confirm: (String, String), disp: &mut Disp) {
 	macro_rules! color_txt {($nm: expr, $color: expr) => {
-		disp.attron(COLOR_PAIR($color)); disp.state.renderer.addstr($nm); disp.attroff(COLOR_PAIR($color))}};
+		disp.attron(COLOR_PAIR($color)); disp.state.renderer.addstr($nm); disp.attroff(COLOR_PAIR($color))}}
 	
 	let esc_txt = key_txt(disp.state.kbd.esc, &disp.state.local);
 	let mut confirm_key = '\n' as u8 as i32;
@@ -448,7 +455,7 @@ fn print_mv_to_sel2(full_zoom: bool, path_valid: PathValid, turns_req: Option<(f
 		let gap = ($w - $txt.len() as i32)/2;
 		for _ in 0..gap {disp.addch(' ');}
 		disp.state.renderer.addstr($txt);
-	};};
+	};}
 	
 	// adds to txt list for screen readers
 	macro_rules! center_log{($txt: expr, $w: expr) => {
@@ -456,7 +463,7 @@ fn print_mv_to_sel2(full_zoom: bool, path_valid: PathValid, turns_req: Option<(f
 		for _ in 0..gap {disp.addch(' ');}
 		disp.state.txt_list.add_b(&mut disp.state.renderer);
 		disp.state.renderer.addstr($txt);
-	};};
+	};}
 
 	
 	let v = disp.state.chars.vline_char;
@@ -464,8 +471,7 @@ fn print_mv_to_sel2(full_zoom: bool, path_valid: PathValid, turns_req: Option<(f
 	let col2 = UNIT_STATS_COL + lbl_w;
 	let col3 = col2 + mouse_w;
 	
-	// line 1 lbls (mouse, keyboard)
-	{
+	{ // line 1 lbls (mouse, keyboard)
 		disp.mv(*roff, col2);
 		//disp.addch(v);
 		disp.attron(COLOR_PAIR(CGRAY));
@@ -488,7 +494,7 @@ fn print_mv_to_sel2(full_zoom: bool, path_valid: PathValid, turns_req: Option<(f
 		disp.attron(COLOR_PAIR(CGRAY));
 		disp.addch(v);
 		disp.attroff(COLOR_PAIR(CGRAY));
-	};};
+	};}
 	
 	// columns 1 & 2 for all remaining rows (left-most column and mouse instructions)
 	for (row_ind, ((lbl, mouse), color)) in lbls.iter()
@@ -798,7 +804,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 		// show possible actions
 		}else if self.state.iface_settings.zoom_ind == map_data.max_zoom_ind() {
 			let mut cmds = Vec::with_capacity(30);	
-			macro_rules! add{($($button_nm: ident),*) => {$(cmds.push(&mut self.state.buttons.$button_nm);)*};};
+			macro_rules! add{($($button_nm: ident),*) => {$(cmds.push(&mut self.state.buttons.$button_nm);)*};}
 			
 			add!(move_unit, fortify, pass_move, auto_explore, disband);
 			
@@ -854,9 +860,9 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 		// show possible actions
 		}else if self.state.iface_settings.zoom_ind == map_data.max_zoom_ind() {
 			let mut cmds = Vec::with_capacity(30);
-			macro_rules! add{($($button_nm: ident),*) => {$(cmds.push(&mut self.state.buttons.$button_nm);)*};};
+			macro_rules! add{($($button_nm: ident),*) => {$(cmds.push(&mut self.state.buttons.$button_nm);)*};}
 			
-			add!(zone_agricultural, zone_residential, zone_business, zone_industrial, build_bldg);
+			add!(zone_land, build_bldg);
 					
 			// repair wall
 			if brigade.unit_inds.iter().any(|&ind| units[ind].template.repair_wall_per_turn != None) {
@@ -945,7 +951,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 					// show possible actions
 					if self.state.iface_settings.zoom_ind == map_data.max_zoom_ind() && !u.actions_used.is_none() {
 						let mut cmds = Vec::with_capacity(30);
-						macro_rules! add{($($button_nm: ident),*) => {$(cmds.push(&mut self.state.buttons.$button_nm);)*};};
+						macro_rules! add{($($button_nm: ident),*) => {$(cmds.push(&mut self.state.buttons.$button_nm);)*};}
 						
 						add!(move_unit, move_with_cursor);
 						
@@ -976,8 +982,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 							
 							// worker
 							if ut.nm[0] == WORKER_NM {
-								add!(zone_agricultural, zone_residential, zone_business, zone_industrial, 
-									automate_zone_creation, rm_bldgs_and_zones, continue_bldg_construction, build_bldg, build_road);
+								add!(zone_land, automate_zone_creation, rm_bldgs_and_zones, continue_bldg_construction, build_bldg, build_road, build_pipe);
 								
 								// can only build wall if this worker is the only
 								// one on the tile
@@ -1214,7 +1219,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 							}
 						/////////////////////////////////////
 						// taxable bldg
-						} BldgType::Taxable(zone_type) => {
+						} BldgType::Taxable(Zone {ztype, ..}) => {
 							self.state.txt_list.add_b(&mut self.state.renderer);
 							self.state.renderer.addstr(&self.state.local.City_Hall_dist); self.addch(' ');
 							
@@ -1250,11 +1255,24 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 								} Dist::NotInit => {self.state.renderer.addstr(&self.state.local.Not_yet_determined);}
 							}
 							
+							// no water access
+							match zi.water_source_dist {
+								Dist::NotPossible {..} => {
+									mvl!();
+									self.state.txt_list.add_b(&mut self.state.renderer);
+									self.state.renderer.addstr(&self.state.local.No_water_access);
+									self.state.addch(' ');
+									self.state.attron(COLOR_PAIR(PIPE_WATERED_COLOR));
+									self.state.renderer.addstr(&self.state.local.build_pipes);
+									self.state.attroff(COLOR_PAIR(PIPE_WATERED_COLOR));
+								} Dist::NotInit | Dist::Is {..} | Dist::ForceRecompute {..} => {}
+							}
+							
 							if b.n_residents() != 0 {
 								roff += 1;
 								let resident_start_line = roff;
 								mvl!();
-								debug_assertq!(Some(zone_type) == ex.actual.ret_zone_type());
+								debug_assertq!(Some(ztype) == ex.actual.ret_zone_type());
 								let is_residential_zone = ex.actual.ret_zone_type() == Some(ZoneType::Residential);
 								
 								self.state.txt_list.add_b(&mut self.state.renderer);
@@ -1273,12 +1291,21 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 									self.addstr(&format!(" {}/{}", b.n_sold(), b.prod_capac() ));
 								}
 								
-								self.mv(roff, UNIT_STATS_COL);
-								self.state.txt_list.add_b(&mut self.state.renderer);
-								self.state.renderer.addstr(&self.state.local.Consumption);
-								self.addstr(&format!(" {}/{}", b.cons(), b.cons_capac() ));
+								{ // consumption
+									self.mv(roff, UNIT_STATS_COL);
+									self.state.txt_list.add_b(&mut self.state.renderer);
+									self.state.renderer.addstr(&self.state.local.Consumption);
+									self.addstr(&format!(" {}/{}", b.cons(), b.cons_capac() ));
+								}
 								
-								if zone_type == ZoneType::Residential {
+								{ // wealth
+									self.mv(roff+1, UNIT_STATS_COL);
+									self.state.txt_list.add_b(&mut self.state.renderer);
+									self.state.renderer.addstr(&self.state.local.Wealth);
+									self.state.renderer.addstr(&format!(": {}", b.args.wealth_txt(&self.state.local)));
+								}
+								
+								if ztype == ZoneType::Residential {
 									let zs = &zi.zone_agnostic_stats;
 									{ // Dispositions: doctrine_sum
 										self.mv(resident_start_line, UNIT_STATS_COL + 20);
@@ -1347,12 +1374,12 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 			self.print_unit_action(stats_row as i32, &action_iface, units, bldgs, exs.last().unwrap(), map_data, pstats, players);
 		}
 	}
-
+	
 	pub fn print_bottom_stats(&mut self, map_data: &mut MapData, exs: &Vec<HashedMapEx>, player: &Player, players: &Vec<Player>, units: &Vec<Unit>,
 			bldg_config: &BldgConfig, bldgs: &Vec<Bldg>, gstate: &GameState, temps: &Templates){
 		////////////////////////////////////////////////
 		// land stats
-		let stats_row = (self.state.iface_settings.screen_sz.h - MAP_ROW_STOP_SZ + 2) as i32;
+		let stats_row = (self.state.iface_settings.screen_sz.h - MAP_ROW_STOP_SZ) as i32;
 		
 		self.mv(stats_row, LAND_STATS_COL);
 		let map_cur_coord = self.state.iface_settings.cursor_to_map_ind(map_data);
@@ -1360,8 +1387,8 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 		
 		//self.addstr(&format!("Coord: ({}, {})", (map_cur_coord_unr.x as f32*z), map_cur_coord_unr.y as f32*z));
 		self.mv(stats_row + 1, LAND_STATS_COL);
-		let mut r_off = stats_row + 4;
-
+		let mut r_off = stats_row + 3;
+		
 		// land is undiscovered
 		let show_land = !self.state.iface_settings.show_fog || land_discovered(map_cur_coord, self.state.iface_settings.cur_player as usize, self.state.iface_settings.zoom_ind, players, &gstate.relations);
 		if !show_land {
@@ -1387,7 +1414,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 			// show sector
 			if self.state.iface_settings.show_sectors && self.state.iface_settings.zoom_ind == map_data.max_zoom_ind() {
 				if let Some(sector_nm) = player.stats.sector_nm_frm_coord(map_cur_coord, map_sz) {
-					self.mv(stats_row-1, LAND_STATS_COL);
+					self.mv(stats_row, LAND_STATS_COL);
 					self.state.txt_list.add_b(&mut self.state.renderer);
 					self.state.renderer.addstr(&self.state.local.Sector); self.addch(' ');
 					if space_empty_ign_zone {
@@ -1400,8 +1427,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 				}
 			}
 			
-			///// arability
-			{
+			{ //// arability
 				self.mv(stats_row + 1, LAND_STATS_COL);
 				let arability_str = ArabilityType::frm_arability(mzc.arability, mzc.map_type, mzc.show_snow).to_str(&self.state.local);
 				let arability_str_lns: Vec<&str> = arability_str.split(" ").collect();
@@ -1423,15 +1449,19 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 			}
 			
 			// show resource, road, zone, owner if no bldgs or units
-			if space_empty_ign_zone {
+			//if space_empty_ign_zone {
+			{
 				///// resource
 				if let Some(resource) = resource_wrapped {
 					if player.stats.resource_discov(resource) {
 						self.mv(r_off, LAND_STATS_COL); r_off += 1;
 						self.state.txt_list.add_b(&mut self.state.renderer);
-						self.attron(COLOR_PAIR(resource.zone.to_color()));
-						self.addstr(&format!("{}", resource.nm[self.state.local.lang_ind]));
-						self.attroff(COLOR_PAIR(resource.zone.to_color()));
+						
+						let zone_attr = COLOR_PAIR(resource.zone.to_color());
+						
+						self.attron(zone_attr);
+						self.addstr(&resource.nm[self.state.local.lang_ind]);
+						self.attroff(zone_attr);
 						
 						let window_w = 40;
 						
@@ -1443,35 +1473,33 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 							self.state.txt_list.add_b(&mut self.state.renderer);
 							self.state.renderer.addstr($r_txt);
 							$row += 1;
-						};};
+						};}
 						
-						macro_rules! print_extended_resource_info{() => {
+						// print extended resource info
+						if (|| {
+							if let Some(ex) = &ex_wrapped {
+								return ex.unit_inds == None && ex.bldg_ind == None;
+							}else{true}
+						})() {
 							let mut row = stats_row - 2;
 							
 							// center title
+							row += 2;
 							self.mv(row, (window_w - resource.nm.len() as i32)/2 + UNIT_STATS_COL as i32); row += 2;
 							self.state.txt_list.add_b(&mut self.state.renderer);
 							self.addstr(&resource.nm[self.state.local.lang_ind]);
 							
-							lr_txt!(row, &self.state.local.Zoning_req_to_use, resource.zone.to_str());
+							lr_txt!(row, &self.state.local.Zoning_req_to_use, resource.zone.to_str(&self.state.local));
 							
 							// zone bonuses
 							for (zone_ind, zone_bonus) in resource.zone_bonuses.iter().enumerate() {
 								if let Some(bonus) = zone_bonus {
 									if *bonus != 0 {
-										lr_txt!(row, &format!("{} bonus:", ZoneType::from(zone_ind).to_str()),
+										lr_txt!(row, &format!("{} bonus:", ZoneType::from(zone_ind).to_str(&self.state.local)),
 												&format!("{}", bonus));
 									}
 								}
 							}
-						};};
-						
-						if let Some(ex) = &ex_wrapped {
-							if ex.unit_inds == None && ex.bldg_ind == None {
-								print_extended_resource_info!();
-							}
-						}else{
-							print_extended_resource_info!();
 						}
 					}
 				}
@@ -1482,36 +1510,44 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 					// structure
 					if let Some(s) = ex.actual.structure {
 						self.state.txt_list.add_b(&mut self.state.renderer);
-						self.state.renderer.addstr(match s.structure_type {
-								StructureType::Road => {&self.state.local.Road}
-								StructureType::Wall => {&self.state.local.Wall}
-								StructureType::Gate => {&self.state.local.Gate}
-								StructureType::N => {panicq!("invalid structure type")}
-						});
-						
-						// damaged
-						if s.health != std::u8::MAX {
-							self.state.txt_list.add_b(&mut self.state.renderer);
-							self.mv(r_off, LAND_STATS_COL); r_off += 1;
-							let health_frac = 100.*(s.health as f32) / (std::u8::MAX as f32); 
-							colorize(health_frac, true, &mut self.state.renderer);
-							self.addstr(&format!("{:.1}%", 100.-health_frac));
-							colorize(health_frac, false, &mut self.state.renderer);
-							self.state.renderer.addstr(&self.state.local.damaged);
-						}
+						self.state.attron(COLOR_PAIR(CGRAY));
+						self.state.renderer.addstr(s.structure_type.to_str(&self.state.local));
+						self.state.attroff(COLOR_PAIR(CGRAY));
+						print_structure_health(s.health, &mut r_off, &mut self.state);
 					
 					// Zone
-					}else if self.state.iface_settings.zoom_ind == map_data.max_zoom_ind() && !ex.actual.ret_zone_type().is_none() && ex.actual.owner_id == Some(self.state.iface_settings.cur_player) {
-						let zt = ex.actual.ret_zone_type().unwrap();
+					}else if self.state.iface_settings.zoom_ind == map_data.max_zoom_ind() && ex.actual.owner_id == Some(self.state.iface_settings.cur_player) {
+						if let Some(zone) = ex.actual.ret_zone() {
+							// zone density
+							self.mv(r_off-1, LAND_STATS_COL);	
+							self.state.txt_list.add_b(&mut self.state.renderer);
+							self.state.attron(COLOR_PAIR(zone.to_color()));
+							self.state.renderer.addstr(zone.density.to_str(&self.state.local));
+							
+							// zone type
+							self.mv(r_off, LAND_STATS_COL);	
+							self.state.txt_list.add_b(&mut self.state.renderer);
+							self.state.renderer.addstr(zone.ztype.to_str(&self.state.local));
+							self.state.attroff(COLOR_PAIR(zone.to_color()));
+						}
+					}
+					
+					// pipe
+					if let Some(pipe_health) = ex.actual.pipe_health {
+						r_off += 1;
+						self.mv(r_off, LAND_STATS_COL);	
 						self.state.txt_list.add_b(&mut self.state.renderer);
-						self.addstr(zt.to_str());
+						self.state.attron(COLOR_PAIR(PIPE_WATERED_COLOR));
+						self.state.renderer.addstr(&self.state.local.Pipe);
+						self.state.attroff(COLOR_PAIR(PIPE_WATERED_COLOR));	
+						print_structure_health(pipe_health, &mut r_off, &mut self.state);
 					}
 					
 					/////////////////////////////////////// zone debug info
 					#[cfg(any(feature="opt_debug", debug_assertions))]
 					if self.state.iface_settings.zoom_ind == map_data.max_zoom_ind() && !ex.actual.ret_zone_type().is_none() {
 						let zt = ex.actual.ret_zone_type().unwrap();
-
+						
 						if let Some(zone_ex) = players[ex.actual.owner_id.unwrap() as usize].zone_exs.get(&return_zone_coord(map_cur_coord, *map_data.map_szs.last().unwrap())) {
 							/////////////////////////////
 							// print zone demands
@@ -1526,7 +1562,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 							for (zone_ind, demand_raw) in zone_ex.demand_raw.iter().enumerate() { // indexed by ZoneType
 								if let Some(zdr) = demand_raw {
 									self.mv(row, 0); row += 1;
-									self.addstr(&format!("{} date: {}", ZoneType::from(zone_ind).to_str(), self.state.local.date_str(zdr.turn_computed)));
+									self.addstr(&format!("{} date: {}", ZoneType::from(zone_ind).to_str(&self.state.local), self.state.local.date_str(zdr.turn_computed)));
 									
 									// loop over ZoneDemandType
 									for (zone_demand_ind, demand) in zdr.demand.iter().enumerate() {
@@ -1550,7 +1586,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 					
 					// Country owner
 					if let Some(owner_id) = ex.actual.owner_id {
-						self.print_owner(r_off+1, &players[owner_id as usize], &gstate.relations);
+						self.print_owner(r_off+3, &players[owner_id as usize], &gstate.relations);
 					}	
 				} // extended data
 			}
@@ -1610,7 +1646,18 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 			}
 		}
 		
-		self.print_unit_bldg_stats(map_cur_coord, stats_row, r_off+1, show_land, map_data, exs, player, players, units, bldg_config, bldgs, gstate, temps);
+		self.print_unit_bldg_stats(map_cur_coord, stats_row + 2, r_off+1, show_land, map_data, exs, player, players, units, bldg_config, bldgs, gstate, temps);
 	}
 }
 
+fn print_structure_health(health: u8, r_off: &mut i32, dstate: &mut DispState) {
+	if health == std::u8::MAX {return;}
+	
+	dstate.txt_list.add_b(&mut dstate.renderer);
+	dstate.mv(*r_off, LAND_STATS_COL); *r_off += 1;
+	let health_frac = 100.*(health as f32) / (std::u8::MAX as f32); 
+	colorize(health_frac, true, &mut dstate.renderer);
+	dstate.addstr(&format!("{:.1}%", 100.-health_frac));
+	colorize(health_frac, false, &mut dstate.renderer);
+	dstate.renderer.addstr(&dstate.local.damaged);
+}

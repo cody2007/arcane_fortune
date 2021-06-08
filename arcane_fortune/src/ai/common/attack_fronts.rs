@@ -220,7 +220,7 @@ impl AttackFront {
 						units[*unit_ind].action.push(action_iface.action);
 					}
 				}
-			};};
+			};}
 			
 			//printlnq!("{:?}", unreachable_city_coords);
 			
@@ -328,7 +328,7 @@ impl AttackFront {
 				macro_rules! abort{() => {
 					self.state = AttackFrontState::Recruitment {unreachable_city_coords: Vec::new()};
 					return;
-				};};
+				};}
 				
 				// check that city and wall owner match and we are actually at war with the owner
 				let city_owner = {
@@ -387,7 +387,7 @@ impl AttackFront {
 						//		exs.last().unwrap().get(&target_city_coord).unwrap().actual.owner_id.unwrap());
 						abort!();
 					}
-				}};
+				}}
 				
 				let mut ind = 0;
 				let wall_c = Coord::frm_ind(wall_coord, map_sz);
@@ -422,7 +422,7 @@ impl AttackFront {
 							}
 						}
 					}
-				};};
+				};}
 				
 				// set attack position to be the same path as the sieger, 
 				// but terminating in the position right before the end (right before the wall)
@@ -439,7 +439,7 @@ impl AttackFront {
 					for attacker in self.attackers.iter().skip($skip).take(UNITS_PER_POSITION) {
 						units[*attacker].action.push(action.clone());
 					}
-				};};
+				};}
 				
 				////////////////// position 1
 				for sieger in self.siegers.iter().take(UNITS_PER_POSITION) {attack_wall!(sieger);}
@@ -467,7 +467,7 @@ impl AttackFront {
 			macro_rules! abort{() => {
 				self.state = AttackFrontState::Recruitment {unreachable_city_coords: Vec::new()};
 				return;
-			};};
+			};}
 			
 			// reset to recruitment, if all units are idle (attacks have already been initiated)
 			if *attacks_initiated {
@@ -663,7 +663,7 @@ impl AttackFronts {
 					return true;
 				}
 			}
-		};};
+		};}
 		
 		rm_frm_stack!(siegers);
 		rm_frm_stack!(attackers);
@@ -684,7 +684,7 @@ impl AttackFronts {
 					}
 				}){return true;}
 			}
-		};};
+		};}
 		
 		chg_in_stack!(siegers);
 		chg_in_stack!(attackers);

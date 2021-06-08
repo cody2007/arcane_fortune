@@ -144,7 +144,7 @@ impl OpenWindowState {
 		macro_rules! enter_action {($mode: expr) => {
 			*game_control = GameControl::Load(format!("{}/{}", SAVE_DIR, self.save_files[$mode].nm));
 			return UIModeControl::ChgGameControl;
-		};};
+		};}
 		if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {	enter_action!(ind);}
 		else if dstate.buttons.Open.activated(dstate.key_pressed, &dstate.mouse_event) && self.save_files.len() != 0 {
 			enter_action!(self.mode);

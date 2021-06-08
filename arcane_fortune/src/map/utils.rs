@@ -87,12 +87,13 @@ impl <'bt,'ut,'rt,'dt> ExFns <'bt,'ut,'rt,'dt> for HashedMapEx<'bt,'ut,'rt,'dt> 
 	}
 }
 
-pub trait ZoneExFns {fn create_if_empty(&mut self, coord: u64, doctrine_templates: &Vec<DoctrineTemplate>);}
+pub trait ZoneExFns {fn create_if_empty(&mut self, zone_coord: u64, doctrine_templates: &Vec<DoctrineTemplate>);}
 
 impl ZoneExFns for HashedMapZoneEx {
-	fn create_if_empty(&mut self, coord: u64, doctrine_templates: &Vec<DoctrineTemplate>) {
-		if !self.contains_key(&coord) {
-			self.insert(coord, ZoneEx::default_init(doctrine_templates));
+	// zone_coord should be the output of return_zone_coord
+	fn create_if_empty(&mut self, zone_coord: u64, doctrine_templates: &Vec<DoctrineTemplate>) {
+		if !self.contains_key(&zone_coord) {
+			self.insert(zone_coord, ZoneEx::default_init(doctrine_templates));
 		}
 	}
 }

@@ -128,7 +128,7 @@ pub fn square_clear(coord: u64, blank_spot: ScreenSz, quad: Quad, map_data: &mut
 		if search($start_i, $end_i, $start_j, $end_j) {
 			return map_sz.coord_wrap(c.y + $fin_i, c.x + $fin_j);
 		}
-	)};
+	)}
 	
 	// quadrant 4 (lower right)
 	if quad == Quad::Any || quad == Quad::Lr {
@@ -265,7 +265,8 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 	debug_assertq!(action.actions_req > 0.);
 	
 	let actions_per_turn_use = match action.action_type {
-		ActionType::WorkerBuildStructure {..} => 1., 
+		ActionType::WorkerBuildStructure {..} |
+		ActionType::WorkerBuildPipe => 1., 
 		_ => u.template.actions_per_turn };
 	
 	// used to check if path is still movable
@@ -286,7 +287,7 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 			ActionType::WorkerRmZonesAndBldgs {..} | ActionType::ScaleWalls |
 			ActionType::BrigadeCreation {..} | ActionType::SectorCreation {..} | ActionType::SectorAutomation {..} |
 			ActionType::UIWorkerAutomateCity | ActionType::WorkerContinueBuildBldg {..} |
-			ActionType::BurnBuilding {..} => {
+			ActionType::WorkerBuildPipe | ActionType::BurnBuilding {..} => {
 				action.path_coords[0]
 			}
 		};
@@ -427,7 +428,8 @@ pub fn mv_unit<'bt,'ut,'rt,'dt,'d>(unit_ind: usize, is_cur_player: bool,
 		}
 		
 		let use_roads = match action.action_type {
-			ActionType::WorkerBuildStructure {..} => false,
+			ActionType::WorkerBuildStructure {..} |
+			ActionType::WorkerBuildPipe => false,
 			_ => true
 		};
 		

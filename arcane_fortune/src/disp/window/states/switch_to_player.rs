@@ -14,7 +14,7 @@ impl SwitchToPlayerWindowState {
 	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, temps: &Templates<'bt,'ut,'rt,'dt,'_>,
 			map_data: &mut MapData, dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let list = OptionsUI::all_civs_and_nobility(players);
-		if list_mode_update_and_action(&mut self.mode, list.options.len(), dstate) {
+		if list.list_mode_update_and_action(&mut self.mode, dstate) {
 			if let ArgOptionUI::OwnerInd(owner_ind) = list.options[self.mode].arg {
 				dstate.iface_settings.cur_player = owner_ind as SmSvType;
 				

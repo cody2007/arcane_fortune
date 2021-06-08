@@ -31,8 +31,7 @@ impl DoctrineWindowState {
 		let l = &dstate.local;
 		let kbd = &dstate.kbd;
 		
-		/////////////////////////////// plotting before/after the tree
-		{
+		{ /////////////////////////////// plotting before/after the tree
 			let title_c = COLOR_PAIR(CGREEN);
 			
 			macro_rules! center_txt{($txt: expr, $w: expr) => {
@@ -42,7 +41,7 @@ impl DoctrineWindowState {
 				d.attron(title_c);
 				d.addstr(&format!("{}{}", sp, $txt));
 				d.attroff(title_c);
-			};};
+			};}
 			
 			center_txt!(&dstate.local.Doctrine_tree, w);
 			
@@ -55,7 +54,7 @@ impl DoctrineWindowState {
 			let mut col = (w - txt_width)/2;
 			
 			macro_rules! nl{() => {d.mv(row, col); row += 1;};
-					($last:expr) => {d.mv(row,col);};};
+					($last:expr) => {d.mv(row,col);};}
 			
 			/////// instructions
 			nl!();
@@ -81,40 +80,56 @@ impl DoctrineWindowState {
 			d.addstr(&l.Change_selection);
 			
 			////////////// colors
-			row = disp_properties.instructions_start_row;
-			col += (key_width + gap_width) as i32;
-			
-			nl!();
-			center_txt!(&l.Color_indicators, color_width);
-			nl!();
-			
-			macro_rules! show_key{($c:expr, $txt:expr) => {
-				d.attron(COLOR_PAIR($c));
-				d.addch(dstate.chars.land_char);
-				d.attroff(COLOR_PAIR($c));
-				d.addstr(" ");
-				d.addstr($txt);
-			};};
-			
-			nl!();show_key!(CRED, &l.selected);
-			nl!();show_key!(C_CURRENT, &l.prevailing_doctrinality);
-			nl!(1);show_key!(C_PRESENT, &l.doctrine_w_presence);
+			if !screen_reader_mode() {
+				row = disp_properties.instructions_start_row;
+				col += (key_width + gap_width) as i32;
+				
+				nl!();
+				center_txt!(&l.Color_indicators, color_width);
+				nl!();
+				
+				macro_rules! show_key{($c:expr, $txt:expr) => {
+					d.attron(COLOR_PAIR($c));
+					d.addch(dstate.chars.land_char);
+					d.attroff(COLOR_PAIR($c));
+					d.addstr(" ");
+					d.addstr($txt);
+				};}
+				
+				nl!();show_key!(CRED, &l.selected);
+				nl!();show_key!(C_CURRENT, &l.prevailing_doctrinality);
+				nl!(1);show_key!(C_PRESENT, &l.doctrine_w_presence);
+			}
 		}
+		
+		// sets txt cursor to the title
+		macro_rules! exit_and_set_txt_cursor{() => {
+			if let Some((row, col, _)) = disp_properties.sel_loc {
+				d.mv(row, col);
+			}
+			return UIModeControl::UnChgd;
+		};}
 		
 		// show infobox for selected doctrine (ex bonuses and bldgs it can unlock)
 		if let Some((mut row, mut col, doc_ind)) = disp_properties.sel_loc {
-			row += 1;
-			// off the top edge of the screen
-			if row < 0 || col < 0 {return UIModeControl::UnChgd;}
+			// show under the doctrine instead of beside (on the right)
+			if screen_reader_mode() {
+				row = 12;
+				col = 0;
+			}else{
+				row += 1;
+				// off the top edge of the screen
+				if row < 0 || col < 0 {return UIModeControl::UnChgd;}
+			}
 			
 			let doc = &temps.doctrines[doc_ind as usize];
 			
 			let bldgs_unlocks = doc.bldgs_unlocks(temps.bldgs);
 			
-			// if there are no bonuses, don't show anything
+			// if there are no bonuses, don't show anything -- set text cursor for screen readers
 			if doc.health_bonus == 0. && doc.crime_bonus == 0. && doc.pacifism_bonus == 0. && 
-				doc.happiness_bonus == 0. && doc.tax_aversion == 0. && bldgs_unlocks.len() == 0 {
-				return UIModeControl::UnChgd;
+					doc.happiness_bonus == 0. && doc.tax_aversion == 0. && bldgs_unlocks.len() == 0 {
+				exit_and_set_txt_cursor!();
 			}
 			
 			let window_w = 29;
@@ -127,7 +142,7 @@ impl DoctrineWindowState {
 			}
 			
 			// print window top line
-			{
+			if !screen_reader_mode() {
 				d.mv(row, col); row += 1;
 				d.addch(dstate.chars.ulcorner_char);
 				for _ in 0..window_w {d.addch(dstate.chars.hline_char);}
@@ -137,9 +152,9 @@ impl DoctrineWindowState {
 			macro_rules! lr_txt{($l_txt: expr, $r_txt: expr) => {
 				// clear line
 				d.mv(row,col);
-				d.addch(dstate.chars.vline_char);
+				if !screen_reader_mode() {d.addch(dstate.chars.vline_char);}
 				for _ in 0..window_w {d.addch(' ');}
-				d.addch(dstate.chars.vline_char);
+				if !screen_reader_mode() {d.addch(dstate.chars.vline_char);}
 				
 				// print txt
 				d.mv(row,col+2);
@@ -149,10 +164,9 @@ impl DoctrineWindowState {
 				d.mv(row, col + window_w - $r_txt.len() as i32);
 				d.addstr($r_txt);
 				row += 1;
-			};};
+			};}
 			
-			// bonuses and bldgs discovered by this doctrine
-			{
+			{ // bonuses and bldgs discovered by this doctrine
 				if doc.health_bonus != 0. {
 					lr_txt!(&l.Health_bonus, &format!("{}", doc.health_bonus));
 				}
@@ -185,14 +199,15 @@ impl DoctrineWindowState {
 			}
 			
 			// print window bottom line
-			{
+			if !screen_reader_mode() {
 				d.mv(row,col);
 				d.addch(dstate.chars.llcorner_char);
 				for _ in 0..window_w {d.addch(dstate.chars.hline_char);}
 				d.addch(dstate.chars.lrcorner_char);
 			}
 		}
-		UIModeControl::UnChgd
+		
+		exit_and_set_txt_cursor!();
 	}
 	
 	pub fn keys<'bt,'ut,'rt,'dt>(&mut self, dstate: &DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
@@ -230,7 +245,11 @@ impl TreeTemplate for DoctrineTemplate {
 	
 	fn requirements_txt(&self, pstats: &Stats, l: &Localization) -> String { // ex doctrinality points
 		if self.bldg_req > 0. {
-			format!("{} {:.1}/{}", l.Bldg_pts, pstats.locally_logged.doctrinality_sum[self.id], self.bldg_req)
+			let mut txt = format!("{} {:.1}/{}", l.Bldg_pts, pstats.locally_logged.doctrinality_sum[self.id], self.bldg_req);
+			if screen_reader_mode() && pstats.doctrine_template == self {
+				txt.push_str(&format!(" {}", l.This_is_the_prevailing_doctrine));
+			}
+			txt
 		}else {String::new()}
 	}
 }

@@ -16,7 +16,8 @@ impl PlotWindowState {
 				data.push(d);
 			}
 			plot_window_data(ColoringType::Players, $title.clone(), &data, dstate, players, &gstate.relations, map_data, $plot_first_player_only);
-		};};
+		};}
+		let pstats = &players[dstate.iface_settings.cur_player as usize].stats;
 		
 		match self.data {
 			PlotData::DefensivePower => {plot_data!(defense_power_log, dstate.local.Defensive_power, false);}
@@ -57,7 +58,6 @@ impl PlotWindowState {
 				}
 				plot_window_data(ColoringType::Owners(owners), &dstate.local.Doctrinality_Methodicalism, &data, disp_chars, self, stats, relations, map_data, false, l);*/
 			} PlotData::YourPrevailingDoctrines => {
-				let pstats = &players[dstate.iface_settings.cur_player as usize].stats;
 				let mut lbls = Vec::with_capacity(PLAYER_COLORS.len());
 				let mut data: Vec<Vec<f32>> = Vec::with_capacity(PLAYER_COLORS.len());
 				
@@ -177,14 +177,13 @@ impl PlotWindowState {
 				plot_window_data(ColoringType::Supplied {colors: &PLAYER_COLORS.to_vec(), lbls: &lbls, ign_cur_player_alive: true}, dstate.local.World_prevailing_doctrines.clone(), &data, dstate, players, &gstate.relations, map_data, false);
 				
 			} PlotData::ZoneDemands => {
-				let pstats = &players[dstate.iface_settings.cur_player as usize].stats;
 				let mut colors = Vec::with_capacity(4);
 				let mut lbls = Vec::with_capacity(4);
 				let mut data: Vec<Vec<f32>> = Vec::with_capacity(4);
 				for zone_type_ind in 0_usize..4 {
-					let zone_type = ZoneType::from(zone_type_ind);
-					lbls.push(String::from(zone_type.to_str()));
-					colors.push(zone_type.to_color());
+					let ztype = ZoneType::from(zone_type_ind);
+					lbls.push(String::from(ztype.to_str(&dstate.local)));
+					colors.push(ztype.to_color());
 					
 					let mut tseries = Vec::with_capacity(pstats.zone_demand_log.len());
 					for tpoint in pstats.zone_demand_log.iter() {
@@ -196,6 +195,19 @@ impl PlotWindowState {
 				//printlnq!("{:#?}", pstats.zone_demand_log);
 				
 				plot_window_data(ColoringType::Supplied {colors: &colors, lbls: &lbls, ign_cur_player_alive: false}, dstate.local.Zone_Demands.clone(), &data, dstate, players, &gstate.relations, map_data, false);
+			} PlotData::PopulationByWealthLevel => {
+				let mut data: Vec<Vec<f32>> = Vec::with_capacity(WealthLevel::N as usize); // [wealth_level][time]
+				let lbls = vec![dstate.local.Low.clone(), dstate.local.Medium.clone(), dstate.local.High.clone()];
+				let colors = vec![CRED, CGREEN4, CGREEN1];
+				for wealth_level in 0..WealthLevel::N as usize {
+					let mut tseries = Vec::with_capacity(pstats.population_wealth_level_log.len());
+					for tpoint in pstats.population_wealth_level_log.iter() {
+						tseries.push(tpoint[wealth_level] as f32);
+					}
+					data.push(tseries);
+				}
+				
+				plot_window_data(ColoringType::Supplied {colors: &colors, lbls: &lbls, ign_cur_player_alive: false}, dstate.local.Population_by_wealth_level.clone(), &data, dstate, players, &gstate.relations, map_data, false);
 			} PlotData::N => {panicq!("invalid plot data setting");}
 		}
 		UIModeControl::UnChgd
@@ -222,7 +234,7 @@ enum_From!{PlotData {DefensivePower, OffensivePower, Population,
 	Unemployed, Gold, NetIncome, ResearchPerTurn, 
 	ResearchCompleted, Happiness, Crime, DoctrineScienceAxis, 
 	YourPrevailingDoctrines, WorldPrevailingDoctrines,
-	Pacifism, Health,
+	Pacifism, Health, PopulationByWealthLevel,
 	ZoneDemands, MPD}}
 
 impl PlotData {

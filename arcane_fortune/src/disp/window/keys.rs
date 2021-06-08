@@ -87,38 +87,48 @@ pub fn tree_window_movement(k: i32, sel_mv: &mut TreeSelMv, tree_offsets: &mut O
 
 // called in individual window/states/*.rs for list mode updating
 // returns true if action should be performed
-pub fn list_mode_update_and_action(mode: &mut usize, n_items: usize, dstate: &DispState) -> bool {
-	if n_items == 0 {return false;}
-	
-	// mouse click
-	if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {
-		*mode = ind;
-		return true;
-	}
-	
-	// keyboard
-	match dstate.key_pressed {
-		k if dstate.kbd.down(k) => {
-			if (*mode + 1) <= (n_items-1) {
-				*mode += 1;
-			}else{
-				*mode = 0;
-			}
+impl <'bt,'ut,'rt,'dt>OptionsUI<'bt,'ut,'rt,'dt> {
+	pub fn list_mode_update_and_action(&self, mode: &mut usize, dstate: &DispState) -> bool {
+		if self.options.len() == 0 {return false;}
 		
-		// up
-		} k if dstate.kbd.up(k) => {
-			if *mode > 0 {
-				*mode -= 1;
-			}else{
-				*mode = n_items - 1;
-			}
-			
-		// enter
-		} k if k == dstate.kbd.enter => {
+		// mouse click
+		if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {
+			*mode = ind;
 			return true;
-		} _ => {}
+		}
+		
+		// keyboard
+		match dstate.key_pressed {
+			k if dstate.kbd.down(k) => {
+				if (*mode + 1) <= (self.options.len()-1) {
+					*mode += 1;
+				}else{
+					*mode = 0;
+				}
+			
+			// up
+			} k if dstate.kbd.up(k) => {
+				if *mode > 0 {
+					*mode -= 1;
+				}else{
+					*mode = self.options.len() - 1;
+				}
+				
+			// enter
+			} k if k == dstate.kbd.enter => {
+				return true;
+				
+			// keyboard shortcut?
+			} _ => {
+				for (mode_val, _) in self.options.iter().enumerate()
+						.filter(|(_, option)| option.key == Some(dstate.key_pressed as u8 as char)) {
+					*mode = mode_val;
+					return true;
+				}
+			}
+		}
+		false
 	}
-	false
 }
 
 // called in individual window/states/*.rs for list mode updating
@@ -181,6 +191,8 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, exs: &mut
 			}
 			
 			// windows with lists
+			UIMode::ZoneLand(ZoneLandState::GetZoneType {ref mut mode}) |
+			UIMode::ZoneLand(ZoneLandState::GetZoneDensity {ref mut mode, ..}) |
 			UIMode::IntroNobilityJoinOptions(IntroNobilityJoinOptionsState {ref mut mode, ..}) |
 			UIMode::NobilityDeclaresIndependenceWindow(NobilityDeclaresIndependenceWindowState {ref mut mode, ..}) |
 			UIMode::CivilizationIntelWindow(CivilizationIntelWindowState {ref mut mode, ..}) |
@@ -258,6 +270,7 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, exs: &mut
 			UIMode::EndGameWindow(_) | UIMode::AboutWindow(_) |
 			UIMode::UnmovedUnitsNotification(_) |
 			UIMode::AcceptNobilityIntoEmpire(_) |
+			UIMode::Budget(_) |
 			UIMode::ForeignUnitInSectorAlert(_) => {}
 		}
 	}
@@ -309,7 +322,9 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, exs: &mut
 		UIMode::NobilityRequestWindow(state) => {state.keys(players, bldgs, gstate, temps, map_data, exs, dstate)}
 		UIMode::InitialGameWindow(state) => {state.keys(players, temps, map_data, exf, map_sz, gstate, dstate)}
 		UIMode::NobilityDeclaresIndependenceWindow(state) => {state.keys(players, gstate, dstate)}
+		UIMode::ZoneLand(state) => state.keys(units, players, map_data, exs.last().unwrap(), dstate),
 		UIMode::SetNobleTax(state) => {state.keys(&mut gstate.relations, dstate)}
+		UIMode::Budget(state) => state.keys(),
 		
 		// no key actions
 		UIMode::ResourcesAvailableWindow(_) | UIMode::AboutWindow(_) | UIMode::TechDiscoveredWindow(_) | UIMode::FriendsAndFoesWindow(_) |
@@ -322,14 +337,14 @@ pub fn do_window_keys<'f,'bt,'ut,'rt,'dt>(map_data: &mut MapData<'rt>, exs: &mut
 	};
 	
 	match ret {
-		UIModeControl::CloseAndGoTo(coord) => {
+		UIModeControl::CloseAndGoTo(coord) => { // go to coordinate
 			disp.reset_auto_turn();
 			disp.end_window();
 			disp.center_on_next_unmoved_menu_item(true, FindType::Coord(coord), map_data, exs, units, bldgs, gstate, players);
 			UIRet::Inactive
 		} UIModeControl::Closed => {
 			disp.end_window();
-			UIRet::Inactive
+			UIRet::Active
 		} UIModeControl::New(new) => {
 			disp.ui_mode = new;
 			UIRet::Active

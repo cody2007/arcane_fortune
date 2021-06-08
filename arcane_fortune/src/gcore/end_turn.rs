@@ -447,23 +447,14 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 			let path_coords_len = action.path_coords.len();
 			let action_type = &mut action.action_type;
 			
-			///////////////////////////////////////// road
-			if let ActionType::WorkerBuildStructure {structure_type: StructureType::Road, ..} = action_type {
+			///////////////////////////////////////// pipe
+			if let ActionType::WorkerBuildPipe = action_type {
 				#[cfg(feature="profile")]
-				let _g = Guard::new("WorkerBuildStructure {road}");
+				let _g = Guard::new("WorkerBuildStructurePipe");
 				
 				debug_assertq!(u.template.nm[0] == WORKER_NM);
 				let mfc = map_data.get(ZoomInd::Full, u.return_coord());
 				debug_assertq!(mfc.map_type == MapType::Land);
-				
-				// land already has some other structure on it
-				if let Some(ex) = exs.last().unwrap().get(&u.return_coord()) {
-					if (ex.actual.structure != None && ex.actual.ret_structure() != Some(StructureType::Road)) || !ex.bldg_ind.is_none() {
-						u.action.pop();
-						//uninit_city_hall_dists(u.owner_id, exs, bldgs);
-						continue;
-					}
-				}
 				
 				let exf = &mut exs.last_mut().unwrap();
 				exf.create_if_empty(u.return_coord());
@@ -475,11 +466,60 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 						u.action.pop();
 						continue;
 					}
+				}else{
+					ex.actual.owner_id = Some(u.owner_id);
+				}
+				
+				// add pipe
+				ex.actual.pipe_health = Some(u8::MAX);
+				
+				//printlnq!("adding road at {}, unit owner {}", Coord::frm_ind(u.return_coord(), map_sz), owners[u.owner_id as usize].nm);
+				compute_zooms_coord(u.return_coord(), bldgs, temps.bldgs, map_data, exs, players);
+				
+				// end action or mv unit
+				if u.action.last().unwrap().path_coords.len() == 0 {
+					u.action.pop();
+					//uninit_city_hall_dists(u.owner_id, exs, bldgs);
+				}else{
+					debug_assertq!(u.action.last().unwrap().actions_req > 0.);
+					debug_assertq!(u.action.last().unwrap().path_coords.len() > 0);
+					mv_unit(*unit_ind, u.owner_id == disp.state.iface_settings.cur_player, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds), &mut Some(disp));
+				}
+			
+			///////////////////////////////////////// road
+			}else if let ActionType::WorkerBuildStructure {structure_type: StructureType::Road, ..} = action_type {
+				#[cfg(feature="profile")]
+				let _g = Guard::new("WorkerBuildStructure {road}");
+				
+				debug_assertq!(u.template.nm[0] == WORKER_NM);
+				let mfc = map_data.get(ZoomInd::Full, u.return_coord());
+				debug_assertq!(mfc.map_type == MapType::Land);
+				let exf = &mut exs.last_mut().unwrap();
+				
+				// land already has some other structure on it
+				if let Some(ex) = exf.get(&u.return_coord()) {
+					if (ex.actual.structure != None && ex.actual.ret_structure() != Some(StructureType::Road)) || !ex.bldg_ind.is_none() {
+						u.action.pop();
+						//uninit_city_hall_dists(u.owner_id, exs, bldgs);
+						continue;
+					}
+				}
+				
+				exf.create_if_empty(u.return_coord());
+				let ex = exf.get_mut(&u.return_coord()).unwrap();
+				
+				// if there is already an owner and it is not the current player, do not continue
+				if let Some(current_owner_id) = ex.actual.owner_id {
+					if current_owner_id != u.owner_id {
+						u.action.pop();
+						continue;
+					}
+				}else{
+					ex.actual.owner_id = Some(u.owner_id);
 				}
 				
 				// add road
 				ex.actual.set_structure(u, StructureType::Road, map_sz);
-				ex.actual.owner_id = Some(u.owner_id);
 				ex.actual.rm_zone(u_coord, players, temps.doctrines, map_sz);
 				
 				//printlnq!("adding road at {}, unit owner {}", Coord::frm_ind(u.return_coord(), map_sz), owners[u.owner_id as usize].nm);
@@ -567,7 +607,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 								continue 'outer;
 							}
 						}
-					};};
+					};}
 					
 					// gap indicates wall, just skip over it
 					match manhattan_dist_inds(next_coord, u_coord, map_sz) {
@@ -630,7 +670,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 			
 			//////////////////////////////////////////// zoning (from path_coords for AI) 
 			// [this should be above the move units check, otherwise it won't run because path_coords_len != 0
-			}else if let ActionType::WorkerZoneCoords {zone_type} = action_type {
+			}else if let ActionType::WorkerZoneCoords {zone} = action_type {
 				#[cfg(feature="profile")]
 				let _g = Guard::new("WorkerZoneCoords");
 				
@@ -648,7 +688,18 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				/////////////////////////////////////////////////////////
 				// create zone
 				if ex.actual.structure == None {
-					ex.actual.add_zone(u_coord, *zone_type, &mut players[u.owner_id as usize], temps.doctrines, map_sz);
+					let player = &mut players[u.owner_id as usize];
+					{ // update gold if the player can afford to zone
+						let cost = zone.cost_per_tile(temps);
+						if player.stats.gold < cost {
+							u.action.pop();
+							continue;
+						}else{
+							player.stats.gold -= cost;
+						}
+					}
+					
+					ex.actual.add_zone(u_coord, *zone, player, temps.doctrines, map_sz);
 				}
 				
 				/////////////////////////////////////////////
@@ -700,10 +751,17 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 							// fiefdom of human -> do not limit movement
 							if let Some(fiefdom_owner) = gstate.relations.fiefdom_of(u_owner) {
 								if players[fiefdom_owner].ptype.is_human() {
-									return false;
+									return false; // do not skip
 								}
 							}
-							return true;
+							
+							// the moving AI is at war with a human, do not skip
+							if gstate.relations.at_war_with(u_owner).iter()
+								.any(|&war_owner| players[war_owner].ptype.is_human()) {
+								return false; // do not skip
+							}
+							
+							return true; // skip movement
 						}
 						false
 					})() {continue;}
@@ -869,7 +927,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				set_coord(coord_new, *unit_ind, u_owner == disp.state.iface_settings.cur_player, units, map_data, exs, &mut players[u_owner as usize].stats, map_sz, gstate);
 			
 			//////////////////////////////////////////// zoning (from start/end coords from human UI)
-			}else if let ActionType::WorkerZone {zone_type, start_coord, end_coord, ..} = action_type {
+			}else if let ActionType::WorkerZone {zone, start_coord, end_coord, ..} = action_type {
 				#[cfg(feature="profile")]
 				let _g = Guard::new("WorkerZone");
 				
@@ -896,6 +954,18 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				/////////////////////////////////////////////////////////
 				// create zone or road
 				if ex.actual.structure == None {
+					let player = &mut players[u.owner_id as usize];
+					
+					{ // update gold if the player can afford to zone
+						let cost = zone.cost_per_tile(temps);
+						if player.stats.gold < cost {
+							u.action.pop();
+							continue;
+						}else{
+							player.stats.gold -= cost;
+						}
+					}
+					
 					let h = rect_sz.h as isize;
 					
 					// wrapped
@@ -924,7 +994,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 						}
 						
 					//////////////////// place zone
-					}else {ex.actual.add_zone(u_coord, *zone_type, &mut players[u.owner_id as usize], temps.doctrines, map_sz);}
+					}else {ex.actual.add_zone(u_coord, *zone, player, temps.doctrines, map_sz);}
 				} // create zone or road
 				
 				/////////////////////////////////////////////
@@ -944,12 +1014,11 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 				
 				let chk_zone_or_road = |coord| {
 					if let Some(ex) = exs.last().unwrap().get(&coord) {
-						ex.actual.ret_zone_type() == Some(*zone_type) || ex.actual.ret_structure() == Some(StructureType::Road)
+						ex.actual.ret_zone() == Some(*zone) || ex.actual.ret_structure() == Some(StructureType::Road)
 					} else {false}
 				};
 				
-				if chk_zone_or_road(corner_coord) && 
-						chk_zone_or_road(end_coord.unwrap()) {
+				if chk_zone_or_road(corner_coord) && chk_zone_or_road(end_coord.unwrap()) {
 					u.action.pop();
 					continue;
 					// both corners have been zoned, so quit
@@ -1011,7 +1080,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 							Some(dedication.closest_available(&players[u_owner_id].stats, temps.doctrines))
 						}else{None};
 						
-						if !add_bldg(map_coord, u.owner_id, bldgs, template, doctrine_dedication, temps, map_data, exs, players, gstate) {
+						if !add_bldg(map_coord, u.owner_id, bldgs, template, doctrine_dedication, None, temps, map_data, exs, players, gstate) {
 							u.action.pop(); // couldn't create bldg
 							continue;
 						}
@@ -1107,7 +1176,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 							continue 'outer;
 						}
 					};
-				};
+				}
 				
 				// repair or create wall
 				if let Some(ref mut ex) = exf.get_mut(&wall_coord) {
@@ -1193,7 +1262,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 								set_coord($coord, *unit_ind, false, units, map_data, exs, &mut players[u_owner as usize].stats, map_sz, gstate);
 								continue 'outer;
 							}
-						};};
+						};}
 						
 						// find the next movable coordinate to place unit
 						macro_rules! find_and_set_next_coord {($skip: expr) => {
@@ -1209,7 +1278,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 									chk_and_set!(*perim_coord, mv_vars, exf);
 								}
 							}
-						};};
+						};}
 						
 						find_and_set_next_coord!(start_ind);
 						
@@ -1243,7 +1312,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 						if set_target_attackable(&target, *attacker_ind, false, MAX_SEARCH_DEPTH, units, bldgs, exs, map_data, map_sz) {
 							continue 'outer;
 						}
-					};};
+					};}
 					
 					match unit_enter_action {
 						SectorUnitEnterAction::Assault => {attack_unit!();
@@ -1322,7 +1391,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 													continue;
 												}
 											}
-										};};
+										};}
 										
 										if cur_loc_c.y < next_c.y {chk_and_mv!(1, 0);}
 										if cur_loc_c.y > next_c.y {chk_and_mv!(-1, 0);}
@@ -1371,21 +1440,31 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 		#[cfg(feature="profile")]
 		let _g = Guard::new("end_turn bldg management");
 		
-		const MAX_BLDG_INDS_COMP: usize = 2;//0;
+		const MAX_BLDG_INDS_COMP: usize = 300;//150;//0;
 		let mut bldg_inds = gstate.rng.inds_max(bldgs.len(), MAX_BLDG_INDS_COMP);
 		
 		/////////////////
-		{ // recompute city hall dists if not init
+		{ // recompute city hall and water dists if not init
 			#[cfg(feature="profile")]
 			let _g = Guard::new("recompute city hall dists");
 			
 			for bldg_ind in bldg_inds.iter() {
 				let b = &bldgs[*bldg_ind];
-				let owner_id = b.owner_id as usize;
-				if let Some(zone_ex) = players[owner_id].zone_exs.get(&return_zone_coord(b.coord, map_sz)) {
-					if let Dist::NotInit = zone_ex.ret_city_hall_dist() {
-						set_city_hall_dist(b.coord, map_data, exs, &mut players[owner_id], bldgs, temps.doctrines, map_sz, gstate.turn);
-					}
+				let b_coord = b.coord;
+				let player = &mut players[b.owner_id as usize];
+				if let Some(_zone_ex) = player.zone_exs.get(&return_zone_coord(b_coord, map_sz)) {
+					//let water_source_not_init = zone_ex.water_source_dist == Dist::NotInit; // req for the borrow checker. ref to player is used which contains zone_ex
+					
+					//if let Dist::NotInit = zone_ex.ret_city_hall_dist() {
+					//	player.set_city_hall_dist(b_coord, map_data, exs, bldgs, temps.doctrines, map_sz, gstate.turn);
+					//}
+					
+					//if water_source_not_init {
+					//	set_water_dist(b_coord, &mut player.zone_exs, map_data, exs, bldgs, map_sz, gstate.turn);
+					//}
+					
+					ret_water_dist_recomp(b_coord, &mut player.zone_exs, map_data, exs, bldgs, temps.doctrines, map_sz, gstate.turn);
+					player.ret_city_hall_dist_recomp(b_coord, map_data, exs, bldgs, temps.doctrines, map_sz, gstate.turn);
 				}
 			}
 		}
@@ -1402,7 +1481,9 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 		}
 		
 		///////////
-		create_taxable_constructions(map_data, temps, exs, players, bldgs, map_sz, gstate);
+		for _ in 0..3 {
+			create_taxable_constructions(map_data, temps, exs, players, bldgs, map_sz, gstate);
+		}
 		
 		////////////////////////
 		// destroy taxable constructions
@@ -1546,8 +1627,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 		randomly_update_happiness(map_data, exs, players, bldgs, temps, gstate, map_sz);
 		
 		////////////////////////
-		// fire damage
-		{
+		{ // fire damage
 			#[cfg(feature="profile")]
 			let _g = Guard::new("sell products, add/rm residents, find jobs");
 			
@@ -1645,7 +1725,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 			struct Expense { // for units and blgs (separately)
 				upkeep: f32,
 				ind: usize
-			};
+			}
 			
 			//////////// remove units
 			if in_debt(&player.stats, players, &gstate.relations) {
@@ -1775,6 +1855,7 @@ pub fn end_turn<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, units: &mut Vec<Unit
 			let pstats = &mut player.stats;
 			pstats.alive_log.push(pstats.alive);
 			pstats.population_log.push(pstats.population);
+			pstats.population_wealth_level_log.push(pstats.population_wealth_level.clone());
 			pstats.unemployed_log.push(if pstats.population == 0 {0.} else {
 					100.*(pstats.population - pstats.employed) as f32 / pstats.population as f32});
 			pstats.gold_log.push(pstats.gold);

@@ -9,12 +9,14 @@ use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
 use crate::renderer::endwin;
 use crate::player::Player;
+use crate::containers::Templates;
 
 pub mod disp; pub use disp::*;
 pub mod utils; pub use utils::*;
 pub mod set_owner; pub use set_owner::*;
 pub mod sample_from_turn_computed; pub use sample_from_turn_computed::*;
 pub mod happiness; pub use happiness::*;
+pub mod updaters; pub use updaters::*; // update city hall and water distances in ZoneEx
 
 /////////////////// Fog
 pub const FOG_UNIT_DIST: usize = 6;//12;
@@ -29,12 +31,13 @@ pub struct StructureData {
 impl_saving! {StructureData {structure_type, health, orientation}}
 
 // Note: `.is_empty()` should be updated if new entries added to FogVars
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Default)]
 pub struct FogVars<'bt,'ut,'rt,'dt> {
 	pub owner_id: Option<SmSvType>,
 	pub structure: Option<StructureData>,
+	pub pipe_health: Option<u8>, // 255 = max health
 	
-	zone_type: Option<ZoneType>, // stats[owner] and zone_exs_owners map counters potentially need to be updated when chgd
+	zone: Option<Zone>, // stats[owner] and players[owner].zone_exs map counters potentially need to be updated when chgd
 	// ^ use:   add_zone(), rm_zone(), ret_zone_type()    to access
 	
 	// for zoomed out views:
@@ -44,32 +47,35 @@ pub struct FogVars<'bt,'ut,'rt,'dt> {
 	pub turn_represented: usize
 }
 
-impl_saving! { FogVars<'bt,'ut,'rt,'dt>{ owner_id, structure, zone_type, max_bldg_template, max_city_nm, turn_represented }}
+impl_saving! { FogVars<'bt,'ut,'rt,'dt>{ owner_id, structure, pipe_health, zone, max_bldg_template, max_city_nm, turn_represented }}
 
-impl Default for FogVars<'_,'_,'_,'_> {
-	fn default() -> Self {
-		FogVars {
-			owner_id: None,
-			structure: None,
-			zone_type: None,
-			max_bldg_template: None,
-			max_city_nm: None,
-			turn_represented: 0
-		}
-	}
+#[derive(Clone, PartialEq, Default, Copy)]
+pub struct Zone {
+	pub ztype: ZoneType,
+	pub density: ZoneDensity
 }
+
+impl_saving! {Zone {ztype, density} }
+
+enum_From! { ZoneDensity {Low, Medium, High} }
 
 // zone maintenence fns, and setting structure from unit's path_coords
 impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 	#[inline]
-	pub fn ret_zone_type(&self) -> Option<ZoneType> {self.zone_type}
+	pub fn ret_zone_type(&self) -> Option<ZoneType> {
+		if let Some(zone) = &self.zone {Some(zone.ztype)} else {None}
+	}
+	
+	pub fn ret_zone(&self) -> Option<Zone> {
+		self.zone
+	}
 	
 	// decrement ZoneEx map counter
 	// update pstats.zone_demand_sum_map[zt] if zone is no longer anywhere on map
 	pub fn rm_zone(&mut self, coord: u64, players: &mut Vec<Player>, doctrine_templates: &Vec<DoctrineTemplate>, map_sz: MapSz) {
 		// we only have something todo if there is actually a zone placed
-		if let Some(zt) = self.zone_type {
-			let zt = zt as usize;
+		if let Some(Zone {ztype, ..}) = &self.zone {
+			let zt = *ztype as usize;
 			
 			let owner_id = self.owner_id.unwrap() as usize;
 			let player = &mut players[owner_id];
@@ -89,8 +95,7 @@ impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 						player.stats.zone_demand_sum_map[zt].n_summed -= 1;
 					}
 					
-					// happiness, doctrinality, pacifism
-					{
+					{ // happiness, doctrinality, pacifism
 						let stats_old = &mut zone_ex.zone_agnostic_stats;
 						
 						// decrement from pstats
@@ -112,19 +117,19 @@ impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 				if self.structure == None {
 					self.owner_id = None;
 				}
-				self.zone_type = None;
+				self.zone = None;
 			}else{printlnq!("could not remove zone at {}", Coord::frm_ind(coord, map_sz));}
 		}
 	}
 	
 	// increment ZoneEx map_counter
 	// update pstats.zone_demand_sum_map[zt] if zone is now on map
-	pub fn add_zone(&mut self, coord: u64, zone_type: ZoneType, player: &mut Player, doctrine_templates: &Vec<DoctrineTemplate>, map_sz: MapSz) {
+	pub fn add_zone(&mut self, coord: u64, zone: Zone, player: &mut Player, doctrine_templates: &Vec<DoctrineTemplate>, map_sz: MapSz) {
 		//self.rm_zone(coord, zone_exs_owners, stats, doctrine_templates, map_sz); // needed to update zone counters ?
 		
 		self.owner_id = Some(player.id);
 		
-		let zt = zone_type as usize;
+		let zt = zone.ztype as usize;
 		
 		// load ZoneEx
 		let zn_coord = return_zone_coord(coord, map_sz);
@@ -143,12 +148,18 @@ impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 			}
 		}
 		
-		self.zone_type = Some(zone_type);
+		self.zone = Some(zone);
 	}
 	
 	// directly set zone_type-- this is needed in map/zoom_out.rs because stats[owner] should *NOT*
 	// be updated for zoomed out representations of the map
-	pub fn set_zone_direct(&mut self, zone_type: Option<ZoneType>) {self.zone_type = zone_type}
+	pub fn set_zone_direct(&mut self, zone_type: Option<ZoneType>) {
+		self.zone = if let Some(zone_type) = zone_type {
+			Some(Zone {ztype: zone_type, density: ZoneDensity::Low})
+		}else{
+			None
+		};
+	}
 	
 	pub fn ret_structure(&self) -> Option<StructureType> {
 		if let Some(structure) = self.structure {
@@ -214,7 +225,7 @@ impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 			
 			self.structure = None;
 			// if no zone is present, remove the owner
-			if self.zone_type == None {
+			if self.zone == None {
 				self.owner_id = None;
 			}
 		}else{panicq!("tried to remove non-existant structure");}
@@ -223,7 +234,7 @@ impl <'bt,'ut,'rt,'dt>FogVars<'bt,'ut,'rt,'dt> {
 	pub fn is_empty(&self) -> bool {
 		self.owner_id.is_none() &&
 		self.structure.is_none() &&
-		self.zone_type.is_none() &&
+		self.zone.is_none() &&
 		self.max_bldg_template.is_none()
 	}
 }
@@ -276,6 +287,7 @@ pub struct ZoneAgnosticStats {
 	pub locally_logged: ZoneAgnosticLocallyLogged, // happiness, doctrinality, pacifism
 	// ^ and contributions of doctrinality, pacifism, crime, health, unemployment to local sum
 	
+	// updated when bldgs are added/removed:
 	pub crime_sum: f32, // pstats updated w/ pstats.bldg_stats()
 	pub health_sum: f32, // pstats updated w/ pstats.bldg_stats()
 	pub unemployment_sum: f32 // pstats updated w/ add/rm residents(?)
@@ -304,11 +316,14 @@ impl_saving!{ ZoneAgnosticStats{
 	unemployment_sum} }
 
 //////////// accessed w/:
-//	zone_exs_owners[owner_id].get(return_zone_coord(coord, ..))
+//	players[owner_id].zone_exs.get(return_zone_coord(coord, ..))
 #[derive(Clone, PartialEq)]
 pub struct ZoneEx {
 	city_hall_dist: Dist, // distance to cityhall
-				    // use zone_ex.set_city_hall_dist() & .ret_city_hall_dist()
+				    // use zone_ex.set_city_hall_dist() & .ret_city_hall_dist() to access
+				    // use the global function set_city_hall_dist() to recompute dists from a starting coordinate
+	
+	pub water_source_dist: Dist,
 	
 	////////////////////////////////
 	// demand based on connections to specific zone types
@@ -326,7 +341,7 @@ pub struct ZoneEx {
 	pub zone_agnostic_stats: ZoneAgnosticStats // ex. gov happiness
 }
 
-impl_saving!{ ZoneEx {city_hall_dist, demand_weighted_sum_map_counter, demand_weighted_sum, demand_raw,
+impl_saving!{ ZoneEx {city_hall_dist, water_source_dist, demand_weighted_sum_map_counter, demand_weighted_sum, demand_raw,
 				zone_agnostic_stats} }
 
 //////////////////
@@ -371,16 +386,17 @@ impl ZoneEx {
 		macro_rules! count_population_moved{() => {
 			// only count if we haven't already done so
 			if population_moved == None {
-				let mut sum = 0;
+				let mut population_wealths = vec![0; WealthLevel::N as usize];
 				for b in bldgs.iter().filter(|b| {
-					BldgType::Taxable(ZoneType::Residential) == b.template.bldg_type &&
+					b.template.bldg_type.is_residential() &&
 					return_zone_coord(b.coord, map_sz) == zone_coord
 				}) {
-					sum += b.n_residents();
+					let wealth_ind = WealthLevel::from(b.args.wealth()) as usize;
+					population_wealths[wealth_ind] += b.n_residents();
 				}
-				population_moved = Some(sum);
+				population_moved = Some(population_wealths);
 			}
-		};};
+		};}
 		
 		// add population counts to receiver
 		match new_dist {
@@ -389,7 +405,12 @@ impl ZoneEx {
 				count_population_moved!();
 				
 				if let BldgArgs::PopulationCenter {ref mut population, ..} = bldgs[ch_bldg_ind].args {
-					*population += population_moved.unwrap() as u32;
+					if let Some(population_moved) = &population_moved {
+						// iterate over wealth levels
+						for (population, population_moved) in population.iter_mut().zip(population_moved.iter()) {
+							*population += *population_moved as u32;
+						}
+					}else{panicq!("population_moved was not set");}
 				}else{panicq!("input requires the bldg ind be a city hall");}
 			}
 			Dist::NotInit |
@@ -403,8 +424,14 @@ impl ZoneEx {
 				count_population_moved!();
 				
 				if let BldgArgs::PopulationCenter {ref mut population, ..} = bldgs[ch_bldg_ind].args {
-					debug_assertq!(*population >= population_moved.unwrap() as u32);
-					*population -= population_moved.unwrap() as u32;
+					if let Some(population_moved) = &population_moved {
+						debug_assertq!(population.iter().sum::<u32>() >= population_moved.iter().fold(0, |sum, p| sum + *p) as u32);
+						
+						// iterate over wealth levels
+						for (population, population_moved) in population.iter_mut().zip(population_moved.iter()) {
+							*population -= *population_moved as u32;
+						}
+					}else{panicq!("population_moved was not set");}
 				}else{panicq!("input requires the bldg ind be a city hall");}
 			}
 			Dist::NotInit |
@@ -498,7 +525,7 @@ impl ZoneDemandSumMap {
 fn return_beginning_boost(zone_type: ZoneType, bldgs: &Vec<Bldg>, owner_id: SmSvType) -> Option<f32> {
 	let mut count = 0;
 	for b in bldgs {
-		if let BldgType::Taxable(bz) = b.template.bldg_type{
+		if let BldgType::Taxable(Zone {ztype: bz, ..}) = b.template.bldg_type{
 			if b.owner_id == owner_id && bz == zone_type {
 				count += 1;
 				
@@ -516,7 +543,7 @@ fn return_beginning_boost(zone_type: ZoneType, bldgs: &Vec<Bldg>, owner_id: SmSv
 // starts at map location coord, and then finds paths to the closest buildings
 // that can fullfill particular demand types
 //
-// returns zone_exs_owners[owner_ind].get_mut(coord).demand_raw[zone_type][: (all zone_demand_type)] 
+// returns players[owner_ind].zone_exs.get_mut(coord).demand_raw[zone_type][: (all zone_demand_type)] 
 // demand_raw[zone_type] will be set to `demand_raw_zone` returned from this function
 const N_ZONE_SAMPLES: usize = 9;
 impl ZoneDemandRaw {
@@ -536,7 +563,7 @@ impl ZoneDemandRaw {
 				if b.owner_id != owner_id {continue;}
 				
 				match &b.template.bldg_type {
-					BldgType::Taxable(b_zone) => {
+					BldgType::Taxable(Zone {ztype: b_zone, ..}) => {
 						if *b_zone != zone_type_frm {continue;}
 						if action_iface.too_far(start_c, b, bldgs, exf, exs, map_data, map_sz) {continue;}
 						
@@ -647,7 +674,7 @@ pub fn return_potential_demand(mut coord: u64, map_data: &mut MapData,
 	
 	let exf = exs.last().unwrap();
 	let ex = exf.get(&coord).unwrap();
-	let zone_type = ex.actual.zone_type.unwrap();
+	let zone_type = ex.actual.zone.unwrap().ztype;
 	
 	//////////// compute zone demands on a spaced grid, unless zone doesn't match the grid
 	coord = return_zone_coord(coord, map_sz);
@@ -815,6 +842,7 @@ impl Default for ZoneEx {
 		let n_zone_types = ZoneType::N as usize;
 		ZoneEx {
 			city_hall_dist: Dist::NotInit,
+			water_source_dist: Dist::NotInit,
 			demand_weighted_sum_map_counter: vec!{0; n_zone_types}.into_boxed_slice(),
 			demand_weighted_sum: vec!{None; n_zone_types}.into_boxed_slice(),
 			demand_raw: vec!{None; n_zone_types}.into_boxed_slice(),
@@ -828,6 +856,7 @@ impl ZoneEx {
 		let n_zone_types = ZoneType::N as usize;
 		ZoneEx {
 			city_hall_dist: Dist::NotInit,
+			water_source_dist: Dist::NotInit,
 			demand_weighted_sum_map_counter: vec!{0; n_zone_types}.into_boxed_slice(),
 			demand_weighted_sum: vec!{None; n_zone_types}.into_boxed_slice(),
 			demand_raw: vec!{None; n_zone_types}.into_boxed_slice(),
@@ -836,3 +865,82 @@ impl ZoneEx {
 	}
 }
 
+use crate::renderer::CInt;
+use crate::localization::Localization;
+impl ZoneType {
+	pub fn to_str<'l>(&self, l: &'l Localization) -> &'l str {
+		match self {
+			ZoneType::Agricultural => &l.Agricultural,
+			ZoneType::Residential => &l.Residential,
+			ZoneType::Business => &l.Business,
+			ZoneType::Industrial => &l.Industrial,
+			ZoneType::N => {panicq!("invalid zone")}
+		}
+	}
+	
+	pub fn to_color(&self) -> CInt {
+		match self {
+			ZoneType::Agricultural => CSAND4,
+			ZoneType::Residential => CGREEN,
+			ZoneType::Business => CCYAN,
+			ZoneType::Industrial => CSAND1,
+			ZoneType::N => {panicq!("invalid zone")}
+		}
+	}
+}
+
+impl Zone {
+	pub fn to_color(&self) -> CInt {
+		match self.density {
+			ZoneDensity::Low => self.ztype.to_color(),
+			ZoneDensity::Medium => {
+				match self.ztype {
+					ZoneType::Agricultural => CAGRICULTURAL_MEDIUM,
+					ZoneType::Residential => CRESIDENTIAL_MEDIUM,
+					ZoneType::Business => CBUSINESS_MEDIUM,
+					ZoneType::Industrial => CINDUSTRIAL_MEDIUM,
+					ZoneType::N => {panicq!("invalid zone")}
+				}
+			}
+			ZoneDensity::High => {
+				match self.ztype {
+					ZoneType::Agricultural => CAGRICULTURAL_HEAVY,
+					ZoneType::Residential => CRESIDENTIAL_HEAVY,
+					ZoneType::Business => CBUSINESS_HEAVY,
+					ZoneType::Industrial => CINDUSTRIAL_HEAVY,
+					ZoneType::N => {panicq!("invalid zone")}
+				}
+			}
+			ZoneDensity::N => panicq!("invalid zone density")
+		}
+	}
+	
+	pub fn cost_per_tile(&self, temps: &Templates) -> f32 {
+		match self.density {
+			ZoneDensity::Low => temps.bldg_config.cost_to_zone_low_density,
+			ZoneDensity::Medium => temps.bldg_config.cost_to_zone_medium_density,
+			ZoneDensity::High => temps.bldg_config.cost_to_zone_high_density,
+			ZoneDensity::N => panicq!("invalid zone density")
+		}
+	}
+}
+
+impl ZoneDensity {
+	pub fn frm_str(txt: &String) -> Self {
+		match txt.as_str() {
+			"low" => Self::Low,
+			"medium" => Self::Medium,
+			"high" => Self::High,
+			_ => panicq!("unknown zone density: {}", txt)
+		}
+	}
+	
+	pub fn to_str<'l>(&self, l: &'l Localization) -> &'l String {
+		match self {
+			Self::Low => &l.Low_density,
+			Self::Medium => &l.Medium_density,
+			Self::High => &l.High_density,
+			Self::N => panicq!("invalid zone density")
+		}
+	}
+}

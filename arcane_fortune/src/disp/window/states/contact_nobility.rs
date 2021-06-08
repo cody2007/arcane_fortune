@@ -35,7 +35,7 @@ impl ContactNobilityState {
 				let w = (w-2) as i32;
 				
 				let mut row = 0;
-				macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;}};
+				macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;}}
 				
 				{ ///////////// title -- house name
 					mvl!();
@@ -113,7 +113,7 @@ impl ContactNobilityState {
 					macro_rules! print_button {($button: ident, $mode: expr) => {
 						dstate.buttons.$button.print_centered_selection(row + y, *mode == $mode, &mut screen_reader_cur_loc, screen_w, &mut dstate.renderer);
 						row += 1;
-					};};
+					};}
 					
 					print_button!(Suggest_a_trade, 0);
 					print_button!(Lets_review_our_current_trade_deals, 1);
@@ -147,7 +147,7 @@ impl ContactNobilityState {
 			ContactNobilityState::NobilitySelection {ref mut mode} => {
 				let list = noble_houses_list(cur_player, &gstate.relations, players, &dstate.local);
 				
-				if list_mode_update_and_action(mode, list.options.len(), dstate) {
+				if list.list_mode_update_and_action(mode, dstate) {
 					let owner_id = if let ArgOptionUI::OwnerInd(owner_ind) = list.options[*mode].arg {
 						owner_ind
 					}else{panicq!("list argument option not properly set");};
@@ -206,7 +206,7 @@ impl ContactNobilityState {
 			// instruct noble house to attack city
 			} ContactNobilityState::PopulationTargetSelection {mode, owner_id} => {
 				let (options, city_coords) = OptionsUI::target_cities(cur_player as SmSvType, bldgs, players, &gstate.relations, &dstate.local);
-				if list_mode_update_and_action(mode, options.options.len(), dstate) {
+				if options.list_mode_update_and_action(mode, dstate) {
 					let city_coord = city_coords[*mode];
 					if let Some(ex) = exf.get(&city_coord) {
 						if let Some(bldg_ind) = ex.bldg_ind {
@@ -265,7 +265,7 @@ impl <'bt,'ut,'rt,'dt>OptionsUI<'bt,'ut,'rt,'dt> {
 				targets.push(TargetEntry {
 					owner_ind: b.owner_id as usize,
 					// [city name], Rsdnts: [residents] ([empire])
-					txt: format!("{}, {}: {} ({})", nm, l.Population, population, o.personalization.nm)
+					txt: format!("{}, {}: {} ({})", nm, l.Population, population.iter().sum::<u32>(), o.personalization.nm)
 				});
 				city_coords.push(b.coord);
 			}

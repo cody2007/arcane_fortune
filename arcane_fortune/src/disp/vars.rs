@@ -3,7 +3,6 @@ use std::cmp::min;
 use std::time::Instant;
 use crate::disp::SCROLL_ACCEL_INIT;
 use crate::map::*;
-use crate::units::vars::*;
 use crate::saving::*;
 use crate::gcore::hashing::HashedMapEx;
 use crate::gcore::Relations;
@@ -47,6 +46,7 @@ pub enum AddActionTo<'f,'bt,'ut,'rt,'dt> {
 			// ^ can be none if the player has not indicated which action to perform yet, but they entered
 			//	the mode to add the action to the brigade build list
 	},
+	// ^ assigned to workers
 	
 	////////////////////////////////////////////////////
 	// paths are computed when cursor moves:
@@ -63,6 +63,7 @@ pub enum AddActionTo<'f,'bt,'ut,'rt,'dt> {
 			// ^ can be none if the player has not indicated which action to perform yet, but they entered
 			//	the mode to assign the action to all units in the brigade
 	}
+	// ^ example is movement for all in the brigade
 }
 
 impl <'f,'bt,'ut,'rt,'dt>AddActionTo<'f,'bt,'ut,'rt,'dt> {
@@ -152,6 +153,19 @@ impl <'f,'bt,'ut,'rt,'dt>AddActionTo<'f,'bt,'ut,'rt,'dt> {
 		}
 	}
 	
+	// `Some` value when the move mode is in AddActionTo::BrigadeBuildList or AddActionTo::IndividualUnit
+	// returns None otherwise (including when the movement mode is 
+	pub fn build_action(&self) -> Option<&ActionMeta<'bt,'ut,'rt,'dt>> {
+		match self {
+			AddActionTo::None | AddActionTo::NoUnit {..} | AddActionTo::AllInBrigade {..} => None,
+			AddActionTo::BrigadeBuildList {action, ..} => {
+				action.as_ref()
+			} AddActionTo::IndividualUnit {action_iface, ..} => {
+				Some(&action_iface.action)
+			}
+		}
+	}
+	
 	pub fn is_build_list(&self) -> bool {
 		match self {
 			AddActionTo::BrigadeBuildList {..} => true,
@@ -230,6 +244,7 @@ pub struct IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 	pub show_unconnected_bldgs: bool,
 	pub show_unoccupied_bldgs: bool,
 	pub show_sectors: bool,
+	pub show_pipes: bool,
 	
 	pub cur_player: SmSvType,
 	
@@ -269,7 +284,7 @@ pub struct IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 }
 
 impl_saving!{IfaceSettings<'f,'bt,'ut,'rt,'dt> {add_action_to, underlay, show_structures, show_units, show_bldgs,
-	     show_zones, show_resources, zone_overlay_map, show_unconnected_bldgs, show_unoccupied_bldgs, show_sectors,
+	     show_zones, show_resources, zone_overlay_map, show_unconnected_bldgs, show_unoccupied_bldgs, show_sectors, show_pipes,
 	     cur_player, zoom_ind, unit_subsel, show_expanded_submap,
 	     map_screen_sz, screen_sz, view_mv_mode,
 	     map_loc, map_loc_v, cur, cur_v, start_map_drag, all_player_pieces_mvd, workers_create_city_sectors, show_fog, show_actions,
@@ -289,6 +304,7 @@ impl <'f,'bt,'ut,'rt,'dt> IfaceSettings<'f,'bt,'ut,'rt,'dt>{
 			zone_overlay_map: ZoneOverlayMap::None,
 			show_unconnected_bldgs: true, show_unoccupied_bldgs: true,
 			show_sectors: true,
+			show_pipes: false, // use iface_settings.show_pipes() to read
 			
 			cur_player,
 			zoom_ind: ZOOM_IND_ROOT,
@@ -727,7 +743,9 @@ impl UIMode<'_,'_,'_,'_> {
 				
 			// hide the map when these are shown (when in screen reader mode)
 			UIMode::Trade(_) |
+			UIMode::Budget(_) |
 			UIMode::ViewTrade(_) |
+			UIMode::ZoneLand(_) |
 			UIMode::ContactEmbassyWindow(_) |
 			UIMode::ContactNobilityWindow(_) |
 			UIMode::NobilityRequestWindow(_) |

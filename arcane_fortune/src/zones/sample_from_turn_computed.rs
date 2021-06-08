@@ -23,7 +23,7 @@ impl SampleType {
 			n_zone_coords
 		};
 		
-		struct ZoneComputeTurn {t_computed_elapsed: usize, coord: u64};
+		struct ZoneComputeTurn {t_computed_elapsed: usize, coord: u64}
 		
 		macro_rules! return_if_zoned{($coord: expr) => {
 			if let Some(ex) = exf.get(&$coord) {
@@ -31,7 +31,7 @@ impl SampleType {
 					return Some($coord);
 				}
 			}
-		};};
+		};}
 		
 		// gather zoned coords
 		let (zone_coords, n_not_computed, turn_sum) = {
@@ -128,7 +128,7 @@ impl SampleType {
 pub fn sample_low_happiness_coords(zone_exs: &HashedMapZoneEx,
 		exf: &HashedMapEx, map_sz: MapSz, rng: &mut XorState) -> Option<u64> {
 	if zone_exs.len() == 0 {return None;}
-	struct ZoneHappiness {unhappiness: f32, coord: u64};
+	struct ZoneHappiness {unhappiness: f32, coord: u64}
 	
 	// gather zoned coords
 	let (zone_coords, unhappiness_sum, min_unhappiness) = {

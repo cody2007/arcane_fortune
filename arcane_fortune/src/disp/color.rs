@@ -74,7 +74,16 @@ pub const CBLUERED3: CInd = 50;
 pub const CBLUERED4: CInd = 51;
 pub const CBLUERED5: CInd = 52;
 
-const FG_BLACK_OFFSET: i16 = 55; // note: see disp_lib/mod.rs (CWHITE; it should be less than the number defined here)
+pub const CAGRICULTURAL_MEDIUM: CInd = 53;
+pub const CAGRICULTURAL_HEAVY: CInd = 54;
+pub const CRESIDENTIAL_MEDIUM: CInd = 55;
+pub const CRESIDENTIAL_HEAVY: CInd = 56;
+pub const CBUSINESS_MEDIUM: CInd = 57;
+pub const CBUSINESS_HEAVY: CInd = 58;
+pub const CINDUSTRIAL_MEDIUM: CInd = 59;
+pub const CINDUSTRIAL_HEAVY: CInd = 60;
+
+const FG_BLACK_OFFSET: i16 = 62; // note: see renderer/mod.rs (CWHITE; it should be less than the number defined here)
 
 pub const ESC_COLOR: CInd = CSAND4;
 
@@ -157,7 +166,7 @@ pub fn init_color_pairs(terminal_settings: &TerminalSettings, renderer: &mut Ren
 			}else{
 				renderer.init_pair($color as i16 + color_offset, fg_color, ret_color($bg))
 			}
-		};};
+		};}
 		
 		set!(CWHITE, "white");
 		set!(CRED, "red");
@@ -230,6 +239,15 @@ pub fn init_color_pairs(terminal_settings: &TerminalSettings, renderer: &mut Ren
 			set!(CBLUERED4, "bluered4");
 			set!(CBLUERED5, "bluered5");
 			
+			set!(CAGRICULTURAL_MEDIUM, "agricultural_medium");
+			set!(CAGRICULTURAL_HEAVY, "agricultural_heavy");
+			set!(CRESIDENTIAL_MEDIUM, "residential_medium");
+			set!(CRESIDENTIAL_HEAVY, "residential_heavy");
+			set!(CBUSINESS_MEDIUM, "business_medium");
+			set!(CBUSINESS_HEAVY, "business_heavy");
+			set!(CINDUSTRIAL_MEDIUM, "industrial_medium");
+			set!(CINDUSTRIAL_HEAVY, "industrial_heavy");
+			
 		}else{ // 8 colors
 			set!(CGRAY, "8_color_gray");
 			
@@ -288,6 +306,15 @@ pub fn init_color_pairs(terminal_settings: &TerminalSettings, renderer: &mut Ren
 			set!(CBLUERED3, "8_color_bluered3");
 			set!(CBLUERED4, "8_color_bluered4");
 			set!(CBLUERED5, "8_color_bluered5");
+			
+			set!(CAGRICULTURAL_MEDIUM, "8_color_agricultural_medium");
+			set!(CAGRICULTURAL_HEAVY, "8_color_agricultural_heavy");
+			set!(CRESIDENTIAL_MEDIUM, "8_color_residential_medium");
+			set!(CRESIDENTIAL_HEAVY, "8_color_residential_heavy");
+			set!(CBUSINESS_MEDIUM, "8_color_business_medium");
+			set!(CBUSINESS_HEAVY, "8_color_business_heavy");
+			set!(CINDUSTRIAL_MEDIUM, "8_color_industrial_medium");
+			set!(CINDUSTRIAL_HEAVY, "8_color_industrial_heavy");
 		}
 	}
 	

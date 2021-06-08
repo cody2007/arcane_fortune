@@ -4,13 +4,12 @@ pub mod vars; pub use vars::*;
 pub mod actions; pub use actions::*;
 
 impl <'bt,'ut,'rt,'dt>EmpireState<'bt,'ut,'rt,'dt> {
-	pub fn new(coord: Coord, temps: &Templates<'bt,'ut,'rt,'dt,'_>, map_data: &mut MapData<'rt>, exf: &HashedMapEx, rng: &mut XorState) -> Option<Self> {
+	pub fn new(coord: Coord, chk_square_clear: bool,
+			personality: AIPersonality, temps: &Templates<'bt,'ut,'rt,'dt,'_>, map_data: &mut MapData<'rt>,
+			exf: &HashedMapEx, rng: &mut XorState) -> Option<Self> {
 		let city_hall = BldgTemplate::frm_str(CITY_HALL_NM, temps.bldgs);
-		if let Some(ai_state) = AIState::new(coord, CITY_GRID_HEIGHT, MIN_DIST_FRM_CITY_CENTER, city_hall, temps, map_data, exf, *map_data.map_szs.last().unwrap(), rng) {
-			Some(Self {
-				personality: AIPersonality::new(rng),
-				ai_state
-			})
+		if let Some(ai_state) = AIState::new(coord, chk_square_clear, CITY_GRID_HEIGHT, MIN_DIST_FRM_CITY_CENTER, city_hall, temps, map_data, exf, *map_data.map_szs.last().unwrap(), rng) {
+			Some(Self {personality, ai_state})
 		}else{None}
 	}
 }
@@ -106,7 +105,7 @@ impl <'bt,'ut,'rt,'dt>CityState<'bt,'ut,'rt,'dt> {
 			const ARABILITY_SZ: usize = 8;
 			let arability_sz = ScreenSz {h: ARABILITY_SZ, w: ARABILITY_SZ*2, sz: 0};
 			
-			struct CandidateLocation {coord: u64, score: f32};
+			struct CandidateLocation {coord: u64, score: f32}
 			
 			let mut candidate_locations = Vec::with_capacity(N_ATTEMPTS);
 			

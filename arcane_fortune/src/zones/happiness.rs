@@ -25,8 +25,17 @@ pub enum HappinessCategory {
 	Crime
 }
 
+struct NegativeSumPenalties {
+	crime: f32,
+	health: f32,
+	unemployment: f32,
+	sum: f32 // sum of them
+}
+
 // local statistics for a given zone_ex
 impl ZoneAgnosticStats {
+	// updates self.locally_logged
+	// computation is similar to return_wealth()
 	fn set_happiness(&mut self, cur_player: usize, war_time: usize, cur_doctrine: &DoctrineTemplate, gstate: &GameState) {
 		let n_massacres = {
 			let mut n_massacres = 0;
@@ -44,7 +53,7 @@ impl ZoneAgnosticStats {
 		let war_bonus = (war_time as f32*WAR_WEARINESS_FACTOR).min(25.);
 		
 		// 0:+
-		let doctrine = self.locally_logged.doctrinality_sum.iter().sum::<f32>().abs();
+		let doctrine = self.locally_logged.doctrine_sum();
 		
 		let pacifism_signed = self.locally_logged.pacifism_sum + cur_doctrine.pacifism_bonus;
 		let pacifism = pacifism_signed.abs();
@@ -52,16 +61,12 @@ impl ZoneAgnosticStats {
 		let pos_sum = doctrine + pacifism;
 		
 		// -:0
-		let crime = nrelu(-(self.crime_sum + cur_doctrine.crime_bonus));
-		let health = nrelu(self.health_sum + cur_doctrine.health_bonus);
-		let unemployment = -self.unemployment_sum;
-		
-		let neg_sum = crime + health + unemployment;
+		let neg_sum = self.negative_sum_penalties(cur_doctrine);
 		
 		self.locally_logged.happiness_sum = 
 			self.gov_bldg_happiness_sum +
 			
-			pos_sum + neg_sum +
+			pos_sum + neg_sum.sum +
 			
 			if pacifism_signed < 0. {war_bonus} else {-war_bonus} +
 			
@@ -84,13 +89,35 @@ impl ZoneAgnosticStats {
 			doctrine: weighting(doctrine, pos_sum, 2),
 			pacifism: weighting(pacifism, pos_sum, 2),
 			
-			crime: weighting(crime, neg_sum, 3),
-			health: weighting(health, neg_sum, 3),
-			unemployment: weighting(unemployment, neg_sum, 3),
+			crime: weighting(neg_sum.crime, neg_sum.sum, 3),
+			health: weighting(neg_sum.health, neg_sum.sum, 3),
+			unemployment: weighting(neg_sum.unemployment, neg_sum.sum, 3),
 			
 			pos_sum,
-			neg_sum
+			neg_sum: neg_sum.sum
 		};
+	}
+	
+	// similar computation to set_happiness()
+	fn return_wealth(&self, cur_doctrine: &DoctrineTemplate, rng: &mut XorState) -> i32 {
+		let doctrine = self.locally_logged.doctrine_sum();
+		let neg_sum = self.negative_sum_penalties(cur_doctrine);
+		
+		let multiplier = ((rng.isize_range(-20, 20) as f32)/100.) + 1.; // 1 +/- 0.2
+		//printlnq!("{}", ((doctrine + neg_sum.sum) * multiplier * 200.));
+		
+		((6.*doctrine + neg_sum.sum) * multiplier * 200.).round() as i32
+	}
+	
+	fn negative_sum_penalties(&self, cur_doctrine: &DoctrineTemplate) -> NegativeSumPenalties {
+		let crime = nrelu(-(self.crime_sum + cur_doctrine.crime_bonus));
+		let health = nrelu(self.health_sum + cur_doctrine.health_bonus);
+		let unemployment = -self.unemployment_sum;
+		
+		NegativeSumPenalties {
+			crime, health, unemployment,
+			sum: crime + health + unemployment
+		}
 	}
 	
 	// starts at map location coord, and then finds paths to the closest buildings
@@ -106,7 +133,7 @@ impl ZoneAgnosticStats {
 		macro_rules! set_happiness {($zstats: expr) => {
 			$zstats.set_happiness(owner_id as usize, gstate.relations.war_lengths(owner_id as usize, gstate.turn), doctrine, gstate);
 			return $zstats;
-		};};
+		};}
 		
 		if let Some(mut action_iface) = start_civil_mv_mode(coord, map_data, exf, map_sz) {
 			let mut n_conn_found = 0;
@@ -144,7 +171,7 @@ impl ZoneAgnosticStats {
 						set_happiness!(zone_agnostic_stats);
 					}
 				}
-			};};
+			};}
 			
 			///////////////////////////
 			// loop over bldgs until we find enough or we run out 
@@ -171,6 +198,57 @@ impl ZoneAgnosticStats {
 			}
 		}
 		set_happiness!(zone_agnostic_stats);
+	}
+}
+
+impl ZoneAgnosticLocallyLogged {
+	// negative values indicate scientific focus
+	fn doctrine_sum(&self) -> f32 {
+		self.doctrinality_sum.iter().sum::<f32>().abs()
+	}
+}
+
+pub fn return_wealth(coord: u64, map_data: &mut MapData, exs: &mut Vec<HashedMapEx>, bldgs: &Vec<Bldg>, player: &mut Player,
+		temps: &Templates, gstate: &mut GameState, map_sz: MapSz) -> i32 {
+	let doctrine = player.stats.doctrine_template;
+	//let player_id = player.id;
+	let zone_agnostic_stats = return_happiness(coord, map_data, exs, bldgs, player, temps, gstate, map_sz);
+	
+	//printlnq!("{} player: {}", zone_agnostic_stats.return_wealth(doctrine, &mut gstate.rng), player_id);
+	
+	zone_agnostic_stats.return_wealth(doctrine, &mut gstate.rng)
+}
+
+const WEALTH_RANGE: f32 = 2000.; // for printing & tax purposes. wealth levels can be outside of this range
+pub enum WealthLevel {Low, Medium, High, N}
+
+impl BldgArgs<'_,'_> {
+	pub fn wealth_txt<'l>(&self, l: &'l Localization) -> &'l String {
+		let wealth = self.wealth() as f32;
+		const N_STEPS: f32 = 6.;
+		const STEP: f32 = WEALTH_RANGE / N_STEPS;
+		if wealth < (-WEALTH_RANGE/2.) {&l.Wealth_lowest
+		}else if wealth < (-WEALTH_RANGE/2. + STEP) {&l.Wealth_lower
+		}else if wealth < (-WEALTH_RANGE/2. + 2.*STEP) {&l.Wealth_low
+		}else if wealth < (-WEALTH_RANGE/2. + 3.*STEP) {&l.Wealth_middle
+		}else if wealth < (-WEALTH_RANGE/2. + 4.*STEP) {&l.Wealth_high
+		}else if wealth < (-WEALTH_RANGE/2. + 5.*STEP) {&l.Wealth_higher
+		}else{&l.Wealth_highest}
+	}
+	
+	pub fn wealth_level(&self) -> WealthLevel {
+		WealthLevel::from(self.wealth())
+	}
+}
+
+impl WealthLevel {
+	pub fn from(wealth: i32) -> Self {
+		const N_STEPS: f32 = 3.;
+		const STEP: f32 = WEALTH_RANGE / N_STEPS;
+		let wealth = wealth as f32;
+		if wealth < (-WEALTH_RANGE/2.) {WealthLevel::Low
+		}else if wealth < (-WEALTH_RANGE/2. + STEP) {WealthLevel::Medium
+		}else{WealthLevel::High}
 	}
 }
 
@@ -230,8 +308,7 @@ pub fn randomly_update_happiness<'bt,'ut,'rt,'dt>(map_data: &mut MapData,
 				
 				// update residential building dedications to match that doctrinality
 				let zone_coord = Coord::frm_ind(return_zone_coord(coord, map_sz), map_sz);
-				for b in bldgs.iter_mut() {
-					if b.owner_id != owner_id || b.template.doctrinality_bonus == 0. {continue;}
+				for b in bldgs.iter_mut().filter(|b| b.owner_id == owner_id && b.template.doctrinality_bonus != 0.) {
 					match b.template.bldg_type {
 						BldgType::Taxable(_) => {
 							let b_coord = Coord::frm_ind(b.coord, map_sz);

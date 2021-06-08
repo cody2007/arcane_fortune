@@ -33,12 +33,14 @@ const SUB_MENU_NMS_INIT: &[&[&str]] = &[&[
 	
 	// accounting
 	&[inact!("Military"),
-		"  |B|attalions (units)", "  B|r|igades (groups of units)",
+		"  Battalions (|u|nits)", "  B|r|igades (groups of units)",
 		"    Create |n|ew brigade",
 	inact!("Cities"),
 		"  |C|ity Halls", "  |M|ilitary buildings", "  |I|mprovement buildings",
 	inact!("Noble houses"),
 		"  Man|o|rs", "  Battalion|s| (units)",
+	inact!("Finances"),
+		"  |B|udget",
 	inact!("Resources"),
 		"  |A|vailable", "  |D|iscovered"],
 	
@@ -51,7 +53,7 @@ const SUB_MENU_NMS_INIT: &[&[&str]] = &[&[
 			inact!("  Life & Culture"),
 			"    Happin|e|ss", "    Cri|m|e", "    Doctrinality - Methodicali|s|m", "    Your prevailing doctrines (|1|)",
 			"    World prevailing doctrines (|2|)",
-			"    Citizen p|a|cifism - militarism", "    Hea|l|th",
+			"    Citizen p|a|cifism - militarism", "    Hea|l|th", "    |Y|our population by wealth level",
 	inact!("Domestic intelligence"),
 			"  Civic advisors (|3|)", "  Public polling (|4|)", "  Contact noble house (|5|)",
 	inact!("International affairs"),
@@ -60,7 +62,7 @@ const SUB_MENU_NMS_INIT: &[&[&str]] = &[&[
 	// view
 	&[inact!("Underlays (select one)"), "   |A|rability", "   |E|levation", "   Water & mountains |o|nly",
 		inact!("Overlay Items"), "   |S|tructures", "   |U|nits", "   |B|uildings",  "   |Z|ones", "   |R|esources",
-						"   Show un|c|onnected bldgs", "   Show unoccup|i|ed bldgs", "   Show sectors (|2|)",
+						"   Show un|c|onnected bldgs", "   Show unoccup|i|ed bldgs", "   Show sectors (|2|)", "   Show pipes (|4|)",
 		inact!("Civic Overlays"),
 					"   Zone |d|emands",
 					"   Happi|n|ess", "   Crime (|k|)",
@@ -220,6 +222,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 			UIMode::None |
 			UIMode::TextTab {..} |
 			UIMode::SetTaxes(_) |
+			UIMode::ZoneLand(_) |
 			UIMode::Trade(_) |
 			UIMode::ViewTrade(_) |
 			UIMode::SetNobleTax(_) |
@@ -267,6 +270,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 			UIMode::ForeignUnitInSectorAlert(_) |
 			UIMode::AcceptNobilityIntoEmpire(_) | UIMode::NobilityDeclaresIndependenceWindow(_) |
 			UIMode::RiotingAlert(_) |
+			UIMode::Budget(_) |
 			UIMode::AboutWindow(_) => {}
 		}
 	}
@@ -369,15 +373,20 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, d
 		//return Some(GameControl::Load);
 		
 	}else if m("F|ile", "N|ew") {
-		if disp.state.new_game_options(game_opts, game_difficulties) {
+		if disp.state.new_game_options(game_opts, game_difficulties, &temps.nms, &mut gstate.rng) {
 			return Some(GameControl::New);
 		}
 		
-	}else if m("A|c|counting", "B|attalions (units)") {
+	}else if m("A|c|counting", "Battalions (|u|nits)") {
 		disp.reset_auto_turn();
 		disp.ui_mode = UIMode::UnitsWindow(UnitsWindowState {mode: 0});
 		return None; // return because end_menu() will overwrite disp.ui_mode
 	
+	}else if m("A|c|counting", "B|udget") {
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::Budget(BudgetState {});
+		return None;
+		
 	}else if m("A|c|counting", "B|r|igades (groups of units)") {
 		disp.reset_auto_turn();
 		disp.ui_mode = UIMode::BrigadesWindow(BrigadesWindowState {mode: 0, brigade_action: BrigadeAction::ViewBrigades});
@@ -529,6 +538,11 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, d
 		disp.reset_auto_turn();
 		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::Health});
 		return None; // return because end_menu() will overwrite disp.ui_mode
+		
+	}else if m("Inte|l", "|Y|our population by wealth level") {
+		disp.reset_auto_turn();
+		disp.ui_mode = UIMode::PlotWindow(PlotWindowState {data: PlotData::PopulationByWealthLevel});
+		return None; // return because end_menu() will overwrite disp.ui_mode
 	
 	}else if m("Inte|l", "Civic advisors (|3|)") {
 		disp.reset_auto_turn();
@@ -604,7 +618,10 @@ fn execute_submenu<'f,'bt,'ut,'rt,'dt>(menu_mode: usize, sub_menu_mode: usize, d
 		
 	}else if m("V|iew", "Show sectors"){
 		disp.state.iface_settings.show_sectors ^= true;  update_indicators!();
-		
+	
+	}else if m("V|iew", "Show pipes"){
+		disp.state.iface_settings.show_pipes ^= true;  update_indicators!();
+	
 	}else if m("V|iew", "|T|ech tree"){
 		disp.create_tech_window(false);
 		return None;
@@ -835,7 +852,7 @@ pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(disp: &mut Disp<'f,'_,'bt,'ut,'rt,'d
 		}else{
 			UIRet::Active
 		};
-	};};
+	};}
 	
 	// mouse selection (ignore scrolling)
 	if !scroll_down(&disp.state.mouse_event) && !scroll_up(&disp.state.mouse_event) {
@@ -990,7 +1007,7 @@ pub fn do_menu_shortcut<'f,'bt,'ut,'rt,'dt>(disp: &mut Disp<'f,'_,'bt,'ut,'rt,'d
 			}else{
 				UIRet::Active
 			};
-		};};
+		};}
 		
 		// pressed enter on selected item
 		if disp.state.key_pressed == KEY_ENTER || disp.state.key_pressed == ('\n' as i32) {
@@ -1139,6 +1156,7 @@ impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 				set_indicator!("Show un|c|onnected bldgs", iface_settings.show_unconnected_bldgs, sub_opt);
 				set_indicator!("Show unoccup|i|ed bldgs", iface_settings.show_unoccupied_bldgs, sub_opt);
 				set_indicator!("Show sectors (|2|)", iface_settings.show_sectors, sub_opt);
+				set_indicator!("Show pipes (|4|)", iface_settings.show_pipes, sub_opt);
 			}
 		}else{panicq!("main menu arguments not set");}
 		
@@ -1251,7 +1269,7 @@ pub fn print_menu_vstack(sub_options: &OptionsUI, row: i32, col: i32, w: usize,
 		sel_loc: &mut Option<&mut (i32, i32)>, chars: &DispChars, buttons: &mut Buttons,
 		renderer: &mut Renderer){
 	
-	macro_rules! sub_ln_s{($row_add: expr) => {renderer.mv($row_add as i32 + row, col);};};
+	macro_rules! sub_ln_s{($row_add: expr) => {renderer.mv($row_add as i32 + row, col);};}
 	let mut rows_added = 0;
 	
 	///////// sub menu entries
@@ -1365,7 +1383,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 		if let UIMode::Menu {mode: Some(mode), sub_mode: Some(sub_mode), ref mut sel_loc, ..} = self.ui_mode {
 			let main_opt = &self.state.menu_options.options[mode];
 			if let ArgOptionUI::MainMenu {col_start, sub_options} = &main_opt.arg {
-				macro_rules! sub_ln_s{($row: expr) => {self.state.renderer.mv($row as i32, *col_start as i32);};};
+				macro_rules! sub_ln_s{($row: expr) => {self.state.renderer.mv($row as i32, *col_start as i32);};}
 				
 				///// first line
 				sub_ln_s!(1);

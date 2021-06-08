@@ -1,4 +1,8 @@
-Used primarily with rioters, and separately for markets.
+----------------------------------------------
+		Misc building config
+---------------------------------------------
+
+First three entires: Used primarily with rioters, and separately for markets.
 	max_bldg_damage should be greater than fire_damage_rate
 {
 	fire_damage_rate: 3
@@ -8,6 +12,9 @@ Used primarily with rioters, and separately for markets.
 	birth_celebration_bonus: 10
 	marriage_celebration_bonus: 10
 	funeral_bonus: -10
+	cost_to_zone_low_density: 25
+	cost_to_zone_medium_density: 75
+	cost_to_zone_high_density: 125
 }
 
 ----------------------------------------------
@@ -147,6 +154,22 @@ Note: workers by default do 3000 actions_per_turn
 	upkeep: 1
 	construction_req: 0
 	not_human_buildable: true
+}
+
+{
+	nm: Well
+	menu_txt: W|e|ll
+	print_str: [
+		┌──────┐
+		│  /\  │
+		│ /||\ │
+		│ |__| │
+		└──────┘
+	]
+	plot_zoomed: L
+	upkeep: 2
+	water_source: true
+	construction_req: 1160000
 }
 
 {
@@ -645,6 +668,7 @@ Agricultural:
 	print_str: Box(3,4)
 	plot_zoomed: F
 	taxable_zone: Agricultural
+	zone_density: low
 	upkeep: -7
 	resident_max: 3
 	consumption_max: 0
@@ -657,6 +681,7 @@ Agricultural:
 	print_str: Box(4,3)
 	plot_zoomed: F
 	taxable_zone: Agricultural
+	zone_density: low
 	upkeep: -7
 	resident_max: 4
 	consumption_max: 0
@@ -669,6 +694,7 @@ Agricultural:
 	print_str: Box(4,4)
 	plot_zoomed: F
 	taxable_zone: Agricultural
+	zone_density: low
 	upkeep: -8
 	resident_max: 4
 	consumption_max: 0
@@ -681,6 +707,7 @@ Agricultural:
 	print_str: Box(4,5)
 	plot_zoomed: F
 	taxable_zone: Agricultural
+	zone_density: medium
 	upkeep: -10
 	resident_max: 4
 	consumption_max: 0
@@ -693,6 +720,7 @@ Agricultural:
 	print_str: Box(5,5)
 	plot_zoomed: F
 	taxable_zone: Agricultural
+	zone_density: high
 	upkeep: -10
 	resident_max: 6
 	consumption_max: 0
@@ -708,6 +736,7 @@ Residential:
 	print_str: Box(2,2)
 	plot_zoomed: H
 	taxable_zone: Residential
+	zone_density: low
 	upkeep: -1
 	resident_max: 2
 	consumption_max: 4
@@ -722,6 +751,7 @@ Residential:
 	print_str: Box(2,3)
 	plot_zoomed: H
 	taxable_zone: Residential
+	zone_density: medium
 	upkeep: -7
 	resident_max: 6
 	consumption_max: 12
@@ -736,6 +766,7 @@ Residential:
 	print_str: Box(3,2)
 	plot_zoomed: H
 	taxable_zone: Residential
+	zone_density: medium
 	upkeep: -7
 	resident_max: 6
 	consumption_max: 12
@@ -746,10 +777,11 @@ Residential:
 }
 
 {
-	nm: Medium house
+	nm: Town house
 	print_str: Box(3,3)
 	plot_zoomed: H
 	taxable_zone: Residential
+	zone_density: medium
 	upkeep: -10
 	resident_max: 10
 	consumption_max: 20
@@ -764,6 +796,7 @@ Residential:
 	print_str: Box(4,4)
 	plot_zoomed: H
 	taxable_zone: Residential
+	zone_density: low
 	upkeep: -19
 	resident_max: 20
 	consumption_max: 50
@@ -771,6 +804,21 @@ Residential:
 	crime_bonus: 4
 	health_bonus: -3
 	doctrinality_bonus: 0.3
+}
+
+{
+	nm: Apartments
+	print_str: Box(4,4)
+	plot_zoomed: H
+	taxable_zone: Residential
+	zone_density: high
+	upkeep: -25
+	resident_max: 25
+	consumption_max: 25
+	production_max: 0
+	crime_bonus: 9
+	health_bonus: -5
+	doctrinality_bonus: 0.4
 }
 
 --------------
@@ -781,6 +829,7 @@ Business:
 	print_str: Box(2,2)
 	plot_zoomed: B
 	taxable_zone: Business
+	zone_density: low
 	upkeep: -1
 	resident_max: 6
 	consumption_max: 2
@@ -793,6 +842,7 @@ Business:
 	print_str: Box(2,3)
 	plot_zoomed: B
 	taxable_zone: Business
+	zone_density: low
 	upkeep: -7
 	resident_max: 6
 	consumption_max: 2
@@ -805,6 +855,7 @@ Business:
 	print_str: Box(3,2)
 	plot_zoomed: B
 	taxable_zone: Business
+	zone_density: medium
 	upkeep: -7
 	resident_max: 8
 	consumption_max: 2
@@ -817,6 +868,7 @@ Business:
 	print_str: Box(3,3)
 	plot_zoomed: B
 	taxable_zone: Business
+	zone_density: medium
 	upkeep: -10
 	resident_max: 12
 	consumption_max: 5
@@ -829,6 +881,7 @@ Business:
 	print_str: Box(4,4)
 	plot_zoomed: B
 	taxable_zone: Business
+	zone_density: high
 	upkeep: -19
 	resident_max: 20
 	consumption_max: 10
@@ -844,6 +897,7 @@ Industrial:
 	print_str: Box(2,2)
 	plot_zoomed: I
 	taxable_zone: Industrial
+	zone_density: low
 	upkeep: -3
 	resident_max: 5
 	consumption_max: 0
@@ -857,6 +911,7 @@ Industrial:
 	print_str: Box(2,3)
 	plot_zoomed: I
 	taxable_zone: Industrial
+	zone_density: medium
 	upkeep: -3
 	resident_max: 6
 	consumption_max: 0
@@ -871,6 +926,7 @@ Industrial:
 	print_str: Box(3,2)
 	plot_zoomed: I
 	taxable_zone: Industrial
+	zone_density: medium
 	upkeep: -5
 	resident_max: 10
 	consumption_max: 0
@@ -885,6 +941,7 @@ Industrial:
 	print_str: Box(4,4)
 	plot_zoomed: I
 	taxable_zone: Industrial
+	zone_density: high
 	upkeep: -10
 	resident_max: 22
 	consumption_max: 0

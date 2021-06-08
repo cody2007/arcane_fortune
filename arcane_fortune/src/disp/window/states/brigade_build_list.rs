@@ -17,7 +17,7 @@ impl BrigadeBuildListState {
 		let top_left = list_pos.top_left;
 		let mut roff = top_left.y as i32 + 2;
 		macro_rules! mvl{() => {dstate.mv(roff, top_left.x as i32 + 2); roff += 1;};
-			($fin: expr) => {dstate.mv(roff, top_left.x as i32 + 2);};};
+			($fin: expr) => {dstate.mv(roff, top_left.x as i32 + 2);};}
 		
 		// Press 'a' to add an action
 		// Or select an action and press <Delete> to remove:			

@@ -41,7 +41,7 @@ pub fn chk_data(units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, pl
 				endwin();
 				assert!($test);
 			}
-			};};
+			};}
 
 	//endwin();
 	
@@ -90,7 +90,7 @@ pub fn chk_data(units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, pl
 		// stats:
 		let pstats = &mut stats_new[b.owner_id as usize];
 		
-		if b.template.bldg_type == BldgType::Taxable(ZoneType::Residential) {
+		if b.template.bldg_type.is_residential() {
 			pstats.population += b.n_residents();
 			pstats.employed += b.n_sold();
 		}
@@ -108,7 +108,7 @@ pub fn chk_data(units: &Vec<Unit>, bldgs: &Vec<Bldg>, exs: &Vec<HashedMapEx>, pl
 		// in correct zone w/ correct owner?
 		X!(ex.actual.owner_id == Some(b.owner_id), "ex owner is {} but building owner is {} (bldg ind {} nm {})",
 				ex.actual.owner_id.unwrap(), b.owner_id, bldg_ind, b.template.nm[0]);
-		let ex_zone = ex.actual.ret_zone_type();
+		let ex_zone = ex.actual.ret_zone();
 		match b.template.bldg_type {
 			BldgType::Gov(_) => {X!(ex_zone == None);}
 			BldgType::Taxable(zone) => {X!(ex_zone == Some(zone));}

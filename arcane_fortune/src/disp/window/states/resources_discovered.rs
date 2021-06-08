@@ -33,7 +33,7 @@ impl ResourcesDiscoveredWindowState {
 				if let ArgOptionUI::ResourceWCoord {coord, ..} = list.options[$mode].arg
 					{coord} else {panicq!("invalid UI setting");}
 			);
-		};};
+		};}
 		if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {	enter_action!(ind);}
 		
 		const SCROLL_FASTER_SPEED: usize = 3;

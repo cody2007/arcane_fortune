@@ -280,11 +280,11 @@ impl <'bt,'ut,'rt,'dt>NobilityRequestWindowState<'bt,'ut,'rt,'dt> {
 							gstate.relations.declare_peace(cur_player, *owner_id, &mut gstate.logs, gstate.turn);
 						} NobilityRequestType::BuildDoctrineBldg(doctrine_bldg) => {
 							add_bldg(doctrine_bldg.coord, cur_player as SmSvType, bldgs, doctrine_bldg.bldg_template,
-									Some(doctrine_bldg.doctrine), temps, map_data, exs, players, gstate);
+									Some(doctrine_bldg.doctrine), None, temps, map_data, exs, players, gstate);
 							bldgs.last_mut().unwrap().construction_done = None;
 						} NobilityRequestType::BuildScienceBldg(science_bldg) => {
 							add_bldg(science_bldg.coord, cur_player as SmSvType, bldgs, science_bldg.bldg_template,
-									None, temps, map_data, exs, players, gstate);
+									None, None, temps, map_data, exs, players, gstate);
 							bldgs.last_mut().unwrap().construction_done = None;
 						}
 					}

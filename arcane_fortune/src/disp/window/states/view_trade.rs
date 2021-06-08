@@ -87,8 +87,7 @@ impl ViewTradeState {
 			}
 		// list current trade deals
 		}else{
-			let entries = OptionsUI::current_trade_deals(self.player_id, &gstate.relations, dstate);
-			if list_mode_update_and_action(&mut self.mode, entries.options.len(), dstate) {
+			if OptionsUI::current_trade_deals(self.player_id, &gstate.relations, dstate).list_mode_update_and_action(&mut self.mode, dstate) {
 				self.view = true;
 			}
 		}

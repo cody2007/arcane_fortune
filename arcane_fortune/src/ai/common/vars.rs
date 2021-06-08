@@ -526,7 +526,7 @@ pub fn transfer_city_ai_state<'bt,'ut,'rt,'dt>(population_center_ind: usize, frm
 			macro_rules! re_add_unit{($unit_ind: expr) => {
 				let u = &units[$unit_ind];
 				frm_ai_state.add_unit($unit_ind, u.return_coord(), u.template, &pstats_frm, temps.units, map_sz);
-			}};
+			}}
 			
 			// remove & re-add units so they are registered in another city_state
 			if frm_ai_state.city_states.len() != 0 {

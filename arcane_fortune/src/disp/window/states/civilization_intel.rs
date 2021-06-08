@@ -34,10 +34,9 @@ impl CivilizationIntelWindowState {
 			let d = &mut dstate.renderer;
 			let l = &dstate.local;
 			macro_rules! mvl{() => {d.mv(row + y, x); row += 1;};
-						     ($final: expr) => {d.mv(row + y, x);}};
+						     ($final: expr) => {d.mv(row + y, x);}}
 			
-			// print key instructions
-			{
+			{ // print key instructions
 				mvl!();
 				dstate.buttons.Esc_to_close.print(None, l, d);
 				
@@ -47,8 +46,7 @@ impl CivilizationIntelWindowState {
 				d.addstr(&l.to_go_back);
 			}
 			
-			///////////// title -- country name
-			{
+			{ ///////////// title -- country name
 				mvl!();
 				let txt_len = format!("Our Intel on {}", o.personalization.nm).len();
 				let g = (w as usize - txt_len) / 2;
@@ -73,8 +71,7 @@ impl CivilizationIntelWindowState {
 			mvl!();
 			d.addstr(&motto_txt);
 			
-			////////// prevailing doctrine
-			{
+			{ ////////// prevailing doctrine
 				mvl!();
 				let pstats = &players[owner_id].stats;
 				d.addstr(&l.Prevailing_doctrine);

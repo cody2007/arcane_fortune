@@ -142,3 +142,34 @@ pub fn find_closest_road(coord_start: u64, map_data: &mut MapData, exf: &HashedM
 	None
 }
 
+pub fn find_closest_pipe(coord_start: u64, map_data: &mut MapData, exf: &HashedMapEx, map_sz: MapSz) -> Option<u64> {	
+	const MAX_PIPE_DIST: isize = 30; // in one dimension, ex. can be (i+MAX,j+MAX) away
+	
+	let c = Coord::frm_ind(coord_start, map_sz);
+	debug_assertq!(map_data.get(ZoomInd::Full, coord_start).map_type == MapType::Land,
+			"{} {:#?}", Coord::frm_ind(coord_start, map_sz), map_data.get(ZoomInd::Full, coord_start).map_type);
+	
+	for offset in 1..=MAX_PIPE_DIST {
+		macro_rules! chk_pipe{($i: expr, $j: expr) => (
+			if let Some(cur_coord) = map_sz.coord_wrap(c.y + $i, c.x + $j) {
+				if let Some(ex) = exf.get(&cur_coord) {
+					if !ex.actual.pipe_health.is_none() {
+						return Some(cur_coord);
+					}
+				} // ex
+			} // valid coord
+		);}
+		
+		for k in -offset..=offset {
+			// row scan
+			chk_pipe!(k, offset);
+			chk_pipe!(k, -offset);
+			
+			// col scan
+			chk_pipe!(offset, k);
+			chk_pipe!(-offset, k);
+		}
+	}
+	None
+}
+

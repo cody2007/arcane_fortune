@@ -102,6 +102,23 @@ pub fn start_civil_mv_mode<'f,'bt,'ut,'rt,'st>(start_coord: u64, map_data: &mut 
 	None
 }
 
+// travel to dest_bldg_ind if set, using only pipes -- used to determine if a zone is watered or not
+// returns false when no pipes around start_coord
+pub fn start_water_mv_mode<'f,'bt,'ut,'rt,'st>(start_coord: u64, map_data: &mut MapData,
+		exf: &HashedMapEx, map_sz: MapSz) -> Option<ActionInterfaceMeta<'f,'bt,'ut,'rt,'st>> {
+	
+	if let Some(start_coord_use) = find_closest_pipe(start_coord, map_data, exf, map_sz){
+		return Some( ActionInterfaceMeta {
+			action: ActionMeta::new(ActionType::CivilianMv),
+			unit_ind: None,
+			max_search_depth: 400,
+			start_coord: Coord::frm_ind(start_coord_use, map_sz),
+			movement_type: MovementType::Land,
+			movable_to: &water_movable_to});
+	}
+	None
+}
+
 #[derive(Copy,Clone)]
 struct Node { // will be indexed by the coordinate	
 	cur_dist: f32, // dist from start to coord
@@ -141,7 +158,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 			
 			$action_iface.action.action_meta_cont = None; // clear out path on zoomed-out map
 			$action_iface.update_move_search(end_coord, map_data, exs, mv_vars, bldgs);
-		};};
+		};}
 		
 		match &mut iface_settings.add_action_to {
 			// no unit in particular is being moved
@@ -334,7 +351,7 @@ impl <'f,'bt,'ut,'rt,'st> ActionInterfaceMeta<'f,'bt,'ut,'rt,'st> {
 				if !found {
 					end_coord = Coord::frm_ind(*$path_coords.last().unwrap(), map_sz);
 				}
-			}};
+			}}
 			
 			//////////////////
 			// zoomed out path already set from previous call
@@ -459,7 +476,8 @@ impl <'f,'bt,'ut,'rt,'st> ActionInterfaceMeta<'f,'bt,'ut,'rt,'st> {
 		
 		////
 		let use_roads = match self.action.action_type {
-			ActionType::WorkerBuildStructure {..} => false,
+			ActionType::WorkerBuildStructure {..} |
+			ActionType::WorkerBuildPipe => false,
 			_ => true
 		};
 		

@@ -92,6 +92,14 @@ Now for the actual 256 color mode configuration:
 	bluered3: 126
 	bluered4: 161
 	bluered5: 196
+	agricultural_medium: 94
+	agricultural_heavy: 52
+	residential_medium: 28
+	residential_heavy: 22
+	business_medium: 25
+	business_heavy: 18
+	industrial_medium: 58
+	industrial_heavy: 59
 }
 
 The following are used when the game is configured to run in 8 color mode:
@@ -147,5 +155,13 @@ The following are used when the game is configured to run in 8 color mode:
 	8_color_bluered3: RED
 	8_color_bluered4: RED
 	8_color_bluered5: RED
+	8_color_agricultural_medium: YELLOW
+	8_color_agricultural_heavy: YELLOW
+	8_color_residential_medium: GREEN
+	8_color_residential_heavy: GREEN
+	8_color_business_medium: BLUE
+	8_color_business_heavy: BLUE
+	8_color_industrial_medium: YELLOW
+	8_color_industrial_heavy: YELLOW
 }
 

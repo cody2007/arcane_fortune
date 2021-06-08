@@ -69,7 +69,7 @@ impl <'bt,'ut,'rt,'dt>IntroNobilityJoinOptionsState<'bt,'ut,'rt,'dt> {
 			gstate: &mut GameState, temps: &Templates<'bt,'ut,'rt,'dt,'_>, dstate: &mut DispState) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let list = OptionsUI::candidate_houses(&self.candidate_houses, &dstate.local, gstate.turn).0;
 		
-		if list_mode_update_and_action(&mut self.mode, list.options.len(), dstate) {
+		if list.list_mode_update_and_action(&mut self.mode, dstate) {
 			// add nobility
 			if let Some(nobility_state) = self.candidate_houses.get(self.mode) {
 				nobility_state.add_to_players(players, units, bldgs, map_data, exs, gstate, temps, 0);

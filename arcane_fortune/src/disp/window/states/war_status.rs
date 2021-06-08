@@ -48,7 +48,7 @@ pub fn print_player_color_grid_window(players_print: &Vec<PlayerPrintColors>, ti
 				dstate.addch(dstate.chars.hline_char);
 			}
 			dstate.addch($right);
-		}};
+		}}
 		
 		// top line labels
 		dstate.mv(y, x + max_len + 2);

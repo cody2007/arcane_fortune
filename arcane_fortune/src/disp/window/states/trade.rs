@@ -203,7 +203,7 @@ impl <'bt,'ut,'rt,'dt>TradeState<'bt,'ut,'rt,'dt> {
 				// get type of item, ex gold or resource
 				AddTradeItemStateUI::SelItemType {ref mut mode} => {
 					let entries = OptionsUI::trade_item_types(gstate.relations.defensive_pact(owner1, owner2), &dstate.local);
-					if list_mode_update_and_action(mode, entries.options.len(), dstate) {
+					if entries.list_mode_update_and_action(mode, dstate) {
 						add_trade_item.state = AddTradeItemStateUI::GetItemVals(
 							match *mode {
 								0 => {
@@ -278,7 +278,7 @@ impl <'bt,'ut,'rt,'dt>TradeState<'bt,'ut,'rt,'dt> {
 							// mouse hovering
 							if let Some(ind) = dstate.buttons.list_item_hovered(&dstate.mouse_event) {*mode = ind;}
 							
-							if list_mode_update_and_action(mode, opts.options.len(), dstate) {
+							if opts.list_mode_update_and_action(mode, dstate) {
 								if let ArgOptionUI::ResourceInd(res_ind) = &opts.options[*mode].arg {
 									self.trade_deal.add_item(TradeItem::Resource(*res_ind), owner1, owner2);
 									self.add_trade_item = None;
@@ -288,7 +288,7 @@ impl <'bt,'ut,'rt,'dt>TradeState<'bt,'ut,'rt,'dt> {
 							// mouse hovering
 							if let Some(ind) = dstate.buttons.list_item_hovered(&dstate.mouse_event) {*mode = ind;}
 							
-							if list_mode_update_and_action(mode, opts.options.len(), dstate) {
+							if opts.list_mode_update_and_action(mode, dstate) {
 								if let ArgOptionUI::TechInd(tech_ind) = &opts.options[*mode].arg {
 									self.trade_deal.add_item(TradeItem::Tech(*tech_ind), owner1, owner2);
 									self.add_trade_item = None;

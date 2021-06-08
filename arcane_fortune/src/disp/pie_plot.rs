@@ -38,7 +38,7 @@ pub fn print_circle_plot(radius: i32, pos: Coord, ratios: &Vec<RatioEntry>,
 				let current_quad = quad(y as f32, x_pre_expansion);
 				
 				#[derive(PartialEq)]
-				enum Bound {Val(f32), None, All};
+				enum Bound {Val(f32), None, All}
 				let quad_bound_prev = 
 					if current_quad < q_prev {
 						Bound::None

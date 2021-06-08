@@ -1,10 +1,10 @@
 use crate::renderer::*;
 use crate::map::*;
-use crate::units::vars::{UnitTemplate, Unit, RIOTER_NM};
+use crate::units::vars::*;
 use crate::buildings::*;
 //use crate::saving::SmSvType;
 use crate::gcore::hashing::{HashedMapEx};
-use crate::zones::{FogVars, return_zone_coord, StructureData};
+use crate::zones::*;
 use crate::ai::*;
 use crate::player::{Player, PlayerType, Stats};
 use crate::localization::Localization;
@@ -61,8 +61,12 @@ impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 		iface_settings.map_screen_sz.w = iface_settings.screen_sz.w - MAP_COL_STOP_SZ;
 	}
 	
-	pub fn plot_zone(&mut self, zone: ZoneType){
+	pub fn plot_zone(&mut self, zone: &Zone){
 		self.renderer.addch(self.chars.land_char as chtype | COLOR_PAIR(zone.to_color()));
+	}
+	
+	pub fn plot_zone_type(&mut self, zone_type: ZoneType){
+		self.renderer.addch(self.chars.land_char as chtype | COLOR_PAIR(zone_type.to_color()));
 	}
 }
 
@@ -225,6 +229,9 @@ fn plot_bldg(plot_coord: u64, bldgs: &Vec<Bldg>, ex: &MapEx, players: &Vec<Playe
 
 pub const ROAD_CHAR: chtype = ' ' as chtype;
 pub const GATE_CHAR: chtype = '=' as chtype;
+pub const PIPE_CHAR: chtype = '#' as chtype;
+
+pub const PIPE_WATERED_COLOR: i32 = CCYAN;
 
 fn land_discovered(coord: u64, cur_player: usize, zoom_ind: usize, players: &Vec<Player>, relations: &Relations) -> bool {
 	players.iter().enumerate()
@@ -283,8 +290,10 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 			// show cursor at selection location (on map) -- cursor is hidden for options != None
 			UIMode::None |
 			UIMode::TextTab {..} |
+			UIMode::Budget(_) |
 			UIMode::SetTaxes(_) |
 			UIMode::Menu {..} |
+			UIMode::ZoneLand(_) |
 			UIMode::ProdListWindow(_) |
 			UIMode::ContactNobilityWindow(_) |
 			UIMode::NobilityRequestWindow(_) |
@@ -410,7 +419,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 						return;
 					}
 				}
-		}};
+		}}
 		
 		// show resource if alt_ind aligns
 		if (alt_ind % 3) == 0 {show_resource!();}
@@ -429,6 +438,20 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 			
 			// show zone overlays (ex. demand, happiness, crime), bldg, road/wall, zones
 			if let Some(fog) = self.state.iface_settings.get_fog_or_actual(coord, zoom_ind, ex, players, &gstate.relations) {
+				// pipes
+				if iface_settings.show_pipes() {
+					if let Some(pipe_health) = fog.pipe_health {
+						self.state.attron(COLOR_PAIR(PIPE_WATERED_COLOR));
+						self.state.renderer.addch(
+							if pipe_health < (0.9 * std::u8::MAX as f32).round() as u8 { // damaged
+								'#' as chtype
+							}else{PIPE_CHAR}
+						);
+						self.state.attroff(COLOR_PAIR(PIPE_WATERED_COLOR));
+						return;
+					}
+				}
+				
 				// bldg
 				if iface_settings.show_bldgs && (!fog.max_bldg_template.is_none() || !ex.bldg_ind.is_none()) {
 					plot_bldg(coord, bldgs, ex, players, map_sz, &fog, map_data, exs.last().unwrap(), &mut self.state);
@@ -459,7 +482,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 								
 								self.state.renderer.addch(self.state.chars.land_char as chtype | COLOR_PAIR(c));
 								return;
-							};};
+							};}
 							
 							match self.state.iface_settings.zone_overlay_map {
 								ZoneOverlayMap::ZoneDemands => {
@@ -541,8 +564,8 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 				
 				// zones
 				if !sel && self.state.iface_settings.show_zones {
-					if let Some(zt) = fog.ret_zone_type() {
-						self.state.plot_zone(zt);
+					if let Some(zone) = fog.ret_zone() {
+						self.state.plot_zone(&zone);
 						return;
 					}
 				} // zns
@@ -759,7 +782,13 @@ impl Localization {
 	}
 }
 
-pub fn print_civ_nm (player: &Player, d: &mut Renderer) {
+pub fn print_civ_nm(player: &Player, d: &mut Renderer) {
+	set_player_color(player, true, d);
+	d.addstr(&player.personalization.nm_adj);
+	set_player_color(player, false, d);
+}
+
+pub fn print_civ_nm_noun(player: &Player, d: &mut Renderer) {
 	set_player_color(player, true, d);
 	d.addstr(&player.personalization.nm);
 	set_player_color(player, false, d);
@@ -836,6 +865,17 @@ impl IfaceSettings<'_,'_,'_,'_,'_> {
 			};
 		}
 		None
+	}
+	
+	pub fn show_pipes(&self) -> bool {
+		if self.show_pipes {true}
+		else if let Some(
+			ActionMeta {
+				action_type: ActionType::WorkerBuildPipe,
+				..
+			}
+		) = self.add_action_to.build_action() {true}
+		else {false}
 	}
 }
 

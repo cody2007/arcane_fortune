@@ -5,7 +5,8 @@ use crate::zones::new_zone_w_roads;
 
 impl ActionMeta<'_,'_,'_,'_> {
 	// use `cur_mc` the cursor map coordinate
-	pub fn draw_selection(&self, cur_mc: Coord, units: &Vec<Unit>, exf: &HashedMapEx, map_data: &mut MapData, map_sz: MapSz, dstate: &mut DispState) -> char {
+	pub fn draw_selection(&self, cur_mc: Coord, units: &Vec<Unit>, exf: &HashedMapEx, map_data: &mut MapData, map_sz: MapSz,
+			temps: &Templates, dstate: &mut DispState) -> char {
 		let mut crosshair = 'X';
 		
 		match &self.action_type {
@@ -31,7 +32,7 @@ impl ActionMeta<'_,'_,'_,'_> {
 				} // i
 			
 			//////////////////////////// show zone
-			} ActionType::WorkerZone {zone_type, start_coord: Some(start_coord_mi), valid_placement: true, ..} => {
+			} ActionType::WorkerZone {zone, start_coord: Some(start_coord_mi), valid_placement: true, ..} => {
 				crosshair = 'x';
 				
 				// coords in map coordinates
@@ -66,7 +67,7 @@ impl ActionMeta<'_,'_,'_,'_> {
 							if roads[(row*w + col) as usize] {
 								dstate.addch(ROAD_CHAR);
 							}else{
-								dstate.plot_zone(*zone_type);
+								dstate.plot_zone(zone);
 							}
 						//}else{
 						//	dstate.mv(row as i32, (col+1) as i32);
@@ -79,6 +80,12 @@ impl ActionMeta<'_,'_,'_,'_> {
 				   start_coord_sc.x >= 0 && start_coord_sc.x < dstate.iface_settings.map_screen_sz.w as isize {
 					dstate.mv(start_coord_sc.y as i32, start_coord_sc.x as i32);
 					dstate.addch('X' as chtype | COLOR_PAIR(CRED));
+				}
+				
+				{ // show cost
+					dstate.mv(dstate.iface_settings.cur.y as i32, dstate.iface_settings.cur.x as i32 + 2);
+					let cost = (h*w) as f32 * zone.cost_per_tile(temps);
+					dstate.renderer.addstr(&dstate.local.Cost_gold.replace("[]", &float_string(cost)));
 				}
 			
 			////////////////////////////
@@ -118,7 +125,7 @@ impl ActionMeta<'_,'_,'_,'_> {
 							}
 						} // col
 					} // row
-				};};
+				};}
 				
 				if let Some(start_coord_sc) = start_coord_mc.to_screen_coords(dstate.iface_settings.map_loc, dstate.iface_settings.map_screen_sz) {
 					//////// rectangle selection finished, use stored rectangle end coord
@@ -174,7 +181,7 @@ impl ActionMeta<'_,'_,'_,'_> {
 				} // i
 			
 			//////////////////////////// show zone
-			} ActionType::WorkerZone {zone_type, start_coord: Some(start_coord_mi), end_coord: Some(end_coord_mi), valid_placement: true, ..} => {
+			} ActionType::WorkerZone {zone, start_coord: Some(start_coord_mi), end_coord: Some(end_coord_mi), valid_placement: true, ..} => {
 				// coords in map coordinates
 				let start_coord_mc = Coord::frm_ind(*start_coord_mi, map_sz);
 				let end_coord_mc = Coord::frm_ind(*end_coord_mi, map_sz);
@@ -209,7 +216,7 @@ impl ActionMeta<'_,'_,'_,'_> {
 							if roads[(row*w + col) as usize] {
 								dstate.addch(ROAD_CHAR);
 							}else{
-								dstate.plot_zone(*zone_type); 
+								dstate.plot_zone(zone); 
 							}
 						//}else{
 						//	dstate.mv(row as i32, (col+1) as i32);
@@ -251,7 +258,7 @@ impl ActionMeta<'_,'_,'_,'_> {
 							}
 						} // col
 					} // row
-				};};
+				};}
 				
 				if let Some(start_coord_sc) = start_coord_mc.to_screen_coords(dstate.iface_settings.map_loc, dstate.iface_settings.map_screen_sz) {
 					//////// rectangle selection finished, use stored rectangle end coord

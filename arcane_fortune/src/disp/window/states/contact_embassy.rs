@@ -22,7 +22,7 @@ pub fn print_leader_mood_and_key_instructions(mut row: i32, w: i32, w_pos: Coord
 		other_player_id: usize, players: &Vec<Player>, relations: &Relations, dstate: &mut DispState) {
 	let y = w_pos.y as i32 + 1;
 	let x = w_pos.x as i32 + 2;
-	macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;}};
+	macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;}}
 	
 	{ ///////// print mood
 		let loc = ScreenCoord {y: w_pos.y + 3, x: w_pos.x + 1 + w as isize};
@@ -135,7 +135,7 @@ impl ContactEmbassyWindowState {
 				let w = (w - 2) as i32;
 				
 				let mut row = 0;
-				macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;}};
+				macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;}}
 				
 				let cur_player = dstate.iface_settings.cur_player as usize;
 				
@@ -235,7 +235,7 @@ impl ContactEmbassyWindowState {
 				
 				let mut row = 0;
 				macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;};
-						     ($final: expr) => {dstate.mv(row + y, x);}};
+						     ($final: expr) => {dstate.mv(row + y, x);}}
 				
 				///////////// title -- country name
 				{
@@ -318,7 +318,7 @@ impl ContactEmbassyWindowState {
 				let w = (w - 2) as i32;
 				
 				let mut row = 0;
-				macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;}};
+				macro_rules! mvl{() => {dstate.mv(row + y, x); row += 1;}}
 				
 				///////////// title -- country name
 				{
@@ -393,7 +393,7 @@ impl ContactEmbassyWindowState {
 			Self::CivSelection {ref mut mode} => {
 				let list = contacted_civilizations_list(gstate, players, dstate.iface_settings.cur_player, &dstate.local);
 				
-				if list_mode_update_and_action(mode, list.options.len(), dstate) {
+				if list.list_mode_update_and_action(mode, dstate) {
 					let owner_id = if let ArgOptionUI::OwnerInd(owner_ind) = list.options[*mode].arg {
 						owner_ind
 					}else{panicq!("list argument option not properly set");};

@@ -1,4 +1,5 @@
 use super::*;
+use crate::zones::*;
 
 pub const MIN_DIST_FRM_CITY_CENTER: usize = 3; // min radius of city
 const BUFFER_AROUND_CITY: isize = 5; // additional distance outside of city walls to protect (`city_ul`, `city_lr`)
@@ -138,7 +139,7 @@ fn create_city_grid_actions<'bt,'ut,'rt,'dt>(loc: Coord, city_grid_height: usize
 		};
 		
 		ActionMeta {
-			action_type: ActionType::WorkerZoneCoords {zone_type},
+			action_type: ActionType::WorkerZoneCoords {zone: Zone {ztype: zone_type, density: ZoneDensity::Low}},
 			actions_req: GRID_SZ as f32,
 			path_coords: Vec::with_capacity(GRID_SZ),
 			action_meta_cont: None
@@ -200,7 +201,7 @@ fn create_city_grid_actions<'bt,'ut,'rt,'dt>(loc: Coord, city_grid_height: usize
 	};
 	
 	// add road coordinates to road placing action for row-spanning and column-spanning roads
-	enum RoadCross {Cols, Rows};
+	enum RoadCross {Cols, Rows}
 	let place_road = |skip_prob: &Vec<f32>, grid_k, grid_i, grid_j, road_cross, constraints, ck, worker_actions: &mut Vec<ActionMeta>| {
 		if skip_prob[grid_i*city_grid_width + grid_j] <= SKIP_PROB {return;}
 		
@@ -277,13 +278,13 @@ fn create_city_grid_actions<'bt,'ut,'rt,'dt>(loc: Coord, city_grid_height: usize
 					if let Some(coord) = map_sz.coord_wrap(i as isize + loc.y, $j as isize + loc.x) {
 						// if zone does not match the resource, change it to match
 						if let Some(resource) = map_data.get(ZoomInd::Full, coord).get_resource(coord, map_data, map_sz) {
-							if let ActionType::WorkerZoneCoords {ref mut zone_type} = &mut action.action_type {
-								if *zone_type != resource.zone {*zone_type = resource.zone}
+							if let ActionType::WorkerZoneCoords {ref mut zone} = &mut action.action_type {
+								if zone.ztype != resource.zone {zone.ztype = resource.zone}
 							}else{panicq!("action incorrectly set");}
 						}
 						action.path_coords.push(coord);
 					}else{panicq!("invalid AI zone coord {} {}", $i,$j);}
-				};};
+				};}
 				
 				// zig-zag direction of zone placement depending on row we are at
 				if (i % 2) == 0 {
@@ -425,7 +426,7 @@ fn city_wall_build_action<'bt,'ut,'rt,'dt>(grid_actions: &Vec<ActionMeta>, ch_c:
 			}
 			
 			prev_y_opt = Some(y);
-		};};
+		};}
 		
 		if pos_y.x < pos_y_next.x { // left to right (quad 1 & 4)
 			for x in pos_y.x..=pos_y_next.x {add_x_pos!(x);}
@@ -516,8 +517,7 @@ fn city_wall_build_action<'bt,'ut,'rt,'dt>(grid_actions: &Vec<ActionMeta>, ch_c:
 	lower_quadrants(-1, true, &mut wall_action); // quad 3 -- left to right (x decreasing; then reversed order adding of default right to left)
 	lower_quadrants(1, false, &mut wall_action); // quad 4 -- left to right (x increasing)
 	
-	// line connecting lower right quadrant to upper right quadrant (quad 4 to quad 1), then add quad 4
-	{
+	{ // line connecting lower right quadrant to upper right quadrant (quad 4 to quad 1), then add quad 4
 		let lr = Coord::frm_ind(*wall_action.path_coords.last().unwrap(), map_sz);
 		
 		// save quadrant in tmp variable because we need to first get the end value (the first value added) to connect to the last value
@@ -543,8 +543,7 @@ fn city_wall_build_action<'bt,'ut,'rt,'dt>(grid_actions: &Vec<ActionMeta>, ch_c:
 	
 	upper_quadrants(-1, false, &mut wall_action); // quad 2 -- right to left (x decreasing)
 	
-	// line connecting lower left quadrant to upper left quadrant (quad4 to quad1)
-	{
+	{ // line connecting lower left quadrant to upper left quadrant (quad4 to quad1)
 		let ul = Coord::frm_ind(*wall_action.path_coords.last().unwrap(), map_sz);
 		let ll = Coord::frm_ind(wall_action.path_coords[0], map_sz);
 		debug_assertq!(ul.x == ll.x); // should be the minima+1 of all x
@@ -580,7 +579,7 @@ fn city_wall_build_action<'bt,'ut,'rt,'dt>(grid_actions: &Vec<ActionMeta>, ch_c:
 			let gate_right = map_sz.coord_wrap(c.y, c.x + 1).unwrap();
 			
 			///// check gate orientation, continue if not either vertical or horizontal
-			enum GateOrientation {Vertical, Horizontal};
+			enum GateOrientation {Vertical, Horizontal}
 			
 			let gate_orientation = if !wall_coords.contains(&gate_left) && !wall_coords.contains(&gate_right) {
 				GateOrientation::Vertical // wall is running up and down

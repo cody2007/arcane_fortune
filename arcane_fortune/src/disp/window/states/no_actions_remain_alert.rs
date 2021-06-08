@@ -18,7 +18,7 @@ impl MvWithCursorNoActionsRemainAlertState {
 		
 		let mut row = 0;
 		macro_rules! mvl{() => {d.mv(row + y, x); row += 1;};
-					     ($final: expr) => {d.mv(row + y, x);}};
+					     ($final: expr) => {d.mv(row + y, x);}}
 		
 		mvl!(); dstate.buttons.Esc_to_close.print(None, l, d); mvl!(); mvl!();
 		d.addstr(&txt); d.mv(row + y, x);

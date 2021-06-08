@@ -16,7 +16,7 @@ impl UnmovedUnitsNotificationState {
 		let l = &dstate.local;
 		let d = &mut dstate.renderer;
 		macro_rules! mvl{() => {d.mv(row + y, x); row += 1;};
-					     ($final: expr) => {d.mv(row + y, x);}};
+					     ($final: expr) => {d.mv(row + y, x);}}
 		
 		mvl!(); dstate.buttons.Esc_to_close.print(None, l, d); mvl!();
 		center_txt(&l.You_have_unmoved_units, w, Some(COLOR_PAIR(TITLE_COLOR)), d);

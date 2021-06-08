@@ -138,7 +138,7 @@ impl Log {
 	pub fn visible(&self, player_id: usize, relations: &Relations) -> bool {
 		macro_rules! ret_false {($id: expr) => {
 			if !relations.discovered(player_id, $id) {return false;}
-		};};
+		};}
 		
 		match self.val {
 			LogType::LeaderAssassinated {owner_id, ..} |
@@ -199,7 +199,7 @@ impl LogType {
 			set_player_color($owner, true, d);
 			d.addstr($txt);
 			set_player_color($owner, false, d);
-		};};
+		};}
 		
 		let txt = match self {
 			LogType::CivCollapsed {owner_id} => {
@@ -211,7 +211,7 @@ impl LogType {
 						(&l.Civilization_collapsed,
 						 vec![KeyValColorInput {
 							key: String::from("[]"),
-							val: personalization.nm.clone(),
+							val: personalization.nm_adj.clone(),
 							color: personalization.color
 						}])
 					}
@@ -275,7 +275,7 @@ impl LogType {
 					},
 					KeyValColorInput {
 						key: String::from("[empire]"),
-						val: empire.nm.clone(),
+						val: empire.nm_adj.clone(),
 						color: empire.color
 					}
 				];
@@ -291,7 +291,7 @@ impl LogType {
 						print_civ_nm(&players[*owner_attacker_id], d);
 						d.addstr(" civilization!");
 					}
-					format!("A local Barbarian tribe has been conquered by the {} civilization!", players[*owner_attacker_id].personalization.nm)
+					format!("A local Barbarian tribe has been conquered by the {} civilization!", players[*owner_attacker_id].personalization.nm_adj)
 				}else{
 					if print {
 						d.addstr("The ");
@@ -301,7 +301,7 @@ impl LogType {
 						d.addstr(" civilization!");
 					}
 					format!("The {} civilization has been conquered by the {} civilization!", 
-							players[*owner_attackee_id].personalization.nm, players[*owner_attacker_id].personalization.nm)
+							players[*owner_attackee_id].personalization.nm_adj, players[*owner_attacker_id].personalization.nm_adj)
 				}}
 			LogType::UnitDestroyed {unit_attackee_nm, unit_attacker_nm, 
 					unit_attackee_type_nm, unit_attacker_type_nm,
@@ -322,7 +322,7 @@ impl LogType {
 					print_civ_nm(&players[*owner_attacker_id], d);
 					d.addstr(" civilization!");
 				}
-				format!("{} has been captured by the {} civilization!", city_attackee_nm, players[*owner_attacker_id].personalization.nm)}
+				format!("{} has been captured by the {} civilization!", city_attackee_nm, players[*owner_attacker_id].personalization.nm_adj)}
 			LogType::UnitDisbanded {owner_id, unit_nm, unit_type_nm} => {
 				if print {
 					d.addstr("The ");
@@ -338,7 +338,7 @@ impl LogType {
 					d.addstr(" civilization has been disbanded due to budgetary incompetence.");
 				}
 				format!("The {} {} battalion of the {} civilization has been disbanded due to budgetary incompetence.",
-						unit_nm, unit_type_nm.to_lowercase(), players[*owner_id].personalization.nm)}
+						unit_nm, unit_type_nm.to_lowercase(), players[*owner_id].personalization.nm_adj)}
 			LogType::BldgDisbanded {owner_id, bldg_nm} => {
 				if print {
 					d.addstr(&format!("A {} run by the ", bldg_nm.to_lowercase()));
@@ -346,7 +346,7 @@ impl LogType {
 					d.addstr(" civilization has been demolished due to severe financial mismanagement.");
 				}
 				format!("A {} run by the {} civilization has been demolished due to severe financial mismanagement.",
-						bldg_nm.to_lowercase(), players[*owner_id].personalization.nm)}
+						bldg_nm.to_lowercase(), players[*owner_id].personalization.nm_adj)}
 			LogType::CityDisbanded {owner_id, city_nm} => {
 				if print {
 					print_civ_txt!(&players[*owner_id], city_nm);
@@ -354,7 +354,7 @@ impl LogType {
 					print_civ_nm(&players[*owner_id], d);
 					d.addstr(" civilization has been ruined due to gross budgetary incompetence.");
 				}
-				format!("{} of the {} civilization has been ruined due to gross budgetary incompetence.", city_nm, players[*owner_id].personalization.nm)}
+				format!("{} of the {} civilization has been ruined due to gross budgetary incompetence.", city_nm, players[*owner_id].personalization.nm_adj)}
 			LogType::CityDestroyed {city_attackee_nm, owner_attackee_id, owner_attacker_id} => {
 				if print {
 					print_civ_txt!(&players[*owner_attackee_id], city_attackee_nm);
@@ -362,7 +362,7 @@ impl LogType {
 					print_civ_nm(&players[*owner_attacker_id], d);
 					d.addstr(" civilization!");
 				}
-				format!("{} has been destroyed by the {} civilization!", city_attackee_nm, players[*owner_attacker_id].personalization.nm)}
+				format!("{} has been destroyed by the {} civilization!", city_attackee_nm, players[*owner_attacker_id].personalization.nm_adj)}
 			LogType::Rioting {city_nm, owner_id} => {
 				if print {
 					d.addstr("Rioting has broken out in ");
@@ -385,7 +385,7 @@ impl LogType {
 					print_civ_nm(&players[*owner_id], d);
 					d.addstr(" civilization.");
 				}
-				format!("{} has been founded by the {} civilization.", city_nm, players[*owner_id].personalization.nm)}
+				format!("{} has been founded by the {} civilization.", city_nm, players[*owner_id].personalization.nm_adj)}
 			LogType::CivDiscov {discover_id, discovee_id} => {
 				if players[*discover_id].ptype.is_barbarian() {
 					if print {
@@ -395,7 +395,7 @@ impl LogType {
 						print_civ_nm(&players[*discovee_id], d);
 						d.addstr(" civilization.");
 					}
-					format!("Local barbarians have discovered the {} civilization.", players[*discovee_id].personalization.nm)
+					format!("Local barbarians have discovered the {} civilization.", players[*discovee_id].personalization.nm_adj)
 				
 				}else if players[*discovee_id].ptype.is_barbarian() {
 					if print {
@@ -405,7 +405,7 @@ impl LogType {
 						print_civ_txt!(&players[*discovee_id], "barbarians");
 						d.addstr(".");
 					}
-					format!("The {} civilization has discovered local barbarians.", players[*discover_id].personalization.nm)
+					format!("The {} civilization has discovered local barbarians.", players[*discover_id].personalization.nm_adj)
 				}else{
 					if print {
 						d.addstr("The ");
@@ -414,7 +414,7 @@ impl LogType {
 						print_civ_nm(&players[*discovee_id], d);
 						d.addstr(" civilization.");
 					}
-					format!("The {} civilization has discovered the {} civilization.", players[*discover_id].personalization.nm, players[*discovee_id].personalization.nm)
+					format!("The {} civilization has discovered the {} civilization.", players[*discover_id].personalization.nm_adj, players[*discovee_id].personalization.nm_adj)
 				}}
 			LogType::UnitAttacked {unit_attackee_nm, unit_attacker_nm, 
 					unit_attackee_type_nm, unit_attacker_type_nm,
@@ -439,13 +439,13 @@ impl LogType {
 				};
 				
 				if print {
-					d.addstr(&format!("A {} owned by the ", structure_nm));
+					d.addstr(&format!("A {} owned by ", structure_nm));
 					print_civ_nm(&players[*owner_attackee_id], d);
 					d.addstr(" has been attacked by The ");
 					print_civ_txt!(&players[*owner_attacker_id], unit_attacker_nm);
 					d.addstr(&format!(" {} Battalion.", unit_attacker_type_nm));
 				}
-				format!("A {} owned by the {} has been attacked by The {} {} Battalion.", structure_nm, 
+				format!("A {} owned by {} has been attacked by The {} {} Battalion.", structure_nm, 
 						players[*owner_attackee_id].personalization.nm, unit_attacker_nm, unit_attacker_type_nm)}
 
 			LogType::WarDeclaration {owner_attackee_id, owner_attacker_id} => {
@@ -457,7 +457,7 @@ impl LogType {
 					d.addstr(" civilization!");
 				}
 				format!("The {} civilization has declared war on the {} civilization!",
-						players[*owner_attacker_id].personalization.nm, players[*owner_attackee_id].personalization.nm)}
+						players[*owner_attacker_id].personalization.nm_adj, players[*owner_attackee_id].personalization.nm_adj)}
 			LogType::PeaceDeclaration {owner1_id, owner2_id} => {
 				if print {
 					d.addstr("A peace treaty between the ");
@@ -467,7 +467,7 @@ impl LogType {
 					d.addstr(" civilizations has been signed.");
 				}
 				format!("A peace treaty between the {} and the {} civilizations has been signed.",
-						players[*owner1_id].personalization.nm, players[*owner2_id].personalization.nm)}
+						players[*owner1_id].personalization.nm_adj, players[*owner2_id].personalization.nm_adj)}
 			LogType::ICBMDetonation {owner_id} => {
 				if print {
 					print_civ_nm(&players[*owner_id], d);
@@ -500,7 +500,7 @@ impl LogType {
 				
 				if print {
 					d.addstr("The people of ");
-					print_civ_nm(&players[*owner_id], d);
+					print_civ_nm_noun(&players[*owner_id], d);
 					d.addstr(" demand ");
 					d.addstr(x);
 					d.addch('.');
@@ -519,7 +519,7 @@ impl LogType {
 					},
 					KeyValColorInput {
 						key: String::from("[empire_nm]"),
-						val: empire.nm.clone(),
+						val: empire.nm_adj.clone(),
 						color: empire.color
 					}];
 				if print {
@@ -541,7 +541,7 @@ impl LogType {
 					},
 					KeyValColorInput {
 						key: String::from("[empire_nm]"),
-						val: empire.nm.clone(),
+						val: empire.nm_adj.clone(),
 						color: empire.color
 					}];
 				if print {

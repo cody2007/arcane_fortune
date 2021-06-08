@@ -39,8 +39,9 @@ pub fn map_gen<'rt>(map_sz: MapSz, rng: &mut XorState, dstate: &mut DispState) -
 	let map_szg = MapSz {h: map_sz.h/2, w: map_sz.w/2, sz: map_sz.sz/4};
 	
 	//////////////////// generate elevation
-	let mut elevation_g = vec![0. as f32; map_szg.sz].into_boxed_slice();
-	{
+	let mut elevation_g = {
+		let mut elevation_g = vec![0. as f32; map_szg.sz].into_boxed_slice();
+		
 		const SIM: f32 = 2.075; // weighting of neighbor similarity
 		const N_INIT: usize = 4; // number of random initial points to start w/
 		
@@ -112,13 +113,14 @@ pub fn map_gen<'rt>(map_sz: MapSz, rng: &mut XorState, dstate: &mut DispState) -
 				elevation_g[rand_ind] = -MAX_VAL;
 			}
 		}
-	}
+		elevation_g
+	};
 	
 	smooth_map(&mut elevation_g, map_szg, rng, None, &mut screen_sz, dstate);
 	
 	///////////// threshold land and mountains
-	let mut type_g = vec![MapType::DeepWater; map_szg.sz];
-	{
+	let type_g = {
+		let mut type_g = vec![MapType::DeepWater; map_szg.sz];
 		let mut elevation_sorted = elevation_g.clone();
 		elevation_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
 		
@@ -135,11 +137,12 @@ pub fn map_gen<'rt>(map_sz: MapSz, rng: &mut XorState, dstate: &mut DispState) -
 				_ => MapType::DeepWater
 			};
 		}
-	}
+		type_g
+	};
 	
 	/////////////// arability
-	let mut arability_g = vec![0_u8; map_szg.sz];
-	{
+	let arability_g = {
+		let mut arability_g = vec![0_u8; map_szg.sz];
 		let mut arability_f = vec![0.; map_szg.sz].into_boxed_slice();
 		
 		for i in 0..map_szg.h {
@@ -230,18 +233,16 @@ pub fn map_gen<'rt>(map_sz: MapSz, rng: &mut XorState, dstate: &mut DispState) -
 		for (ind, ag) in arability_g.iter_mut().enumerate() {
 			*ag = arability_f[ind].round() as u8;
 		}
-	}
+		arability_g
+	};
 	
 	////////////////////////////////////////////////////////// determine where to show snow
 	// snow should extend all continous areas of low arability starting from FRAC_HEIGHT_SNOW
-	let mut show_snow_g = vec![false; map_szg.sz];
-	{
+	let show_snow_g = {
+		let mut show_snow_g = vec![false; map_szg.sz];
 		const FRAC_HEIGHT_SNOW: f32 = 0.1;
 		
 		for _repeat in 0..2 {
-			
-			////////////////////////////////////
-			
 			macro_rules! chk_neighbor_snow {
 				($ind: expr, $above_or_below:expr) => {{
 					debug_assertq!($ind < map_szg.sz);
@@ -271,7 +272,6 @@ pub fn map_gen<'rt>(map_sz: MapSz, rng: &mut XorState, dstate: &mut DispState) -
 					show_snow_g[$ind] = found;
 				}};
 			}
-			///////////////////////////////////
 			
 			// scan from above
 			for ind in 0..map_szg.sz {
@@ -283,8 +283,8 @@ pub fn map_gen<'rt>(map_sz: MapSz, rng: &mut XorState, dstate: &mut DispState) -
 				chk_neighbor_snow!(ind, 1);
 			}
 		}
-	}
-
+		show_snow_g
+	};
 	
 	// scale elevation between -128 and 127
 	for e in elevation_g.iter_mut() {
@@ -298,7 +298,6 @@ pub fn map_gen<'rt>(map_sz: MapSz, rng: &mut XorState, dstate: &mut DispState) -
 		debug_assertq!(*e <= (i8::max_value() as f32));
 		debug_assertq!(*e >= (i8::min_value() as f32));
 	}
-
 	
 	/////////////////////// upsample
 	let mut map: Vec<Map> = vec![Default::default(); map_sz.sz];

@@ -47,7 +47,7 @@ pub fn manors_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, cur_play
 			let entry = CityEntry {
 				nm: nm.clone(),
 				house: players[b.owner_id as usize].personalization.nm.clone(),
-				population: format!("{}", population),
+				population: format!("{}", population.iter().sum::<u32>()),
 				dist: direction_string(cur_coord, Coord::frm_ind(b.coord, map_sz), map_sz),
 				taxes: format!("{}/{}/{}/{}%", tax_rates[0], tax_rates[1],
 						tax_rates[2], tax_rates[3]),
@@ -80,7 +80,7 @@ pub fn manors_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, cur_play
 		for entry in city_entries.iter_mut() {
 			macro_rules! gap{($len: expr) => {
 				for _ in 0..$len {entry.nm.push(' ');}
-			};};
+			};}
 			
 			// house
 			gap!(max_nm_len - entry.nm.len() + max_house_len - entry.house.len() + SPACING);

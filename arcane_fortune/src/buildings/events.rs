@@ -15,7 +15,7 @@ impl PublicEventType {
 		let bt = BldgTemplate::frm_str(PUBLIC_EVENT_NM, temps.bldgs);
 		let map_sz = *map_data.map_szs.last().unwrap();
 		if let Some(coord_add) = find_square_buildable(Coord::frm_ind(coord, map_sz), bt, map_data, exs.last().unwrap(), map_sz) {
-			if add_bldg(coord_add, owner_id, bldgs, bt, None, temps, map_data, exs, players, gstate) {
+			if add_bldg(coord_add, owner_id, bldgs, bt, None, None, temps, map_data, exs, players, gstate) {
 				// get city name at `coord`
 				if let Some(ex) = exs.last().unwrap().get(&coord) {
 					if let Some(bldg_ind) = ex.bldg_ind {

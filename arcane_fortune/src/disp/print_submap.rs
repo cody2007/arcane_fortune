@@ -33,7 +33,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 			self.addch(self.state.chars.llcorner_char);
 			for _ in 0..$map_sz.w {self.addch(self.state.chars.hline_char as chtype);}
 			self.addch(self.state.chars.lrcorner_char as chtype);
-		};};
+		};}
 		
 		macro_rules! print_submap_map{($submap_zoom_ind:expr) => {
 			let (map_cursor_frac, map_view_start_frac, map_view_end_frac) = {
@@ -119,7 +119,7 @@ impl Disp<'_,'_,'_,'_,'_,'_> {
 				// show cursor
 				}else{self.addch((self.state.chars.land_char as chtype) | COLOR_PAIR(CRED));}
 			}}
-		};};
+		};}
 		
 		if !self.state.iface_settings.show_expanded_submap.is_open() {
 			///////// text line above sub-map

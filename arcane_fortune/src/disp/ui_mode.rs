@@ -67,12 +67,16 @@ pub enum UIMode<'bt,'ut,'rt,'dt> {
 	NobilityDeclaresIndependenceWindow(NobilityDeclaresIndependenceWindowState),
 	SetNobleTax(SetNobleTaxState), // set the noble's tax dues to the parent empire
 	
+	ZoneLand(ZoneLandState), // get zone type and density for UI zoning
+	
 	EndGameWindow(EndGameWindowState),
 	AboutWindow(AboutWindowState),
 	UnmovedUnitsNotification(UnmovedUnitsNotificationState),
 	NoblePedigree(NoblePedigreeState),
 	AcceptNobilityIntoEmpire(AcceptNobilityIntoEmpireState), // nobility asks to join the empire
-	ForeignUnitInSectorAlert(ForeignUnitInSectorAlertState)
+	ForeignUnitInSectorAlert(ForeignUnitInSectorAlertState),
+	
+	Budget(BudgetState)
 }
 
 pub enum TextTabLoc {

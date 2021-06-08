@@ -123,9 +123,9 @@ impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 				// load most recently modified file
 				let save_files = return_save_files();
 				return GameControl::Load(format!("{}/{}", SAVE_DIR, save_files[0].nm));
-			};};
-			macro_rules! new_game{() => {return GameControl::NewOptions;};};
-			macro_rules! exit{() => {endwin(); exit(0);};};
+			};}
+			macro_rules! new_game{() => {return GameControl::NewOptions;};}
+			macro_rules! exit{() => {endwin(); exit(0);};}
 			
 			if self.buttons.Load_game.activated(0, &mouse_event) {load_game!();}
 			if self.buttons.New_game.activated(0, &mouse_event) {new_game!();}
@@ -175,7 +175,7 @@ impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 			macro_rules! center_txt{($txt: expr) => {
 				self.renderer.mv(roff as i32, ((screen_sz.w - $txt.len())/2) as i32);
 				self.renderer.addstr(&$txt);
-			};};
+			};}
 			
 			center_txt!(&format!("{} -- v{}", self.local.Edition, VERSION)); roff += 2;
 			center_txt!(&visit_url); roff += 2;

@@ -22,7 +22,7 @@ impl SetDifficultyWindowState {
 			}
 			
 			return UIModeControl::Closed;
-		};};
+		};}
 		if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {enter_action!(ind);}
 		
 		match dstate.key_pressed {

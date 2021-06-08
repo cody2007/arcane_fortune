@@ -1,7 +1,7 @@
 //#![allow(warnings)]
 use std::time::*;
-use std::path::Path;
-use std::fs;
+//use std::path::Path;
+//use std::fs;
 
 //use std::time::{SystemTime, UNIX_EPOCH};
 //use std::process::exit;
@@ -31,6 +31,7 @@ mod keyboard;
 mod localization;
 mod player;
 mod containers;
+mod scenarios;
 
 use renderer::*;
 use map::*;
@@ -50,6 +51,7 @@ use doctrine::init_doctrine_templates;
 use keyboard::KeyboardMap;
 use player::*;
 use containers::*;
+//use scenarios::*;
 
 fn main(){
 	disp::show_version_status_console();
@@ -96,7 +98,13 @@ fn main(){
 		// (1) create new game or load
 		match &game_control {
 			GameControl::NewOptions => {
-				game_control = if disp.state.new_game_options(&mut game_opts, &game_difficulties) {GameControl::New} else {GameControl::TitleScreen};
+				nms.load_default_config();
+				
+				game_control = match disp.state.new_game_options(&mut game_opts, &game_difficulties, &nms, &mut gstate.rng) {
+					true => GameControl::New,
+					false => GameControl::TitleScreen
+				};
+				
 				continue 'outer_loop;
 			} GameControl::New => {
 				{ // setup templates (static variables)
@@ -109,30 +117,7 @@ fn main(){
 					bldg_config = BldgConfig::from_config_file();
 					ai_config = init_ai_config(&resource_templates);
 					
-					///////// city names setup
-					nms.cities.clear();
-					{
-						const CITY_NMS_DIR: &str = "config/names/cities/";
-						let city_nms_dir = Path::new(CITY_NMS_DIR);
-						
-						// loop over files in the directory, each file contains a seprate them of city names
-						if let Result::Ok(dir_entries) = fs::read_dir(city_nms_dir) {
-							for entry in dir_entries {
-								if let Result::Ok(e) = entry {
-									nms.cities.push(return_names_list(read_file(
-											e.path().as_os_str().to_str().unwrap())));
-								}
-							}
-						} else {panicq!("failed to open {}", CITY_NMS_DIR);}
-					}
-					
-					////////// unit names setup
-					nms.units = return_names_list(read_file("config/names/battalion_names.txt"));
-					nms.brigades = return_names_list(read_file("config/names/brigade_names.txt"));
-					nms.sectors = return_names_list(read_file("config/names/sector_names.txt"));
-					nms.noble_houses = return_names_list(read_file("config/names/noble_houses/english_names.txt"));
-					nms.females = return_names_list(read_file("config/names/females.txt")); // names of rulers/nobility
-					nms.males = return_names_list(read_file("config/names/males.txt")); // names of rulers/nobility
+					nms.load_default_config();
 					
 					temps = Templates {
 						bldgs: &bldg_templates,
@@ -249,7 +234,7 @@ fn main(){
 				macro_rules! get_another_key_and_skip_drawing{() => {
 					disp.state.key_pressed = disp.state.renderer.getch();
 					continue;
-				};};
+				};}
 				
 				// not yet at idle timeout, inc counter. and redraw screen if units need to be alternated
 				if n_idle < IDLE_TIMEOUT {
@@ -274,9 +259,7 @@ fn main(){
 				disp.state.renderer.set_mouse_to_crosshair();
 			}
 			
-			////////////////////////////
-			// keys
-			{
+			{ ///////////////////// keys
 				#[cfg(feature="profile")]
 				let _g = Guard::new("main frame loop -> all key actions");
 				
@@ -297,8 +280,7 @@ fn main(){
 			disp.state.buttons.clear_positions();
 			disp.state.txt_list.clear();
 			
-			// chk if bldg placement valid, if it isn't clear worker's computed path
-			{
+			{ // chk if bldg placement valid, if it isn't clear worker's computed path
 				#[cfg(feature="profile")]
 				let _g = Guard::new("main frame loop -> chk bldg placement valid");
 				
@@ -325,8 +307,8 @@ fn main(){
 							$chk_dock: for i_off in 0..h {
 							for j_off in 0..w {
 								if let Some(coord) = map_sz.coord_wrap(cur_mc.y + i_off, cur_mc.x + j_off + 1) {
-									let mzo = if let BldgType::Taxable(zone) = $template.bldg_type {
-										Some(MatchZoneOwner {zone, owner_id: disp.state.iface_settings.cur_player})
+									let mzo = if let Some(zone_type) = $template.bldg_type.zone_type() {
+										Some(MatchZoneOwner {zone_type, owner_id: disp.state.iface_settings.cur_player})
 									}else{
 										None
 									};
@@ -371,8 +353,8 @@ fn main(){
 							$outer: for i_off in 0..h {
 							for j_off in 0..w {
 								if let Some(coord) = map_sz.coord_wrap(cur_mc.y + i_off, cur_mc.x + j_off + 1) {
-									let mzo = if let BldgType::Taxable(zone) = $template.bldg_type {
-										Some(MatchZoneOwner {zone, owner_id: disp.state.iface_settings.cur_player})
+									let mzo = if let Some(zone_type) = $template.bldg_type.zone_type() {
+										Some(MatchZoneOwner {zone_type, owner_id: disp.state.iface_settings.cur_player})
 									}else{
 										None
 									};
@@ -387,7 +369,7 @@ fn main(){
 								} // valid coord
 							}} // i/j
 						}
-					};};
+					};}
 					
 					match &mut disp.state.iface_settings.add_action_to {
 						AddActionTo::BrigadeBuildList {
@@ -437,8 +419,7 @@ fn main(){
 			//	clear the screen if we are not supposed to show the map
 			if disp.ui_mode.hide_map() {disp.state.renderer.clear();}
 			
-			/////////////// show map, windows, update cursor
-			{
+			{ /////////////// show map, windows, update cursor
 				#[cfg(feature="profile")]
 				let _g = Guard::new("main frame loop -> map/screen printing");
 				

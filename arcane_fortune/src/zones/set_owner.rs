@@ -4,7 +4,7 @@ use crate::units::Unit;
 use crate::map::*;
 use crate::player::Player;
 use crate::saving::SmSvType;
-use super::{return_zone_coord};
+use super::{return_zone_coord, Zone};
 use crate::map::utils::ZoneExFns;
 use crate::ai::CityState;
 use crate::containers::*;
@@ -27,7 +27,7 @@ pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize,
 				let bt = &b_update.template;
 				
 				// update population stats
-				if let BldgType::Taxable(ZoneType::Residential) = bt.bldg_type {
+				if let BldgType::Taxable(Zone {ztype: ZoneType::Residential, ..}) = bt.bldg_type {
 					players[frm_owner].stats.population -= b_update.n_residents();
 					players[to_owner].stats.population += b_update.n_residents();
 					
@@ -75,14 +75,14 @@ pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize,
 		// zone agnostic stats:
 		//	pstats counters of: happiness, doctrinality, and pacifism
 		//			are updated in rm_zone(). see notes near the ZoneAgnosticStats definition
-		let zt_wrapped = ex.actual.ret_zone_type();
-		if let Some(zt) = zt_wrapped {
+		let zone_wrapped = ex.actual.ret_zone();
+		if let Some(Zone {ztype, ..}) = zone_wrapped {
 			let zone_coord = return_zone_coord(coord, map_sz);
 			if players[frm_owner].zone_exs.contains_key(&zone_coord) {
 				let b_zone_ex = players[frm_owner].zone_exs.get(&zone_coord).unwrap().clone();
 				players[to_owner].zone_exs.create_if_empty(zone_coord, temps.doctrines);
 				let zone_ex = players[to_owner].zone_exs.get_mut(&zone_coord).unwrap();
-				let zt = zt as usize;
+				let zt = ztype as usize;
 				
 				// do not need to set demand_weighted_sum_map_counter because 
 				// it will be set with calls to rm_zone and add_zone
@@ -135,8 +135,8 @@ pub fn set_owner<'bt,'ut,'rt,'dt>(coord: u64, to_owner: usize, frm_owner: usize,
 		ex.actual.owner_id = Some(to_owner as SmSvType);
 		
 		// add zone type with new owner
-		if let Some(zt) = zt_wrapped {
-			ex.actual.add_zone(coord, zt, &mut players[to_owner], temps.doctrines, map_sz);
+		if let Some(zone) = zone_wrapped {
+			ex.actual.add_zone(coord, zone, &mut players[to_owner], temps.doctrines, map_sz);
 		}
 		
 		compute_zooms_coord(coord, bldgs, temps.bldgs, map_data, exs, players);

@@ -10,7 +10,6 @@ use crate::buildings::*;
 use crate::saving::*;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
-use crate::disp::{CCYAN, CSAND4, CGREEN, CSAND1};
 use crate::renderer::*;
 use crate::localization::Localization;
 #[cfg(feature="profile")]
@@ -27,17 +26,29 @@ macro_rules! enum_From{($nm:ident { $($entry:ident),* }) => (
 		#[inline]
 		fn from(val: usize) -> Self {
 			let entry_list: &[$nm] = &[ $($nm::$entry),* ]; // does not include N
-
+			
 			debug_assertq!(val < entry_list.len());
 			debug_assertq!(($nm::N as usize) == entry_list.len()); // last entry should be N
 			entry_list[val]
 		}
 	}
+	
+	impl From<u8> for $nm {
+		#[inline]
+		fn from(val: u8) -> Self {
+			let entry_list: &[$nm] = &[ $($nm::$entry),* ]; // does not include N
+			
+			debug_assertq!((val as usize) < entry_list.len(), "val: {}, entry_list.len() {}", val, entry_list.len());
+			debug_assertq!(($nm::N as usize) == entry_list.len()); // last entry should be N
+			entry_list[val as usize]
+		}
+	}
+	
 	impl From<isize> for $nm {
 		#[inline]
 		fn from(val: isize) -> Self {
 			let entry_list: &[$nm] = &[ $($nm::$entry),* ]; // does not include N
-
+			
 			debug_assertq!((val as usize) < entry_list.len());
 			debug_assertq!(($nm::N as usize) == entry_list.len()); // last entry should be N
 			entry_list[val as usize]
@@ -53,7 +64,7 @@ macro_rules! enum_From{($nm:ident { $($entry:ident),* }) => (
 		#[inline]
 		fn from(val: u32) -> Self {
 			let entry_list: &[$nm] = &[ $($nm::$entry),* ]; // does not include N
-
+			
 			debug_assertq!((val as usize) < entry_list.len(), "val: {}, entry_list.len() {}", val, entry_list.len());
 			debug_assertq!(($nm::N as usize) == entry_list.len()); // last entry should be N
 			entry_list[val as usize]
@@ -68,7 +79,7 @@ macro_rules! enum_From{($nm:ident { $($entry:ident),* }) => (
 enum_From!{ MapType {ShallowWater, DeepWater, Land, Mountain} }
 enum_From!{ StructureType {Road, Wall, Gate} }
 
-impl fmt::Display for StructureType {
+/*impl fmt::Display for StructureType {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "{}", match self {
 			StructureType::Road => {"Road"}
@@ -76,6 +87,17 @@ impl fmt::Display for StructureType {
 			StructureType::Gate => {"Gate"}
 			StructureType::N => {panic!("invalid structure type");}
 		})
+	}
+}*/
+
+impl StructureType {
+	pub fn to_str<'l>(&self, l: &'l Localization) -> &'l String {
+		match self {
+			Self::Road => {&l.Road}
+			Self::Wall => {&l.Wall}
+			Self::Gate => {&l.Gate}
+			Self::N => {panicq!("invalid structure type")}
+		}
 	}
 }
 
@@ -110,28 +132,6 @@ impl std::str::FromStr for ZoneType {
 			"Industrial" => ZoneType::Industrial,
 			_ => {panicq!("Failed to parse \"{}\" into movement_type. Valid options are: Agricultural, Residential, Business, or Industrial", s)}
 		})
-	}
-}
-
-impl ZoneType {
-	pub fn to_str(&self) -> &str {
-		match self {
-			ZoneType::Agricultural => "Agricultural",
-			ZoneType::Residential => "Residential",
-			ZoneType::Business => "Business",
-			ZoneType::Industrial => "Industrial",
-			ZoneType::N => {panicq!("invalid zone")}
-		}
-	}
-	
-	pub fn to_color(&self) -> CInt {
-		match self {
-			ZoneType::Agricultural => CSAND4,
-			ZoneType::Residential => CGREEN,
-			ZoneType::Business => CCYAN,
-			ZoneType::Industrial => CSAND1,
-			ZoneType::N => {panicq!("invalid zone")}
-		}
 	}
 }
 
@@ -447,7 +447,7 @@ impl ArabilityType {
 	}
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct ResourceCont {
 	pub offset_i: u8,
 	pub offset_j: u8
@@ -456,7 +456,7 @@ pub struct ResourceCont {
 impl_saving!{ ResourceCont{ offset_i, offset_j } }
 
 ////////////////////////////////////////////////////////////////////
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Map<'rt> {
 	pub arability: f32,
 	pub show_snow: bool,
@@ -468,7 +468,8 @@ pub struct Map<'rt> {
 	pub resource_cont: Option<ResourceCont>, // `resource_cont` is set for everything within the resource's height and width, largely for display purposes
 }
 
-impl_saving!{ Map<'rt>{ arability, show_snow, elevation, map_type, resource, resource_cont}  }
+//impl_saving!{ Map<'rt>{ arability, show_snow, elevation, map_type, resource, resource_cont}  }
+impl_saving!{ Map<'rt>{ arability, elevation, show_snow, map_type, resource, resource_cont}  }
 
 // for management of map buffers (VecDeque)
 #[derive(Copy, Clone, PartialEq)]

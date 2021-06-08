@@ -38,7 +38,7 @@ impl Noble {
 			
 			dstate.mv(y+$row, x + BOX_WIDTH as i32-1);
 			dstate.addch(dstate.chars.vline_char);
-		};};
+		};}
 		
 		// noble name
 		if head_noble == self {
@@ -143,7 +143,7 @@ impl House {
 			dstate.attron(title_c);
 			dstate.addstr(&format!("{}{}", sp, $txt));
 			dstate.attroff(title_c);
-		};};
+		};}
 		
 		let w = dstate.iface_settings.screen_sz.w as i32;
 		center_txt!(dstate.local.house_nm.replace("[]", &personalization.nm), w);

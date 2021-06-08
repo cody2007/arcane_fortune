@@ -126,7 +126,7 @@ impl <'f,'bt,'ut,'rt,'st>Disp<'f,'_,'bt,'ut,'rt,'st> {
 						for action_meta in pstats.brigade_frm_nm($brigade_nm).build_list.iter() {
 							action_meta.draw_selection_finalized(units, exf, map_data, map_sz, &mut self.state);
 						}
-					};};
+					};}
 					
 					if let AddActionTo::BrigadeBuildList {brigade_nm, ..} |
 						 AddActionTo::AllInBrigade {brigade_nm, ..} = &self.state.iface_settings.add_action_to {
@@ -194,7 +194,7 @@ impl <'f,'bt,'ut,'rt,'st>Disp<'f,'_,'bt,'ut,'rt,'st> {
 				//////////// draw building, zone drawing, group drawing and "X"
 				if let Some(action) = self.state.iface_settings.add_action_to.first_action() {
 					// show placement and crosshair
-					let crosshair = action.clone().draw_selection(cur_mc, units, exf, map_data, map_sz, &mut self.state);
+					let crosshair = action.clone().draw_selection(cur_mc, units, exf, map_data, map_sz, temps, &mut self.state);
 					self.mv(self.state.iface_settings.cur.y as i32, self.state.iface_settings.cur.x as i32);
 					self.addch(crosshair as chtype | COLOR_PAIR(CRED));
 				} // show bldg, zone, or group mv, and "X" at cursor for move modes
@@ -209,7 +209,8 @@ impl <'f,'bt,'ut,'rt,'st>Disp<'f,'_,'bt,'ut,'rt,'st> {
 		// (should come after print_menus() as that clears the first line
 		//  and before rside_stats because this is added to the right side text list
 		//  and should preferrably be at the of the list)
-		{
+		let show_rside = !screen_reader_mode() || self.ui_mode.right_side_tabbing();
+		if show_rside {
 			for log in gstate.logs.iter().rev()
 					.filter(|log| log.visible(self.state.iface_settings.cur_player as usize, &gstate.relations)) { // only show if civ discovered
 				 
@@ -242,7 +243,7 @@ impl <'f,'bt,'ut,'rt,'st>Disp<'f,'_,'bt,'ut,'rt,'st> {
 		//	(in screen reader mode these may not be shown if a window is active)
 		if !self.ui_mode.hide_map() {
 			self.print_bottom_stats(map_data, exs, player, players, units, &temps.bldg_config, bldgs, gstate, temps);
-			if !screen_reader_mode() || self.ui_mode.right_side_tabbing() {
+			if show_rside {
 				self.print_rside_stats(frame_stats, gstate, bldgs, players, temps, exf, map_data, map_sz);
 			}
 			self.print_submap(map_data, units, bldgs, exs, players, gstate, alt_ind);

@@ -146,7 +146,7 @@ pub fn unit_list_frm_vec<'bt,'ut,'rt,'dt>(unit_inds_use: &Vec<usize>,
 		for entry in unit_entries.iter_mut() {
 			macro_rules! gap{($len: expr) => {
 				for _ in 0..$len {entry.nm.push(' ');}
-			};};
+			};}
 			
 			// brigade
 			gap!(max_nm_len + max_brigade_len - entry.nm.len() - entry.brigade.len());
@@ -262,7 +262,7 @@ pub fn sector_list<'bt,'ut,'rt,'dt>(pstats: &Stats, cur_coord: Coord,
 		for entry in sector_entries.iter_mut() {
 			macro_rules! gap{($len: expr) => {
 				for _ in 0..$len {entry.nm.push(' ');}
-			};};
+			};}
 			
 			// dist
 			gap!(*w - entry.nm.len() - entry.dist.len() - 4);
@@ -333,7 +333,7 @@ pub fn brigades_list<'bt,'ut,'rt,'dt>(pstats: &Stats, w: &mut usize, label_txt_o
 		for entry in brigade_entries.iter_mut() {
 			macro_rules! gap{($len: expr) => {
 				for _ in 0..$len {entry.nm.push(' ');}
-			};};
+			};}
 			
 			// cost
 			gap!(*w - entry.nm.len() - entry.n_units.len() - 4);
@@ -483,7 +483,7 @@ pub fn owned_improvement_bldgs_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'r
 		for entry in bldg_entries.iter_mut() {
 			macro_rules! gap{($len: expr) => {
 				for _ in 0..$len {entry.nm.push(' ');}
-			};};
+			};}
 			
 			// cost
 			gap!(4 + max_nm_len + max_cost_len - entry.nm.len() - entry.cost.len());
@@ -621,7 +621,7 @@ pub fn owned_military_bldgs_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'
 		for entry in bldg_entries.iter_mut() {
 			macro_rules! gap{($len: expr) => {
 				for _ in 0..$len {entry.nm.push(' ');}
-			};};
+			};}
 			
 			// cost
 			gap!(4 + max_nm_len + max_cost_len - entry.nm.len() - entry.cost.len());
@@ -718,7 +718,7 @@ pub fn owned_city_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, cur_
 			
 			let entry = CityEntry {
 				nm: nm.clone(),
-				population: format!("{}", population),
+				population: format!("{}", population.iter().sum::<u32>()),
 				dist: direction_string(cur_coord, Coord::frm_ind(b.coord, map_sz), map_sz),
 				taxes: format!("{}/{}/{}/{}%", tax_rates[0], tax_rates[1],
 						tax_rates[2], tax_rates[3]),
@@ -749,7 +749,7 @@ pub fn owned_city_list<'bt,'ut,'rt,'dt>(bldgs: &Vec<Bldg<'bt,'ut,'rt,'dt>>, cur_
 		for entry in city_entries.iter_mut() {
 			macro_rules! gap{($len: expr) => {
 				for _ in 0..$len {entry.nm.push(' ');}
-			};};
+			};}
 			
 			// population
 			gap!(max_nm_len - entry.nm.len() + max_population_len - entry.population.len() + SPACING);
@@ -1116,11 +1116,11 @@ impl <'f,'bt,'ut,'rt,'dt>DispState<'f,'_,'bt,'ut,'rt,'dt> {
 		d.addch(self.chars.urcorner_char);
 		
 		macro_rules! nln {() => (d.mv(row + y, x); row += 1; 
-					 d.addch(self.chars.vline_char); d.addch(' ' as chtype););};
+					 d.addch(self.chars.vline_char); d.addch(' ' as chtype););}
 		macro_rules! eln {() => (
 			d.getyx(stdscr(), &mut cy, &mut cx);
 			for _ in cx..=(w+x-2) {d.addch(' ' as chtype);}
-			d.addch(self.chars.vline_char); );};
+			d.addch(self.chars.vline_char); );}
 		
 		nln!();
 		// for screen readers, where to show the text cursor (default to the exit close button if no entries found)

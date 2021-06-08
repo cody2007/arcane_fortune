@@ -4,7 +4,7 @@ use std::hash::{BuildHasherDefault};
 use crate::saving::*;
 use crate::renderer::endwin;
 use crate::map::{TechProg, LandDiscov, MapSz, MapData, ZoneType};
-use crate::zones::{ZoneAgnosticLocallyLogged, ZoneDemandSumMap};
+use crate::zones::{WealthLevel, ZoneAgnosticLocallyLogged, ZoneDemandSumMap};
 use crate::gcore::*;
 use crate::doctrine::DoctrineTemplate;
 use crate::resources::ResourceTemplate;
@@ -18,6 +18,7 @@ pub struct Stats<'bt,'ut,'rt,'dt> {
 	pub id: SmSvType,
 	pub alive: bool,
 	pub population: usize, // add_resident()/rm_resident()
+	pub population_wealth_level: Vec<usize>, // add_resident()/rm_resident() indexed by WealthLevel
 	pub gold: f32,
 	pub employed: usize, // # employed
 	
@@ -45,6 +46,7 @@ pub struct Stats<'bt,'ut,'rt,'dt> {
 	/////////// logs:
 	pub alive_log: Vec<bool>,
 	pub population_log: Vec<usize>,
+	pub population_wealth_level_log: Vec<Vec<usize>>, // [time][wealth_level]
 	pub gold_log: Vec<f32>,
 	pub net_income_log: Vec<f32>,
 	pub unemployed_log: Vec<f32>,
@@ -89,34 +91,35 @@ pub struct Stats<'bt,'ut,'rt,'dt> {
 		//	it should never occur that a `fog` entry is present but `land_discov` is absent
 }
 
-impl_saving!{Stats<'bt,'ut,'rt,'dt> {id, alive, population, gold, employed,
-	    doctrine_template,
-	    locally_logged,
-	    crime, health,
-	    resources_avail, resources_discov_coords,
-	    
-	    bonuses,
-	    
-	    alive_log, population_log, gold_log, net_income_log, unemployed_log, defense_power_log,
-	    offense_power_log, zone_demand_log,
-	    
-	    happiness_log, 
-	    crime_log, pacifism_log, health_log, doctrinality_log,
-	    
-	    research_per_turn_log, research_completed_log,
-	    
-	    mpd_log,
-	    
-	    zone_demand_sum_map,
-	    
-	    tax_income, unit_expenses, bldg_expenses,
-	    
-	    techs_progress, techs_scheduled, research_per_turn,
-	    
-	    brigades, sectors,
-	    
-	    land_discov,
-	    fog
+impl_saving!{Stats<'bt,'ut,'rt,'dt> {
+	id, alive, population, population_wealth_level, gold, employed,
+	doctrine_template,
+	locally_logged,
+	crime, health,
+	resources_avail, resources_discov_coords,
+
+	bonuses,
+
+	alive_log, population_log, population_wealth_level_log, gold_log, net_income_log, unemployed_log, defense_power_log,
+	offense_power_log, zone_demand_log,
+
+	happiness_log, 
+	crime_log, pacifism_log, health_log, doctrinality_log,
+
+	research_per_turn_log, research_completed_log,
+
+	mpd_log,
+
+	zone_demand_sum_map,
+
+	tax_income, unit_expenses, bldg_expenses,
+
+	techs_progress, techs_scheduled, research_per_turn,
+
+	brigades, sectors,
+
+	land_discov,
+	fog
 }}
 
 use crate::containers::Templates;
@@ -158,7 +161,7 @@ impl <'bt,'ut,'rt,'dt>Stats<'bt,'ut,'rt,'dt> {
 			(fog, land_discov)
 		};
 		
-		Stats {id, alive: true, population: 0,
+		Stats {id, alive: true, population: 0, population_wealth_level: vec![0; WealthLevel::N as usize],
 			gold: 300000.,
 			employed: 0,
 			
@@ -175,6 +178,7 @@ impl <'bt,'ut,'rt,'dt>Stats<'bt,'ut,'rt,'dt> {
 			// log across time
 			alive_log: vec![false; n_log_entries],
 			population_log: vec![0; n_log_entries],
+			population_wealth_level_log: vec![vec![0; WealthLevel::N as usize]; n_log_entries],
 			unemployed_log: vec![0.; n_log_entries],
 			gold_log: vec![0.; n_log_entries],
 			net_income_log: vec![0.; n_log_entries],

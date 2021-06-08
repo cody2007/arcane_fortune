@@ -140,7 +140,7 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 				for _ in 0..window_w {d.addch(' ');}
 				d.addch(self.chars.vline_char);
 			};
-		};
+		}
 		
 		macro_rules! ctr_txt{($txt: expr) => {
 			if ($txt.len() as i32) < w { // text too long
@@ -149,7 +149,7 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 				d.addstr($txt);
 				row += 1;
 			}
-		};};
+		};}
 		
 		macro_rules! lr_txt{
 			($l_txt: expr, $r_txt: expr) => {
@@ -173,7 +173,7 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 				d.mv($row, col + window_w - $r_txt.len() as i32);
 				d.addstr($r_txt);
 				$row += 1;
-		};};
+		};}
 		
 		// tech reqs to produce unit or bldg, `row` is the row to start printing on
 		macro_rules! print_tech_req{($tech_req_opt: expr, $row: expr) => {
@@ -183,16 +183,15 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 							&temps.techs[*tech as usize].nm[l.lang_ind], *$row);
 				}
 			}else {lr_txt!(&l.Required_technology, &l.None, *$row);}
-		};};
+		};}
 		
 		macro_rules! print_resources_req{($resources_req: expr, $row: expr) => {
 			for (i, rt) in $resources_req.iter().enumerate() {
 				lr_txt!(if i != 0 {""} else {&l.Required_resources}, &rt.nm[l.lang_ind], *$row);
 			}
-		};};
-
-		// print window top line
-		{
+		};}
+		
+		{ // print window top line
 			d.mv(row- if let InfoLevel::Full {..} = info_level {4} else {1}, col);
 			d.addch(self.chars.ulcorner_char);
 			for _ in 0..window_w {d.addch(self.chars.hline_char);}
@@ -295,7 +294,7 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 				}
 				
 				if let BldgType::Taxable(zone) = bt.bldg_type {
-					lr_txt!(&format!("{}:", l.Zone), zone.to_str());
+					lr_txt!(&format!("{}:", l.Zone), zone.ztype.to_str(l));
 				}
 				
 				// cost & production time
@@ -317,14 +316,13 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 				if let BldgType::Gov(zone_bonuses) = &bt.bldg_type {
 					for (zt_ind, zone_bonus_opt) in zone_bonuses.iter().enumerate() {
 						if let Some(zone_bonus) = zone_bonus_opt {
-							lr_txt!(&format!("{} bonus:", ZoneType::from(zt_ind).to_str()),
+							lr_txt!(&format!("{} bonus:", ZoneType::from(zt_ind).to_str(l)),
 								  &format!("{}", zone_bonus));
 						}
 					}
 				}
 				
-				// crime, happiness, doctrinality, pacifism, health, job search bonus
-				{
+				{ // crime, happiness, doctrinality, pacifism, health, job search bonus
 					if bt.crime_bonus < 0. {
 						lr_txt!(&l.Crime_bonus, &format!("{}", bt.crime_bonus));
 					}else if bt.crime_bonus != 0. {
@@ -486,20 +484,19 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 					print_tech_req!(&Some(rt.tech_req.clone()), &mut row);
 				}
 				
-				lr_txt!(&l.Zoning_req_to_use, rt.zone.to_str());
+				lr_txt!(&l.Zoning_req_to_use, rt.zone.to_str(l));
 				
 				// zone bonuses
 				for (zone_ind, zone_bonus) in rt.zone_bonuses.iter().enumerate() {
 					if let Some(bonus) = zone_bonus {
 						if *bonus != 0 {
-							lr_txt!(&format!("{} bonus:", ZoneType::from(zone_ind).to_str()),
-										&format!("{}", bonus));
+							lr_txt!(&format!("{} bonus:", ZoneType::from(zone_ind).to_str(l)),
+								  &format!("{}", bonus));
 						}
 					}
 				}
 				
-				// units requiring this resource
-				{
+				{ // units requiring this resource
 					let mut found = false;
 					for ut in temps.units.iter() {
 						for resource_req in ut.resources_req.iter() {
@@ -517,7 +514,7 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 				
 				// arability probs
 				if let InfoLevel::Full {..} = info_level {
-					struct ArabilityProb {ind: usize, prob: f32};
+					struct ArabilityProb {ind: usize, prob: f32}
 					let mut arability_probs = Vec::with_capacity(rt.arability_probs.len());
 					
 					for (ind, arability_prob) in rt.arability_probs.iter().enumerate() {
@@ -600,10 +597,9 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 				d.addch(self.chars.vline_char);
 				for _ in 0..window_w {d.addch(' ');}
 				d.addch(self.chars.vline_char);
-			};};
+			};}
 		
-		// print window top line
-		{
+		{ // print window top line
 			d.mv(row-1, col);
 			d.addch(self.chars.ulcorner_char);
 			for _ in 0..window_w {d.addch(self.chars.hline_char);}
@@ -617,8 +613,7 @@ impl DispState<'_,'_,'_,'_,'_,'_> {
 			d.addstr(txt);
 		}
 			
-		// print window bottom line
-		{
+		{ // print window bottom line
 			d.mv(row,col);
 			d.addch(self.chars.llcorner_char);
 			for _ in 0..window_w {d.addch(self.chars.hline_char);}

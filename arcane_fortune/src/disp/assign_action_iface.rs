@@ -98,7 +98,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 									ignore_own_walls: false
 							};
 					}
-				};};
+				};}
 				
 				// check if there is a structure at the destination
 				if let Some(_) = ex.actual.structure {
@@ -236,7 +236,7 @@ impl <'f,'bt,'ut,'rt,'dt>Disp<'f,'_,'bt,'ut,'rt,'dt> {
 		let action = units[unit_ind].action.last().unwrap();
 		if action.path_coords.len() > 0 {
 			match action.action_type {
-				ActionType::WorkerBuildStructure {..} => {},
+				ActionType::WorkerBuildStructure {..} | ActionType::WorkerBuildPipe => {},
 				_ => {mv_unit(unit_ind, true, units, map_data, exs, bldgs, players, gstate, map_sz, DelAction::Record(&mut disband_unit_inds), &mut Some(self));}
 			}
 		}
@@ -375,7 +375,7 @@ impl <'f,'bt,'ut,'rt,'dt>IfaceSettings<'f,'bt,'ut,'rt,'dt> {
 				// actions w/o rectangle drawing
 				} ActionType::Mv | ActionType::MvWithCursor | ActionType::MvIgnoreWallsAndOntoPopulationCenters |
 				  ActionType::MvIgnoreOwnWalls | ActionType::CivilianMv | ActionType::AutoExplore {..} |
-				  ActionType::WorkerBuildStructure {..} | ActionType::WorkerRepairWall {..} |
+				  ActionType::WorkerBuildStructure {..} | ActionType::WorkerRepairWall {..} | ActionType::WorkerBuildPipe |
 				  ActionType::SectorAutomation {..} | ActionType::ScaleWalls | ActionType::Assassinate {..} |
 				  ActionType::WorkerBuildBldg {..} | ActionType::Attack {..} | ActionType::Fortify {..} |
 				  ActionType::WorkerZoneCoords {..} | ActionType::UIWorkerAutomateCity | ActionType::BurnBuilding {..} |

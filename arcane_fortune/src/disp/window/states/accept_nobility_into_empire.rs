@@ -30,7 +30,7 @@ impl AcceptNobilityIntoEmpireState {
 			
 			let mut row = 0;
 			macro_rules! mvl{() => {dstate.renderer.mv(row + y, x); row += 1;};
-						     ($final: expr) => {dstate.renderer.mv(row + y, x);}};
+						     ($final: expr) => {dstate.renderer.mv(row + y, x);}}
 			
 			mvl!(); dstate.buttons.Esc_to_close.print(None, &dstate.local, &mut dstate.renderer); mvl!();
 			

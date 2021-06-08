@@ -140,12 +140,12 @@ pub fn show_zone_demand_scales(roff: &mut i32, turn_col: i32, plot_type: ZonePlo
 			  (i+1) == scale_width_h && $val < 0. || // nearly at mid-point (below)
 			  (i-1) == scale_width_h && $val > 0. || // nearly at mid-point (above)
 			  i > scale_width_h && $val >= mid_val { // after midpoint
-				dstate.plot_zone($zone_type); 
+				dstate.plot_zone_type($zone_type); 
 			}else {
 				dstate.renderer.addch(' ' as chtype);
 			}
 		}
-	};};
+	};}
 	
 	match plot_type {
 		ZonePlotType::Single(val, zone_type) => { // plot single value (local)

@@ -69,28 +69,26 @@ impl TechDiscoveredWindowState {
 				dstate.renderer.addstr($txt);
 				row += 1;
 			}
-		};};
+		};}
 		
 		macro_rules! l_txt{($r_txt: expr) => {
 			dstate.mv(row, pos.x as i32 + 2);
 			dstate.renderer.addstr($r_txt);
 			row += 1;
-		};};
+		};}
 		
 		macro_rules! r_txt{($r_txt: expr) => {
 			dstate.mv(row, pos.x as i32 + (window_sz.w - $r_txt.len() - 2) as i32);
 			dstate.renderer.addstr($r_txt);
 			row += 1;
-		};};
+		};}
 		
-		// esc to close
-		{
+		{ // esc to close
 			dstate.mv(row, pos.x as i32 + 2); row += 2;
 			dstate.buttons.Esc_to_close.print(None, &dstate.local, &mut dstate.renderer);
 		}
 		
-		// 'You have discovered ...'
-		{
+		{ // 'You have discovered ...'
 			dstate.attron(COLOR_PAIR(CGREEN));
 			ctr_txt!(&format!("You have discovered {}!", tech_discov.nm[dstate.local.lang_ind]));
 			dstate.attroff(COLOR_PAIR(CGREEN));
@@ -115,7 +113,7 @@ impl TechDiscoveredWindowState {
 				}else{
 					l_txt!(&format!("You can now {}:", $txt));
 				}
-		};};
+		};}
 		
 		if units_discov.len() != 0 {
 			print_intro_txt!(&dstate.local.create);

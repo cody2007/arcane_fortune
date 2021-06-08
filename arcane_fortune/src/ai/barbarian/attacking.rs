@@ -42,7 +42,7 @@ pub fn find_and_set_attack<'bt,'ut,'rt,'dt>(attacker_ind: usize, units: &mut Vec
 				});
 			}
 		}
-	};};
+	};}
 	
 	// attack closest target in $dists
 	macro_rules! attack_closest{($dists: expr) => {
@@ -55,10 +55,9 @@ pub fn find_and_set_attack<'bt,'ut,'rt,'dt>(attacker_ind: usize, units: &mut Vec
 				return Some(dist.action_type.clone());
 			}
 		}
-	};};
+	};}
 
-	// attack closest unit
-	{
+	{ // attack closest unit
 		#[cfg(feature="profile")]
 		let _g = Guard::new("attack closest unit");
 		
@@ -69,8 +68,7 @@ pub fn find_and_set_attack<'bt,'ut,'rt,'dt>(attacker_ind: usize, units: &mut Vec
 		attack_closest!(dists);
 	}
 	
-	// attack closest bldg
-	{
+	{ // attack closest bldg
 		#[cfg(feature="profile")]
 		let _g = Guard::new("attack closest bldg");
 
@@ -83,8 +81,7 @@ pub fn find_and_set_attack<'bt,'ut,'rt,'dt>(attacker_ind: usize, units: &mut Vec
 		attack_closest!(dists);
 	}
 	
-	// attack closest wall
-	{
+	{ // attack closest wall
 		#[cfg(feature="profile")]
 		let _g = Guard::new("attack closest wall");
 		

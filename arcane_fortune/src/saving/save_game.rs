@@ -94,7 +94,7 @@ pub fn load_game<'f,'bt,'ut,'rt,'dt>(buf: Vec<u8>, mut offset: usize, disp: &mut
 		bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>, units: &mut Vec<Unit<'bt,'ut,'rt,'dt>>,
 		players: &mut Vec<Player<'bt,'ut,'rt,'dt>>, frame_stats: &mut FrameStats){
 	
-	macro_rules! ld_val{($val:expr) => ($val.ld(&buf, &mut offset, &temps.bldgs, &temps.units, &temps.resources, &temps.doctrines););};
+	macro_rules! ld_val{($val:expr) => ($val.ld(&buf, &mut offset, &temps.bldgs, &temps.units, &temps.resources, &temps.doctrines););}
 	
 	{ // players
 		let mut sz: usize = 0;
@@ -320,7 +320,7 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, map_data: &mut MapDa
 	// each loop attempts N_PLACEMENT_ATTEMPTS before restarting the loop
 	'map_attempt: loop {
 		///// map setup
-		let map_root = map_gen(MapSz {h: H_ROOT, w: W_ROOT, sz: H_ROOT*W_ROOT}, &mut gstate.rng, &mut disp.state);
+		let map_root: Vec<Map> = game_opts.gen_or_load_map_root(temps, &mut gstate.rng, &mut disp.state);
 		*map_data = MapData::default(map_root, H_ROOT, W_ROOT, game_opts.zoom_in_depth, get_usize_map_config("max_zoom_in_buffer_sz"), temps.resources);
 		
 		//// exs
@@ -337,34 +337,42 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, map_data: &mut MapDa
 		gstate.logs.clear();
 		
 		{ /////////////////// put units on map
-			let sz_prog = MapSz {h: 0, w: 0, sz: game_opts.n_players};
+			let sz_prog = MapSz {h: 0, w: 0, sz: game_opts.n_players()};
 			let mut screen_sz = getmaxyxu(&disp.state.renderer);
 			
 			let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 			
 			let city_h = CITY_HEIGHT as isize;
 			let city_w = CITY_WIDTH as isize;
-				
+			
 			macro_rules! add_u{($coord:expr, $player:expr, $type:expr) => (
-				add_unit($coord, $player.id == HUMAN_PLAYER_IND as SmSvType, $type, units, map_data, exs, bldgs, $player, gstate, temps););};
+				add_unit($coord, $player.id == game_opts.human_player_ind as SmSvType, $type, units, map_data, exs, bldgs, $player, gstate, temps););}
 			
 			//////////// ai, human, and nobility players
-			for player_ind in 0..game_opts.n_players {
+			for (player_ind, player_personalization_opt) in game_opts.player_personalizations.iter().enumerate() {
 				let mut attempt = 0;
 				
-				print_map_status(Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(player_ind as usize), &mut screen_sz, sz_prog, 0, &mut disp.state);
+				print_map_status(Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(sz_prog.sz), Some(player_ind), &mut screen_sz, sz_prog, 0, &mut disp.state);
 				disp.state.renderer.clrtoeol();
 				
 				'player_attempt: loop {
-					// city location
-					let map_coord_y = gstate.rng.usize_range(0, map_sz.h - CITY_HEIGHT - 1) as u64;
-					let map_coord_x = gstate.rng.usize_range(0, map_sz.w - CITY_WIDTH - 1) as u64;
-					let map_coord = map_coord_y * map_sz.w as u64 + map_coord_x;
-					
 					let exf = exs.last().unwrap();
 					
+					// city location
+					let (map_coord_y, map_coord_x, chk_square_clear) = (|| {
+						if let Some(player_personalization) = player_personalization_opt {
+							if let Some(start_loc) = player_personalization.start_loc {
+								return (start_loc.y as u64 - CITY_HEIGHT as u64/2, start_loc.x as u64 - CITY_WIDTH as u64/2, false);
+							}
+						}
+						
+						(gstate.rng.usize_range(0, map_sz.h - CITY_HEIGHT - 1) as u64,
+						 gstate.rng.usize_range(0, map_sz.w - CITY_WIDTH - 1) as u64, true)
+					})();
+					let map_coord = map_coord_y * map_sz.w as u64 + map_coord_x;
+					
 					// not clear, try again
-					if square_clear(map_coord, ScreenSz{h: CITY_HEIGHT, w: CITY_WIDTH, sz: 0}, Quad::Lr, map_data, exf) == None {
+					if chk_square_clear && square_clear(map_coord, ScreenSz{h: CITY_HEIGHT, w: CITY_WIDTH, sz: 0}, Quad::Lr, map_data, exf) == None {
 						if attempt > N_UNIT_PLACEMENT_ATTEMPTS { // try a new map
 							continue 'map_attempt;
 						}else{ // try another unit placement
@@ -377,52 +385,58 @@ pub fn new_game<'f,'bt,'ut,'rt,'dt>(gstate: &mut GameState, map_data: &mut MapDa
 					{ // add player
 						let coord = Coord {y: map_coord_y as isize, x: map_coord_x as isize};
 						
-						let (ptype, bonuses, personality) = 
-							if player_ind != HUMAN_PLAYER_IND {
-								if let Some(empire_state) = EmpireState::new(coord, temps, map_data, exf, &mut gstate.rng) {
-									let personality = empire_state.personality;
-									(PlayerType::Empire(empire_state), game_opts.ai_bonuses.clone(), personality)
+						// pre-supplied personalizations (ex. scenario w/ world leaders)
+						let personalization = if let Some(player_personalization) = player_personalization_opt {
+							player_personalization.personalization.clone()
+						// random personalizations
+						}else{
+							// country nm -- prevent duplicates
+							let (nm, gender_female, ruler_nm) = {
+								let mut nm;
+								let mut gender_female;
+								let mut ruler_nm;
+								'nm_loop: loop {
+									nm = country_names[gstate.rng.usize_range(0, country_names.len())].clone();
+									
+									let ruler = PersonName::new(&temps.nms, &mut gstate.rng);
+									gender_female = ruler.0;
+									ruler_nm = ruler.1;
+									
+									// prevent duplicates of names
+									for player in players.iter() {
+										let pers = &player.personalization;
+										if ruler_nm == pers.ruler_nm || nm == pers.nm {
+											continue 'nm_loop;
+										}
+									}
+									break;
+								} // end prevent duplicates
+								(nm, gender_female, ruler_nm)
+							};
+							
+							Personalization::random(AIPersonality::new(&mut gstate.rng), nm, ruler_nm, gender_female, PLAYER_COLORS[player_ind], &mut txt_gen, gstate, temps)
+						};
+						
+						let (ptype, bonuses) = 
+							if player_ind != game_opts.human_player_ind {
+								if let Some(empire_state) = EmpireState::new(coord, chk_square_clear, personalization.personality, temps, map_data, exf, &mut gstate.rng) {
+									(PlayerType::Empire(empire_state), game_opts.ai_bonuses.clone())
 								}else{continue 'player_attempt;}
 							
 							// human player
 							}else{
 								let city_hall = BldgTemplate::frm_str(CITY_HALL_NM, temps.bldgs);
-								if let Some(mut ai_state) = AIState::new(coord, CITY_GRID_HEIGHT, MIN_DIST_FRM_CITY_CENTER, city_hall, temps, map_data, exf, map_sz, &mut gstate.rng) {
+								if let Some(mut ai_state) = AIState::new(coord, chk_square_clear, CITY_GRID_HEIGHT, MIN_DIST_FRM_CITY_CENTER, city_hall, temps, map_data, exf, map_sz, &mut gstate.rng) {
 									ai_state.city_states.clear(); // 
-									(PlayerType::Human(ai_state), Default::default(), Default::default())
+									(PlayerType::Human(ai_state), Bonuses::default())
 								}else{continue 'player_attempt;}
 							};
-						
-						// country nm -- prevent duplicates
-						let (nm, gender_female, ruler_nm) = {
-							let mut nm;
-							let mut gender_female;
-							let mut ruler_nm;
-							'nm_loop: loop {
-								nm = country_names[gstate.rng.usize_range(0, country_names.len())].clone();
-								
-								let ruler = PersonName::new(&temps.nms, &mut gstate.rng);
-								gender_female = ruler.0;
-								ruler_nm = ruler.1;
-								
-								// prevent duplicates of names
-								for player in players.iter() {
-									let pers = &player.personalization;
-									if ruler_nm == pers.ruler_nm || nm == pers.nm {
-										continue 'nm_loop;
-									}
-								}
-								break;
-							} // end prevent duplicates
-							(nm, gender_female, ruler_nm)
-						};
-						
-						let player = Player::new(players.len() as SmSvType, ptype, personality, nm, ruler_nm, gender_female,
-							&bonuses, PLAYER_COLORS[player_ind], &mut txt_gen, gstate, 0, temps, map_data);
+											
+						let player = Player::new(players.len() as SmSvType, ptype, personalization, &bonuses, gstate, 0, temps, map_data);
 						
 						// ifacesettings
-						if player_ind == HUMAN_PLAYER_IND {
-							disp.state.iface_settings = IfaceSettings::default(player.personalization.save_nm(), HUMAN_PLAYER_ID);
+						if player_ind == game_opts.human_player_ind {
+							disp.state.iface_settings = IfaceSettings::default(player.personalization.save_nm(), players.len() as SmSvType);
 							disp.state.update_menu_indicators(disp.state.iface_settings.cur_player_paused(players));
 						}
 						

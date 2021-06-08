@@ -47,7 +47,7 @@ impl CurrentBldgProdState {
 					production.swap_remove($mode);
 				}
 				return UIModeControl::UnChgd;
-			};};
+			};}
 			if let Some(ind) = buttons.list_item_clicked(&dstate.mouse_event) {enter_action!(ind);}
 			
 			let kbd = &dstate.kbd;

@@ -16,9 +16,7 @@ impl SelectExploreTypeState {
 			dstate: &mut DispState<'_,'_,'bt,'ut,'rt,'dt>) -> UIModeControl<'bt,'ut,'rt,'dt> {
 		let cur_player = dstate.iface_settings.cur_player as usize;
 		if let Some(unit_inds) = dstate.iface_settings.unit_inds_frm_sel(&players[cur_player].stats, units, map_data, exs.last().unwrap()) {
-			let list = explore_types_list(&dstate.local);
-			
-			if list_mode_update_and_action(&mut self.mode, list.options.len(), dstate) {
+			if explore_types_list(&dstate.local).list_mode_update_and_action(&mut self.mode, dstate) {
 				let map_sz = *map_data.map_szs.last().unwrap();
 				let explore_type = ExploreType::from(self.mode);
 				

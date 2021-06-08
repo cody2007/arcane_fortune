@@ -1,5 +1,4 @@
 use super::*;
-use crate::units::*;
 
 pub struct SelectBldgDoctrineState<'bt,'ut,'rt,'dt> {
 	pub mode: usize,
@@ -40,7 +39,7 @@ impl <'bt,'ut,'rt,'dt>SelectBldgDoctrineState<'bt,'ut,'rt,'dt> {
 					
 					return UIModeControl::Closed;
 				}else{panicq!("invalid UI option argument");}
-			};};
+			};}
 			if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {enter_action!(ind);}
 			
 			match dstate.key_pressed {

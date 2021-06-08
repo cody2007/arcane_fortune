@@ -155,7 +155,7 @@ pub fn place_barbarians<'bt,'ut,'rt,'dt>(attempt: &mut usize, player_ind: SmSvTy
 					print_attempt_update(*attempt, player_ind, &sz_prog, screen_sz, dstate);
 					continue 'barbarian_attempt;
 				}
-			};};
+			};}
 				
 			// generate location
 			let by;
@@ -200,8 +200,12 @@ pub fn place_barbarians<'bt,'ut,'rt,'dt>(attempt: &mut usize, player_ind: SmSvTy
 				let barbarian_id = players.len() as SmSvType;
 				
 				{ // add as player
-					let ruler_nm = PersonName {first: String::from("Conan"), last: String::from("Cimmeria")};
-					let nm = String::from("Barbarian");
+					let personalization = {
+						let ruler_nm = PersonName {first: String::from("Conan"), last: String::from("Cimmeria")};
+						let nm = String::from("Barbarian");
+						
+						Personalization::random(AIPersonality::default(), nm, ruler_nm, false, CGRAY, txt_gen, gstate, temps)
+					};
 					
 					let ptype = PlayerType::Barbarian(BarbarianState {
 						camp_ind: bldgs.len(),
@@ -209,13 +213,12 @@ pub fn place_barbarians<'bt,'ut,'rt,'dt>(attempt: &mut usize, player_ind: SmSvTy
 						defender_inds: Vec::new()
 					});
 					
-					players.push(Player::new(barbarian_id, ptype, Default::default(), nm, ruler_nm, false, &bonuses,
-						CGRAY, txt_gen, gstate, 0, temps, map_data));
+					players.push(Player::new(barbarian_id, ptype, personalization, &bonuses, gstate, 0, temps, map_data));
 				}
 				
 				// location to put bldg
 				let map_coord = map_sz.coord_wrap(by + WALL_DIST_I, bx + WALL_DIST_J).unwrap();
-				if !add_bldg(map_coord, barbarian_id as SmSvType, bldgs, camp_bt, None, temps, map_data, exs, players, gstate) {
+				if !add_bldg(map_coord, barbarian_id as SmSvType, bldgs, camp_bt, None, None, temps, map_data, exs, players, gstate) {
 					panicq!("failed to add barbarian bldg");
 				}
 				
@@ -234,7 +237,7 @@ pub fn place_barbarians<'bt,'ut,'rt,'dt>(attempt: &mut usize, player_ind: SmSvTy
 					});
 					ex.actual.owner_id = Some(barbarian_id as SmSvType);
 					compute_zooms_coord(coord, bldgs, temps.bldgs, map_data, exs, players);
-				};};
+				};}
 				
 				// wall gate
 				let c = gstate.rng.isize_range(0, 4);
@@ -268,7 +271,7 @@ pub fn place_barbarians<'bt,'ut,'rt,'dt>(attempt: &mut usize, player_ind: SmSvTy
 				{
 					let player = &mut players[barbarian_id as usize];
 					macro_rules! add_u{($coord:expr, $type:expr) => (
-					add_unit($coord, false, $type, units, map_data, exs, bldgs, player, gstate, temps););};
+					add_unit($coord, false, $type, units, map_data, exs, bldgs, player, gstate, temps););}
 					
 					if c == 0 { // top
 						let coord = map_sz.coord_wrap(by, bx + gate_loc).unwrap();

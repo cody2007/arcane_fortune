@@ -1,5 +1,5 @@
 use super::*;
-use crate::units::*;
+//use crate::units::*;
 pub struct SectorsWindowState {
 	pub mode: usize,
 	pub sector_action: SectorAction
@@ -78,7 +78,7 @@ impl SectorsWindowState {
 			};
 			
 			return UIModeControl::CloseAndGoTo(coord);
-		};};
+		};}
 		if let Some(ind) = dstate.buttons.list_item_clicked(&dstate.mouse_event) {enter_action!(ind);}
 		
 		match dstate.key_pressed {

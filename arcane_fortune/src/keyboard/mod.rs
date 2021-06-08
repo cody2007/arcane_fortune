@@ -115,6 +115,10 @@ create_keys!(
 	offer_trade_item = "offer_trade_item"
 	request_trade_item = "request_trade_item"
 	
+	// new game options 
+	a_historical_scenario = "A_historical_scenario"
+	random_map_and_countries = "Random_map_and_countries"
+	
 	/////// unit actions
 	disband = "disband"
 	move_unit = "move_unit"
@@ -124,6 +128,7 @@ create_keys!(
 	fortify = "fortify"
 	build_bldg = "build_bldg"
 	build_road = "build_road"
+	build_pipe = "build_pipe"
 	attack = "attack"
 	scale_walls = "scale_walls"
 	assassinate = "assassinate"
@@ -143,6 +148,7 @@ create_keys!(
 	add_action_to_brigade_build_list = "add_action_to_brigade_build_list"
 	build_gate = "build_gate"
 	rm_bldgs_and_zones = "rm_bldgs_and_zones"
+	zone_land = "zone_land"
 	
 	////////// zones (both creating and taxing)
 	agricultural = "agricultural"

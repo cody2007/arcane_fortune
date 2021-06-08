@@ -50,6 +50,9 @@ Misc (Note: setting `enter` to a different value is not fully supported yet
 	center_on_next_unmoved_unit: ;
 	offer_trade_item: o
 	request_trade_item: r
+	budget: b
+	A_historical_scenario: h
+	Random_map_and_countries: r
 }
 
 ---------------
@@ -63,6 +66,7 @@ Unit actions
 	fortify: f
 	build_bldg: h
 	build_road: k
+	build_pipe: -
 	attack: k
 	build_wall: y
 	automate_zone_creation: 8
@@ -82,16 +86,17 @@ Unit actions
 	rm_bldgs_and_zones: 0
 	scale_walls: ^
 	assassinate: t
+	zone_land: r
 }
 
 -------------------
 		Zones
-(for both creating and setting their taxes)
+(for setting tax rates)
 	
 {
 	agricultural: u
 	residential: r
-	business: b
+	business: x
 	industrial: t
 	increase_tax: +
 	increase_tax_alt: =

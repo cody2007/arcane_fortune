@@ -13,6 +13,7 @@ use crate::disp::Coord;
 use crate::localization::Localization;
 use crate::player::*;
 use crate::containers::*;
+use crate::zones::Zone;
 
 pub const MAX_UNITS_PER_PLOT: usize = 2;
 
@@ -133,6 +134,7 @@ pub enum ActionType<'bt,'ut,'rt,'dt> {
 	AutoExplore {start_coord: u64, explore_type: ExploreType}, // moves explorer back to starting coord and tries again if we run out of places to explore
 	
 	WorkerBuildStructure {structure_type: StructureType, turns_expended: usize},
+	WorkerBuildPipe,
 	WorkerRepairWall {wall_coord: Option<u64>, turns_expended: usize},
 	// ^ coordinate wall is at (not set until after path coords are computed--but should be set before the end of the turn)
 	
@@ -152,7 +154,7 @@ pub enum ActionType<'bt,'ut,'rt,'dt> {
 	
 	WorkerZone { // for UI placement with human player 
 		valid_placement: bool,
-		zone_type: ZoneType, // to create
+		zone: Zone, // to create
 		start_coord: Option<u64>, // set to start coord of zone (at full zoom)
 		end_coord: Option<u64>  }, // set to end of zone (second location chosen by cursor, converted to map coords at full zoom)
 	
@@ -173,7 +175,7 @@ pub enum ActionType<'bt,'ut,'rt,'dt> {
 		end_coord: Option<u64>
 	},
 	
-	WorkerZoneCoords { zone_type: ZoneType }, // the zone is placed at path_coords, for AI
+	WorkerZoneCoords { zone: Zone }, // the zone is placed at path_coords, for AI
 	
 	UIWorkerAutomateCity,
 	
@@ -209,6 +211,7 @@ impl fmt::Display for ActionType<'_,'_,'_,'_> {
 			ActionType::MvIgnoreWallsAndOntoPopulationCenters => String::from("MvIgnoreWallsAndOntoPopulationCenters"),
 			ActionType::MvIgnoreOwnWalls => String::from("MvIgnoreOwnWalls"),
 			ActionType::CivilianMv => String::from("CivilianMv"),
+			ActionType::WorkerBuildPipe => String::from("BuildPipe"),
 			ActionType::AutoExplore {start_coord, ..} => format!("AutoExplore {}", start_coord),
 			ActionType::WorkerBuildStructure {..} => String::from("WorkerBuildStructure"),
 			ActionType::WorkerRepairWall {wall_coord: Some(coord), turns_expended} => {
@@ -251,14 +254,15 @@ impl <'bt,'ut,'rt,'dt> ActionType<'bt,'ut,'rt,'dt> {
 			ActionType::WorkerBuildStructure {structure_type: StructureType::Road, ..} => l.Building_road.clone(),
 			ActionType::WorkerBuildStructure {structure_type: StructureType::Gate, ..} => l.Building_gate.clone(),
 			ActionType::WorkerBuildStructure {structure_type: StructureType::Wall, ..} => l.Building_wall.clone(),
+			ActionType::WorkerBuildPipe => l.Building_pipe.clone(),
 			ActionType::WorkerRepairWall {..} => l.Repairing_wall.clone(),
 			ActionType::WorkerBuildBldg {template, ..} => format!("{} {}", l.Building, template.nm[l.lang_ind]),
 			ActionType::WorkerContinueBuildBldg {..} => l.Building.clone(),
 			ActionType::Attack {..} => l.Attacking.clone(),
 			ActionType::Assassinate {..} => l.Assassinate.clone(),
 			ActionType::Fortify {..} => l.Fortified.clone(),
-			ActionType::WorkerZone {zone_type, ..} => format!("{} {}", l.Zoning, zone_type.to_str()),
-		      ActionType::WorkerZoneCoords {zone_type, ..} => format!("{} {}", l.Zoning, zone_type.to_str()),
+			ActionType::WorkerZone {zone, ..} => format!("{} {}", l.Zoning, zone.ztype.to_str(l)),
+		      ActionType::WorkerZoneCoords {zone, ..} => format!("{} {}", l.Zoning, zone.ztype.to_str(l)),
 		      ActionType::BurnBuilding {..} => l.Burn_building.clone(),
 		      ActionType::UIWorkerAutomateCity => l.Automated.clone(),
 		      ActionType::SectorAutomation {sector_nm, idle_action, unit_enter_action} => {

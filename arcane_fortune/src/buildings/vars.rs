@@ -4,7 +4,7 @@ use crate::units::*;
 use crate::movement::*;
 use crate::saving::*;
 use crate::gcore::hashing::{HashedMapEx, HashedMapZoneEx};
-use crate::zones::return_zone_coord;
+use crate::zones::*;
 use crate::renderer::endwin;
 use crate::resources::ResourceTemplate;
 use crate::doctrine::DoctrineTemplate;
@@ -24,7 +24,7 @@ pub const PUBLIC_EVENT_NM: &str = "Public event";
 pub struct BldgConfig {
 	// fire
 	pub fire_damage_rate: u32,
-	pub fire_repair_rate: u32,	
+	pub fire_repair_rate: u32,
 	pub max_bldg_damage: u32,
 	
 	pub job_search_bonus_dist: u32,
@@ -36,16 +36,48 @@ pub struct BldgConfig {
 	// events
 	pub birth_celebration_bonus: f32,
 	pub marriage_celebration_bonus: f32,
-	pub funeral_bonus: f32
+	pub funeral_bonus: f32,
+	
+	// cost to zone land
+	pub cost_to_zone_low_density: f32,
+	pub cost_to_zone_medium_density: f32,
+	pub cost_to_zone_high_density: f32
 }
 impl_saving!{BldgConfig {fire_damage_rate, fire_repair_rate, max_bldg_damage, job_search_bonus_dist,
-	birth_celebration_bonus, marriage_celebration_bonus, funeral_bonus
+	birth_celebration_bonus, marriage_celebration_bonus, funeral_bonus,
+	cost_to_zone_low_density, cost_to_zone_medium_density, cost_to_zone_high_density
 }}
 
 #[derive(PartialEq, Clone)]
 pub enum BldgType {
-	Taxable(ZoneType),
+	Taxable(Zone),
 	Gov(Vec<Option<isize>>) // zone bonuses indexed by ZoneType
+}
+
+impl BldgType {
+	pub fn is_taxable(&self) -> bool {
+		if let Self::Taxable(_) = self {
+			true
+		}else{false}
+	}
+	
+	pub fn is_residential(&self) -> bool {
+		if let Self::Taxable(Zone {ztype: ZoneType::Residential, ..}) = self {
+			true
+		}else{false}
+	}
+	
+	pub fn zone_type(&self) -> Option<ZoneType> {
+		if let Self::Taxable(Zone {ztype, ..}) = self {
+			Some(*ztype)
+		}else{None}
+	}
+	
+	/*pub fn zone(&self) -> Option<Zone> {
+		if let Self::Taxable(zone) = self {
+			Some(*zone)
+		}else{None}
+	}*/
 }
 
 #[derive(PartialEq, Clone)]
@@ -66,6 +98,7 @@ pub struct BldgTemplate <'ut,'rt,'dt> {
 	pub units_producable: Option<Vec<&'ut UnitTemplate<'rt>>>,
 	pub units_producable_txt: Option<Vec<String>>, // for production window
 	pub unit_production_rate: SmSvType,
+	pub water_source: bool,
 	
 	pub construction_req: f32, // how many action turns needed to construct
 	pub upkeep: f32, // negative means it's paying taxes
@@ -89,7 +122,9 @@ impl_saving_template!{BldgTemplate <'ut,'rt,'dt>{id, nm, menu_txt, tech_req,
 			doctrine_req, research_prod,
 			sz, print_str, plot_zoomed, bldg_type,
 			units_producable, units_producable_txt, 
-			unit_production_rate, construction_req, upkeep, 
+			unit_production_rate, water_source,
+			
+			construction_req, upkeep, 
 			resident_max, cons_max, prod_max,
 			crime_bonus, happiness_bonus,
 			doctrinality_bonus, pacifism_bonus,
@@ -229,10 +264,10 @@ impl <'bt,'ut,'rt,'dt> Bldg <'bt,'ut,'rt,'dt> {
 	pub fn chk_connection_inds(&self, n_bldgs: usize) {
 		for bldg_recv_frm in &self.bldgs_recv_frm {
 			if let Some(bldg_ind) = bldg_recv_frm.bldg_ind {
-				assertq!(bldg_ind < n_bldgs);
+				debug_assertq!(bldg_ind < n_bldgs);
 			}else{
-				assertq!(bldg_recv_frm.zone_type == ZoneType::Residential);
-				assertq!(self.template.bldg_type == BldgType::Taxable(ZoneType::Residential));
+				debug_assertq!(bldg_recv_frm.zone_type == ZoneType::Residential);
+				debug_assertq!(self.template.bldg_type.is_residential());
 				// setting bldg_recv_frm.bldg_ind = None should only be done for residencies
 				// (it is the mechanism of having a population)
 			}
@@ -240,7 +275,7 @@ impl <'bt,'ut,'rt,'dt> Bldg <'bt,'ut,'rt,'dt> {
 		
 		for bldg_send_to in &self.bldgs_send_to {
 			if let Some(bldg_ind) = bldg_send_to.bldg_ind {
-				assertq!(bldg_ind < n_bldgs);
+				debug_assertq!(bldg_ind < n_bldgs);
 			}else{
 				panicq!("bldg is sending to unknown bldg_ind");
 			}
@@ -253,7 +288,7 @@ impl <'bt,'ut,'rt,'dt> Bldg <'bt,'ut,'rt,'dt> {
 		for c in &self.bldgs_recv_frm {
 			// should only have null bldg_inds for residents 
 			// moving in to a residential bldg
-			debug_assertq!(!c.bldg_ind.is_none() || self.template.bldg_type == BldgType::Taxable(ZoneType::Residential));
+			debug_assertq!(!c.bldg_ind.is_none() || self.template.bldg_type.is_residential());
 			
 			if zone_type == c.zone_type {n += 1;}
 		}
@@ -273,7 +308,7 @@ impl <'bt,'ut,'rt,'dt> Bldg <'bt,'ut,'rt,'dt> {
 		let n_sold = self.bldgs_send_to.len();
 		#[cfg(any(feature="opt_debug", debug_assertions))]
 		{
-			if let BldgType::Taxable(zone) = self.template.bldg_type {
+			if let Some(zone) = self.template.bldg_type.zone_type() {
 				debug_assertq!((zone == ZoneType::Residential && n_sold <= self.n_residents()) || 
 						(zone != ZoneType::Residential && n_sold <= self.prod()));
 			}else {panicq!("building should be taxable"); }
@@ -307,7 +342,7 @@ impl <'bt,'ut,'rt,'dt> Bldg <'bt,'ut,'rt,'dt> {
 	
 	// building production
 	pub fn prod(&self) -> usize {
-		if self.template.bldg_type != BldgType::Taxable(ZoneType::Residential) {
+		if !self.template.bldg_type.is_residential() {
 			self.bldgs_send_to.len()
 		}else{
 			0 // residencies don't produce anything
@@ -332,7 +367,7 @@ pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, uni
 		map_data: &mut MapData, exs: &mut Vec<HashedMapEx<'bt,'ut,'rt,'dt>>, bldgs: &mut Vec<Bldg<'bt,'ut,'rt,'dt>>,
 		player: &mut Player<'bt,'ut,'rt,'dt>, gstate: &mut GameState, temps: &Templates<'bt,'ut,'rt,'dt,'_>) {
 	
-	enum ProdAction<'ut,'rt> {IncProg, DecProg, FinProd {coord_add: u64, unit_template: &'ut UnitTemplate<'rt>}};
+	enum ProdAction<'ut,'rt> {IncProg, DecProg, FinProd {coord_add: u64, unit_template: &'ut UnitTemplate<'rt>}}
 	
 	let map_sz = map_data.map_szs[map_data.max_zoom_ind()];
 	
@@ -343,9 +378,7 @@ pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, uni
 	// req. building not be under construction
 	if let Some(_) = b.construction_done {return;}
 	
-	match &b.args {
-	  BldgArgs::PopulationCenter {production, ..} |
-	  BldgArgs::GenericProducable {production} => {
+	if let Some(production) = b.args.production() {
 	  	if let Some(entry) = production.last() {
 			let movement_type = entry.production.movement_type;
 			
@@ -366,7 +399,7 @@ pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, uni
 								}
 							}
 						}
-					);};
+					);}
 					
 					macro_rules! chk_row {($i: expr) => (
 						for j_off in -1..=(sz.w as isize) {
@@ -389,9 +422,8 @@ pub fn build_unit<'o,'bt,'ut,'rt,'dt>(bldg_ind: usize, cur_player: SmSvType, uni
 			}else{
 				ProdAction::IncProg
 			};
-		// not producing anything
-		}else{return;}
-	 } BldgArgs::None | BldgArgs::PublicEvent {..} => {return;}}
+		}else{return;} // not producing anything
+	 }else{return;} // building cannot produce anything
 	
 	/////////////////////
 	// perform production action
@@ -451,8 +483,8 @@ pub fn trim_cons(bldg_ind_recv: usize, bldgs: &mut Vec<Bldg>, pstats: &mut Stats
 }
 
 pub fn add_commute_to(bldg_ind_send: usize, bldg_ind_recv: usize, bldgs: &mut Vec<Bldg>, pstats: &mut Stats) {
-	if let BldgType::Taxable(zone_send) = bldgs[bldg_ind_send].template.bldg_type {
-	if let BldgType::Taxable(zone_recv) = bldgs[bldg_ind_recv].template.bldg_type {
+	if let Some(zone_send) = bldgs[bldg_ind_send].template.bldg_type.zone_type() {
+	if let Some(zone_recv) = bldgs[bldg_ind_recv].template.bldg_type.zone_type() {
 		debug_assertq!(zone_send != ZoneType::Residential && (bldgs[bldg_ind_send].prod_capac() > bldgs[bldg_ind_send].n_sold()) ||
 				zone_send == ZoneType::Residential && (bldgs[bldg_ind_send].n_residents() > bldgs[bldg_ind_send].n_sold()));
 		debug_assertq!(bldgs[bldg_ind_send].owner_id == bldgs[bldg_ind_recv].owner_id);
@@ -490,19 +522,18 @@ pub fn rm_commute_to(bldg_ind_send: usize, commute_ind: usize, bldgs: &mut Vec<B
 	// cut production?
 	while bldgs[bldg_ind_recv].prod_capac() < bldgs[bldg_ind_recv].prod() {
 		let b_recv = &bldgs[bldg_ind_recv];
-		debug_assertq!(b_recv.template.bldg_type != BldgType::Taxable(ZoneType::Residential));
+		debug_assertq!(!b_recv.template.bldg_type.is_residential());
 		rm_commute_to(bldg_ind_recv, b_recv.bldgs_send_to.len()-1, bldgs, pstats);
 	}
 	
 	trim_cons(bldg_ind_recv, bldgs, pstats);
 	
 	// record keeping
-	if let BldgType::Taxable(zone_send) = bldgs[bldg_ind_send].template.bldg_type {
-		if zone_send == ZoneType::Residential {
+	if bldgs[bldg_ind_send].template.bldg_type.is_residential() {
 			pstats.employed -= 1;
 			bldgs[bldg_ind_recv].population_update_taxable_upkeep(pstats);
-		}
-	}else{panicq!("bldg not taxable");}
+	}
+	debug_assertq!(bldgs[bldg_ind_send].template.bldg_type.is_taxable());
 }
 
 // find all commutes to and from bldg_ind which use bldg_ind_old
@@ -543,10 +574,8 @@ pub fn rm_all_commutes(bldg_ind: usize, bldgs: &mut Vec<Bldg>, player: &mut Play
 		
 		// commute contains product or employment
 		if let Some(bldg_ind_sender) = bldg_ind_sender {
-			
 			// residential zones only send employment, and not to other residential zones
-			debug_assertq!(b.template.bldg_type != BldgType::Taxable(ZoneType::Residential) ||
-				      commute_last.zone_type != ZoneType::Residential);
+			debug_assertq!(!b.template.bldg_type.is_residential() ||commute_last.zone_type != ZoneType::Residential);
 			
 			let commutes_sender = &bldgs[bldg_ind_sender].bldgs_send_to;
 			let commute_ind = find_commute_ind(bldg_ind, &commutes_sender);
@@ -554,9 +583,7 @@ pub fn rm_all_commutes(bldg_ind: usize, bldgs: &mut Vec<Bldg>, player: &mut Play
 		
 		// remove resident
 		}else{
-			debug_assertq!(b.template.bldg_type == BldgType::Taxable(ZoneType::Residential) &&
-				      commute_last.zone_type == ZoneType::Residential);
-			
+			debug_assertq!(b.template.bldg_type.is_residential() && commute_last.zone_type == ZoneType::Residential);
 			rm_resident(bldg_ind, bldgs, player, map_sz);
 		}
 	}
@@ -568,12 +595,15 @@ pub fn rm_all_commutes(bldg_ind: usize, bldgs: &mut Vec<Bldg>, player: &mut Play
 pub fn add_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>,
 		zone_exs: &HashedMapZoneEx, pstats: &mut Stats, map_sz: MapSz) {
 	let b = &mut bldgs[bldg_ind];
-	debug_assertq!(b.template.bldg_type == BldgType::Taxable(ZoneType::Residential));
+	debug_assertq!(b.template.bldg_type.is_residential());
 	debug_assertq!(b.n_residents() < b.template.resident_max);
 	
 	b.bldgs_recv_frm.push(Commute {bldg_ind: None, zone_type: ZoneType::Residential});
 	
+	let wealth_ind = WealthLevel::from(b.args.wealth()) as usize;
+	
 	pstats.population += 1;
+	pstats.population_wealth_level[wealth_ind] += 1;
 	b.population_update_taxable_upkeep(pstats);
 	
 	// update city hall population counters
@@ -582,7 +612,7 @@ pub fn add_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>,
 			Dist::Is {bldg_ind: ch_bldg_ind, ..} |
 			Dist::ForceRecompute {bldg_ind: ch_bldg_ind, ..} => {
 				if let BldgArgs::PopulationCenter {ref mut population, ..} = bldgs[ch_bldg_ind].args {
-					*population += 1;
+					population[wealth_ind] += 1;
 				}else{panicq!("expected city hall");}
 			}
 			Dist::NotInit | Dist::NotPossible {..} => {}
@@ -593,7 +623,7 @@ pub fn add_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>,
 // needs zone_exs
 pub fn rm_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>, player: &mut Player, map_sz: MapSz){
 	let b = &mut bldgs[bldg_ind];
-	debug_assertq!(b.template.bldg_type == BldgType::Taxable(ZoneType::Residential));
+	debug_assertq!(b.template.bldg_type.is_residential());
 	let n_residents = b.n_residents();
 	debug_assertq!(n_residents > 0);
 	
@@ -623,7 +653,10 @@ pub fn rm_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>, player: &mut Player, 
 	
 	/////// record keeping
 	let b = &mut bldgs[bldg_ind];
+	let wealth_ind = WealthLevel::from(b.args.wealth()) as usize;
+	
 	player.stats.population -= 1;
+	player.stats.population_wealth_level[wealth_ind] -= 1;
 	b.population_update_taxable_upkeep(&mut player.stats);
 	
 	// rm from city hall
@@ -632,7 +665,7 @@ pub fn rm_resident(bldg_ind: usize, bldgs: &mut Vec<Bldg>, player: &mut Player, 
 			Dist::Is {bldg_ind: ch_bldg_ind, ..} |
 			Dist::ForceRecompute {bldg_ind: ch_bldg_ind, ..} => {
 				if let BldgArgs::PopulationCenter {ref mut population, ..} = bldgs[ch_bldg_ind].args {
-					*population -= 1;
+					population[wealth_ind] -= 1;
 				}else{panicq!("expected city hall");}
 			}
 			Dist::NotInit | Dist::NotPossible {..} => {}
@@ -656,7 +689,7 @@ pub enum BldgArgs<'ut,'rt> {
 	PopulationCenter {
 		tax_rates: Box<[u8]>, // for each zone type indexed by ZoneType
 		production: Vec<ProductionEntry<'ut,'rt>>, // unit production
-		population: u32, // updated w/: zone_ex.set_city_hall_dist() and add_resident(), rm_resident()
+		population: Vec<u32>, // updated w/: zone_ex.set_city_hall_dist() and add_resident(), rm_resident() -- indexed by WealthLevel (zones/happiness.rs)
 		nm: String
 	},
 	
@@ -670,7 +703,41 @@ pub enum BldgArgs<'ut,'rt> {
 		turn_created: usize
 	},
 	
+	Taxable {
+		wealth_level: i32
+	},
+	
 	None
+}
+
+impl <'ut,'rt>BldgArgs<'ut,'rt> {
+	pub fn production(&self) -> Option<&Vec<ProductionEntry<'ut,'rt>>> {
+		match self {
+			BldgArgs::PopulationCenter {production, ..} |
+			BldgArgs::GenericProducable {production} => {
+				Some(production)
+			}
+			BldgArgs::None | BldgArgs::Taxable {..} | BldgArgs::PublicEvent {..} => None
+		}
+	}
+	
+	pub fn production_mut(&mut self) -> Option<&mut Vec<ProductionEntry<'ut,'rt>>> {
+		match self {
+			BldgArgs::PopulationCenter {production, ..} |
+			BldgArgs::GenericProducable {production} => {
+				Some(production)
+			}
+			BldgArgs::None | BldgArgs::Taxable {..} | BldgArgs::PublicEvent {..} => None
+		}
+	}
+	
+	pub fn wealth(&self) -> i32 {
+		match self {
+			BldgArgs::Taxable {wealth_level} => {*wealth_level}
+			BldgArgs::PopulationCenter {..} | BldgArgs::GenericProducable {..} |
+			BldgArgs::PublicEvent {..} | BldgArgs::None => panicq!("building has no wealth level")
+		}
+	}
 }
 
 impl BldgTemplate<'_,'_,'_> {

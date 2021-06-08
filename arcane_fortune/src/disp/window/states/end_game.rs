@@ -21,37 +21,35 @@ impl EndGameWindowState {
 			d.addch(dstate.chars.vline_char);
 			for _ in 0..(window_w-2) {d.addch(' ');}
 			d.addch(dstate.chars.vline_char);
-		};};
+		};}
 		
 		macro_rules! pl{() => {
 			d.mv(row, col); row += 1;
 			d.addch(dstate.chars.vline_char);
 			d.addch(' ');
-		};};
+		};}
 		
-		macro_rules! pr{() => {d.addch(' '); d.addch(dstate.chars.vline_char);};};
+		macro_rules! pr{() => {d.addch(' '); d.addch(dstate.chars.vline_char);};}
 		
 		// clear to end of line
 		macro_rules! clr{() => {
 			d.getyx(stdscr(), &mut y, &mut x);
 			for _ in x..(col + window_w-2) {d.addch(' ');}
 			pr!();
-		};};
+		};}
 		
-		/////// top ln
-		{
+		{ /////// top ln
 			d.mv(row, col); row += 1;
 			d.addch(dstate.chars.ulcorner_char);
 			for _ in 0..(window_w-2) {d.addch(dstate.chars.hline_char);}
 			d.addch(dstate.chars.urcorner_char);
 		}
 		
-		//////// print title: {} has been destroyed!
-		{
+		{ // print title: {} has been destroyed!
 			pl!();
 			let txt_len = format!("{} has been destroyed!", owner.personalization.nm).len() as i32;
 			for _ in 0..((window_w - txt_len)/2) {d.addch(' ');}
-			print_civ_nm(owner, d);
+			print_civ_nm_noun(owner, d);
 			d.attron(COLOR_PAIR(CYELLOW));
 			d.addstr(" has been destroyed!");
 			d.attroff(COLOR_PAIR(CYELLOW));
@@ -82,8 +80,7 @@ impl EndGameWindowState {
 		
 		bln!();
 		
-		//////// esc
-		{
+		{ ////// esc
 			pl!();
 			let button = &mut dstate.buttons.Esc_to_close;
 			for _ in 0..((window_w - button.print_txt(&dstate.local).len() as i32)/2) {d.addch(' ');}
@@ -91,8 +88,7 @@ impl EndGameWindowState {
 			clr!();
 		}
 		
-		////// bottom ln
-		{
+		{ ////// bottom ln
 			d.mv(row, col);
 			d.addch(dstate.chars.llcorner_char);
 			for _ in 0..(window_w-2) {d.addch(dstate.chars.hline_char);}

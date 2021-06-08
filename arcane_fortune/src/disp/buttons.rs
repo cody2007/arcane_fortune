@@ -117,10 +117,7 @@ create_buttons!(
 	move_unit = move_unit, Move_to, Empty_txt
 	group_move = group_move, Group_move, Group_move_tool_tip
 	
-	zone_residential = residential, Zone_residential, Empty_txt
-	zone_industrial = industrial, Zone_industrial, Empty_txt
-	zone_agricultural = agricultural, Zone_agricultural, Empty_txt
-	zone_business = business, Zone_business, Empty_txt
+	zone_land = zone_land, Zone_land, Empty_txt
 	
 	tax_residential = residential, Residential, Empty_txt
 	tax_industrial = industrial, Industrial, Empty_txt
@@ -150,6 +147,7 @@ create_buttons!(
 	leave_brigade = join_or_leave_brigade, Leave_brigade, Empty_txt
 	join_brigade = join_or_leave_brigade, Join_brigade, Empty_txt
 	build_road = build_road, Build_road_to, Empty_txt
+	build_pipe = build_pipe, Build_pipe_to, Empty_txt
 	view_brigade = view_brigade, view_brigade, Empty_txt
 	view_production = view_production, view_production, Empty_txt
 	change_bldg_production = change_bldg_production, Empty_txt, Empty_txt
@@ -198,6 +196,9 @@ create_buttons!(
 	tab = tab, Empty_txt, Empty_txt
 	Exit = enter, Exit, Empty_txt
 	rm_bldgs_and_zones = rm_bldgs_and_zones, rm_bldgs_and_zones, Empty_txt
+	
+	A_historical_scenario = a_historical_scenario, A_historical_scenario, Empty_txt
+	Random_map_and_countries = random_map_and_countries, Random_map_and_countries, Empty_txt
 );
 
 impl Button {

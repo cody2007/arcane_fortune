@@ -52,7 +52,7 @@ impl ExploreType {
 							}
 						}
 					} // valid coord
-				};};
+				};}
 				
 				macro_rules! search_perimeter_of_offset{($k: expr, $offset:expr) => {
 					for ordering in rng.inds(4).iter() {
@@ -68,7 +68,7 @@ impl ExploreType {
 							_ => {panicq!("invalid random number");}
 						}
 					}
-				};};
+				};}
 				
 				if rng.gen_f32b() < 0.5 {
 					for offset in (1..search_dist).rev() {
@@ -101,10 +101,10 @@ impl ExploreType {
 				// direction pointed away from the perimeter.
 				// if we reach the upper left corner of one of the rectangles, we move to the next perimeter out
 				
-				const Y_FACTOR: isize = 2;
+				const Y_FACTOR: isize = 1;
 				
-				const UNIT_STEP_SZ_Y: isize = 3;
-				const UNIT_STEP_SZ_X: isize = UNIT_STEP_SZ_Y*Y_FACTOR;
+				const UNIT_STEP_SZ_Y: isize = 6;
+				const UNIT_STEP_SZ_X: isize = 6;//UNIT_STEP_SZ_Y*Y_FACTOR;
 				
 				let cur = action_iface.start_coord; // current unit position
 				let initial_start_coord = Coord::frm_ind(start_coord, map_sz);
@@ -132,7 +132,7 @@ impl ExploreType {
 							return Some(action_iface.action);
 						}
 					}
-				};};
+				};}
 				
 				// attempt to move along the current perimeter
 				if on_perim_col || on_perim_row {
@@ -215,7 +215,7 @@ pub fn find_square_buildable<'bt,'ut,'rt>(search_start: Coord, bldg_template: &B
 					return Some(start_coord);
 				}
 			} // valid coord
-		};};
+		};}
 		
 		for k in -offset..=offset {
 			// row scan

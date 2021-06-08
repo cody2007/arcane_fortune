@@ -15,7 +15,7 @@ impl RiotingAlertState {
 		
 		let mut row = 0;
 		macro_rules! mvl{() => {d.mv(row + y, x); row += 1;};
-					     ($final: expr) => {d.mv(row + y, x);}};
+					     ($final: expr) => {d.mv(row + y, x);}}
 		
 		mvl!(); dstate.buttons.Esc_to_close.print(None, &dstate.local, d);
 		mvl!(); mvl!(1);
